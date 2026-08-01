@@ -1,0 +1,10 @@
+bin/
+obj/
+node_modules/
+__pycache__/
+*.pyc
+venv/
+appsettings.Development.json
+.env
+*.pbix.bak
+.vs/
