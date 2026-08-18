@@ -7,13 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TourDuLich.Application\TourDuLich.Application.csproj" />
     <ProjectReference Include="..\TourDuLich.Infrastructure\TourDuLich.Infrastructure.csproj" />
+    <ProjectReference Include="..\TourDuLich.Domain\TourDuLich.Domain.csproj" />
   </ItemGroup>
 
 </Project>
