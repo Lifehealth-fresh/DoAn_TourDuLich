@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Authorization;
 using TourDuLich.API.DTOs;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
@@ -100,39 +101,6 @@ public class TourController : ControllerBase
                 ngayKhoiHanh = x.NgayKhoiHanh,
                 ngayKetThuc = x.NgayKetThuc,
                 diaDiem = x.DiaDiem
-            })
-            .ToListAsync();
-
-        return Ok(result);
-    }
-
-    // GET /api/Tour/{maTour}/lich-trinh
-    [HttpGet("{maTour}/lich-trinh")]
-    public async Task<ActionResult> GetLichTrinh(string maTour)
-    {
-        var key = FixedLengthHelper.PadTo20(maTour);
-
-        if (!await _context.Tours.AnyAsync(t => t.MaTour == key))
-            return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
-
-        var result = await _context.LichTrinhs
-            .AsNoTracking()
-            .Where(x => x.MaTour == key)
-            .OrderBy(x => x.NgayThu)
-            .ThenBy(x => x.ThuTuTrongNgay)
-            .Select(x => new
-            {
-                maLichTrinh = FixedLengthHelper.TrimSafe(x.MaLichTrinh),
-                maTour = FixedLengthHelper.TrimSafe(x.MaTour),
-                ngayThu = x.NgayThu,
-                thuTuTrongNgay = x.ThuTuTrongNgay,
-                maDthamQuan = FixedLengthHelper.TrimSafe(x.MaDthamQuan),
-                maSanPham = FixedLengthHelper.TrimSafe(x.MaSanPham),
-                soLuong = x.SoLuong,
-                donGia = x.DonGia,
-                thanhTien = x.ThanhTien,
-                thoiGianDuKien = x.ThoiGianDuKien,
-                mota = x.Mota
             })
             .ToListAsync();
 
@@ -247,5 +215,123 @@ public class TourController : ControllerBase
         _context.Tours.Remove(existing);
         await _context.SaveChangesAsync();
         return NoContent();
+    }
+
+    // POST /api/Tour/tu-thiet-ke
+    [HttpPost("tu-thiet-ke")]
+    [Authorize]
+    public async Task<ActionResult> CreateSelfDesignedTour(
+        TuThietKeRequestDto request)
+    {
+        var maUser = User.FindFirst("MaUser")?.Value;
+
+        if (maUser is null)
+        {
+            return Unauthorized();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.MaYeuCau))
+        {
+            return BadRequest(new
+            {
+                message = "Mã yêu cầu thiết kế không được để trống."
+            });
+        }
+
+        var maUserDb = FixedLengthHelper.PadTo20(maUser);
+        var maYeuCauDb = FixedLengthHelper.PadTo20(request.MaYeuCau);
+
+        var requestData = await _context.YeuCauThietKes
+            .Where(item =>
+                item.MaYeuCau == maYeuCauDb &&
+                item.MaUser == maUserDb)
+            .Select(item => new
+            {
+                Request = item,
+                Destination = item.DiemDenMongMuon,
+                SoNguoiLon = item.SoNguoiLon,
+                SoTreEm = item.SoTreEm,
+                TrangThai = item.TrangThai,
+                MaTourTao = item.MaTourTao
+            })
+            .FirstOrDefaultAsync();
+
+        if (requestData is null)
+        {
+            return NotFound(new
+            {
+                message = "Không tìm thấy yêu cầu thiết kế của bạn."
+            });
+        }
+
+        if (FixedLengthHelper.TrimSafe(requestData.TrangThai) != "Moi")
+        {
+            return BadRequest(new
+            {
+                message = "Chỉ yêu cầu đang ở trạng thái Moi mới có thể tạo tour."
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(requestData.MaTourTao))
+        {
+            return Conflict(new
+            {
+                message = "Yêu cầu này đã được tạo tour."
+            });
+        }
+
+        var soNguoiLon = requestData.SoNguoiLon ?? 0;
+        var soTreEm = requestData.SoTreEm ?? 0;
+
+        string maTour;
+        string maTourDb;
+
+        do
+        {
+            maTour = $"TD{Guid.NewGuid():N}"[..20].ToUpperInvariant();
+            maTourDb = FixedLengthHelper.PadTo20(maTour);
+        }
+        while (await _context.Tours
+            .AnyAsync(item => item.MaTour == maTourDb));
+
+        var tenTour = $"Tour tự thiết kế - {requestData.Destination}".Trim();
+
+        if (tenTour.Length > 150)
+        {
+            tenTour = tenTour[..150];
+        }
+
+        await using var transaction =
+            await _context.Database.BeginTransactionAsync();
+
+        var tour = new Tour
+        {
+            MaTour = maTourDb,
+            TenTour = tenTour,
+            GiaTour = 0,
+            Slkhach = soNguoiLon + soTreEm,
+            LoaiTour = FixedLengthHelper.PadTo20("TuThietKe"),
+            TrangThai = FixedLengthHelper.PadTo20("Nhap")
+        };
+
+        _context.Tours.Add(tour);
+
+        requestData.Request.MaTourTao = maTourDb;
+        requestData.Request.TrangThai =
+            FixedLengthHelper.PadTo20("DangThietKe");
+
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return StatusCode(StatusCodes.Status201Created, new
+        {
+            maTour = FixedLengthHelper.TrimSafe(tour.MaTour),
+            maYeuCau = FixedLengthHelper.TrimSafe(requestData.Request.MaYeuCau),
+            tenTour = tour.TenTour,
+            loaiTour = FixedLengthHelper.TrimSafe(tour.LoaiTour),
+            trangThai = FixedLengthHelper.TrimSafe(tour.TrangThai),
+            slkhach = tour.Slkhach,
+            giaTour = tour.GiaTour
+        });
     }
 }
