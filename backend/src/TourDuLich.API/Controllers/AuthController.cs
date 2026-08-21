@@ -42,12 +42,13 @@ public class AuthController : ControllerBase
             return Conflict(new { message = "Số điện thoại đã được đăng ký." });
         }
 
-        var vaiTroTonTai = await _context.VaiTros
-            .AnyAsync(role => role.MaVaiTro == request.MaVaiTro);
+        var vaiTroKhachHang = await _context.VaiTros
+            .FirstOrDefaultAsync(role =>
+                role.TenVaiTro.Trim().ToLower() == "khachhang");
 
-        if (!vaiTroTonTai)
+        if (vaiTroKhachHang is null)
         {
-            return BadRequest(new { message = "Vai trò không tồn tại." });
+            return BadRequest(new { message = "Chưa cấu hình vai trò KhachHang trong hệ thống." });
         }
 
         string maUser;
@@ -66,14 +67,20 @@ public class AuthController : ControllerBase
             MaUser = maUserDb,
             SoDienThoai = soDienThoaiDb,
             MatKhau = BCrypt.Net.BCrypt.HashPassword(matKhau),
-            MaVaiTro = request.MaVaiTro
+            MaVaiTro = vaiTroKhachHang.MaVaiTro
         };
 
         _context.NguoiSuDungs.Add(nguoiSuDung);
         await _context.SaveChangesAsync();
 
+        var token = _jwtTokenService.GenerateToken(
+            FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!,
+            nguoiSuDung.MaVaiTro,
+            vaiTroKhachHang.TenVaiTro.Trim());
+
         return StatusCode(StatusCodes.Status201Created, new
         {
+            token,
             maUser = FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser),
             soDienThoai = FixedLengthHelper.TrimSafe(nguoiSuDung.SoDienThoai),
             maVaiTro = nguoiSuDung.MaVaiTro
@@ -94,6 +101,7 @@ public class AuthController : ControllerBase
         var soDienThoaiDb = FixedLengthHelper.PadTo20(soDienThoai);
 
         var nguoiSuDung = await _context.NguoiSuDungs
+            .Include(user => user.MaVaiTroNavigation)
             .FirstOrDefaultAsync(user => user.SoDienThoai == soDienThoaiDb);
 
         if (nguoiSuDung is null ||
@@ -103,7 +111,10 @@ public class AuthController : ControllerBase
         }
 
         var maUser = FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!;
-        var token = _jwtTokenService.GenerateToken(maUser, nguoiSuDung.MaVaiTro);
+        var token = _jwtTokenService.GenerateToken(
+            maUser,
+            nguoiSuDung.MaVaiTro,
+            nguoiSuDung.MaVaiTroNavigation.TenVaiTro.Trim());
 
         return Ok(new
         {

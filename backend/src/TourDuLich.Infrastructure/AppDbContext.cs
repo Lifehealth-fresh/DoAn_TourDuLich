@@ -481,8 +481,6 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("KhachHang");
 
-            entity.HasIndex(e => e.MaUser, "UQ_KhachHang_MaUser").IsUnique();
-
             entity.Property(e => e.MaKhachHang)
                 .HasMaxLength(20)
                 .IsFixedLength();
@@ -505,8 +503,8 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Ten).HasMaxLength(50);
             entity.Property(e => e.TenGiayTo).HasMaxLength(50);
 
-            entity.HasOne(d => d.MaUserNavigation).WithOne(p => p.KhachHang)
-                .HasForeignKey<KhachHang>(d => d.MaUser)
+            entity.HasOne(d => d.MaUserNavigation).WithMany(p => p.KhachHangs)
+                .HasForeignKey(d => d.MaUser)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_KhachHang_NguoiSuDung");
         });

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
@@ -72,6 +73,7 @@ public class KhuVucController : ControllerBase
 
     // POST /api/KhuVuc
     [HttpPost]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> CreateKhuVuc([FromBody] KhuVucCreateDto dto)
     {
         var maKhuVuc = FixedLengthHelper.PadTo20(dto.MaKhuVuc);
@@ -107,6 +109,7 @@ public class KhuVucController : ControllerBase
 
     // PUT /api/KhuVuc/{maKhuVuc}
     [HttpPut("{maKhuVuc}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> UpdateKhuVuc(string maKhuVuc, [FromBody] KhuVucUpdateDto dto)
     {
         var existing = await _context.KhuVucs.FindAsync(FixedLengthHelper.PadTo20(maKhuVuc));
@@ -126,6 +129,7 @@ public class KhuVucController : ControllerBase
 
     // DELETE /api/KhuVuc/{maKhuVuc}
     [HttpDelete("{maKhuVuc}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> DeleteKhuVuc(string maKhuVuc)
     {
         var key = FixedLengthHelper.PadTo20(maKhuVuc);

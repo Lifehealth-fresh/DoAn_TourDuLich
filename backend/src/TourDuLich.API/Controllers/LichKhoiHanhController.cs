@@ -5,6 +5,8 @@ using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
 
+using Microsoft.AspNetCore.Authorization;
+
 namespace TourDuLich.API.Controllers;
 
 [ApiController]
@@ -68,6 +70,7 @@ public class LichKhoiHanhController : ControllerBase
 
     // POST /api/LichKhoiHanh
     [HttpPost]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> CreateLichKhoiHanh([FromBody] LichKhoiHanhCreateDto dto)
     {
         var maKhoiHanh = FixedLengthHelper.PadTo20(dto.MaKhoiHanh);
@@ -103,6 +106,7 @@ public class LichKhoiHanhController : ControllerBase
 
     // PUT /api/LichKhoiHanh/{maKhoiHanh}
     [HttpPut("{maKhoiHanh}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> UpdateLichKhoiHanh(string maKhoiHanh, [FromBody] LichKhoiHanhUpdateDto dto)
     {
         var existing = await _context.LichKhoiHanhs.FindAsync(FixedLengthHelper.PadTo20(maKhoiHanh));
@@ -119,6 +123,7 @@ public class LichKhoiHanhController : ControllerBase
 
     // DELETE /api/LichKhoiHanh/{maKhoiHanh}
     [HttpDelete("{maKhoiHanh}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> DeleteLichKhoiHanh(string maKhoiHanh)
     {
         var key = FixedLengthHelper.PadTo20(maKhoiHanh);

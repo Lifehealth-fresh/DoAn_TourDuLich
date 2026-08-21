@@ -5,6 +5,8 @@ using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
 
+using Microsoft.AspNetCore.Authorization;
+
 namespace TourDuLich.API.Controllers;
 
 [ApiController]
@@ -110,6 +112,7 @@ public class DoiTacController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> CreateDoiTac(DoiTacCreateDto request)
     {
         if (string.IsNullOrWhiteSpace(request.MaDoiTac) ||
@@ -190,6 +193,7 @@ public class DoiTacController : ControllerBase
     }
 
     [HttpPut("{maDoiTac}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> UpdateDoiTac(
         string maDoiTac,
         DoiTacUpdateDto request)
@@ -258,6 +262,7 @@ public class DoiTacController : ControllerBase
     }
 
     [HttpDelete("{maDoiTac}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> DeleteDoiTac(string maDoiTac)
     {
         var maDoiTacDb = FixedLengthHelper.PadTo20(maDoiTac);

@@ -1,6 +1,6 @@
-﻿namespace TourDuLich.API.DTOs;
+namespace TourDuLich.API.DTOs;
 
-public class RegisterDto
+public class AdminCreateSaleDto
 {
     public string SoDienThoai { get; set; } = null!;
     public string MatKhau { get; set; } = null!;

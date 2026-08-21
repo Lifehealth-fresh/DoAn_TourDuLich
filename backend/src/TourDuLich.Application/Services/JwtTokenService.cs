@@ -15,7 +15,7 @@ public class JwtTokenService
         _configuration = configuration;
     }
 
-    public string GenerateToken(string maUser, int maVaiTro)
+    public string GenerateToken(string maUser, int maVaiTro, string tenVaiTro)
     {
         var jwtKey = _configuration["Jwt:Key"]
             ?? throw new InvalidOperationException("JWT key is not configured.");
@@ -27,7 +27,8 @@ public class JwtTokenService
         var claims = new[]
         {
             new Claim("MaUser", maUser),
-            new Claim("MaVaiTro", maVaiTro.ToString())
+            new Claim("MaVaiTro", maVaiTro.ToString()),
+            new Claim(ClaimTypes.Role, tenVaiTro)
         };
 
         var signingCredentials = new SigningCredentials(

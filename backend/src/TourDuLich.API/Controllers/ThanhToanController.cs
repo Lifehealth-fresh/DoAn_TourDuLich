@@ -74,21 +74,29 @@ public class ThanhToanController : ControllerBase
             return Unauthorized();
         }
 
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
         var maBookingDb = FixedLengthHelper.PadTo20(maBooking);
         var thanhCong = FixedLengthHelper.PadTo20("ThanhCong");
 
         var booking = await _context.DatDichVus
             .FirstOrDefaultAsync(item =>
-                item.MaBooking == maBookingDb &&
-                item.MaUser == maUserDb);
+                item.MaBooking == maBookingDb);
 
         if (booking is null)
         {
             return NotFound(new
             {
-                message = "Không tìm thấy booking thuộc tài khoản của bạn."
+                message = "Không tìm thấy booking."
             });
+        }
+
+        var maUserDb = FixedLengthHelper.PadTo20(maUser);
+        var isOwner = booking.MaUser == maUserDb;
+        var isSale = User.IsInRole("Sale");
+        var isAdmin = User.IsInRole("Admin");
+
+        if (!isOwner && !isSale && !isAdmin)
+        {
+            return NotFound(new { message = "Không tìm thấy booking." });
         }
 
         var daThanhToan = await _context.ThanhToans
@@ -99,8 +107,20 @@ public class ThanhToanController : ControllerBase
 
         var tongTien = booking.ThanhTien ?? 0;
 
+        if (isSale && !isOwner)
+        {
+            return Ok(new
+            {
+                maBooking = FixedLengthHelper.TrimSafe(booking.MaBooking),
+                tongTien,
+                daThanhToan,
+                conLai = tongTien - daThanhToan
+            });
+        }
+
         return Ok(new
         {
+            maBooking = FixedLengthHelper.TrimSafe(booking.MaBooking),
             tongTien,
             daThanhToan,
             conLai = tongTien - daThanhToan

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
@@ -20,110 +20,297 @@ public class KhachHangController : ControllerBase
         _context = context;
     }
 
-    [HttpGet("me")]
-    public async Task<ActionResult> GetMyProfile()
+    [HttpGet]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> GetMine()
     {
-        var maUser = GetCurrentMaUser();
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
 
-        if (maUser is null)
-        {
-            return Unauthorized();
-        }
+        var profiles = await _context.KhachHangs
+            .AsNoTracking()
+            .Include(item => item.GiayTos)
+            .Where(item => item.MaUser == maUserDb)
+            .OrderBy(item => item.MaKhachHang)
+            .ToListAsync();
 
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
-
-        var khachHang = await _context.KhachHangs
-            .Where(kh => kh.MaUser == maUserDb)
-            .Select(kh => new
-            {
-                maKhachHang = FixedLengthHelper.TrimSafe(kh.MaKhachHang),
-                ho = kh.Ho,
-                ten = kh.Ten,
-                hoGiayTo = kh.HoGiayTo,
-                tenGiayTo = kh.TenGiayTo,
-                quocTich = kh.QuocTich,
-                danhXung = FixedLengthHelper.TrimSafe(kh.DanhXung),
-                gioiTinh = FixedLengthHelper.TrimSafe(kh.GioiTinh),
-                ngaySinh = kh.NgaySinh,
-                email = kh.Email,
-                soDienThoai = FixedLengthHelper.TrimSafe(kh.SoDienThoai),
-                giayTos = kh.GiayTos.Select(gt => new
-                {
-                    maGiayTo = FixedLengthHelper.TrimSafe(gt.MaGiayTo),
-                    loaiGiayTo = gt.LoaiGiayTo,
-                    soTrenGiayTo = gt.SoTrenGiayTo,
-                    ngayCap = gt.NgayCap,
-                    ngayHetHan = gt.NgayHetHan,
-                    noiCap = gt.NoiCap
-                }).ToList()
-            })
-            .FirstOrDefaultAsync();
-
-        if (khachHang is null)
-        {
-            return NotFound(new { message = "Bạn chưa có hồ sơ khách hàng." });
-        }
-
-        return Ok(khachHang);
+        return Ok(profiles.Select(ToProfile));
     }
 
-    [HttpPost("me")]
-    public async Task<ActionResult> CreateMyProfile(KhachHangCreateDto request)
+    [HttpGet("{maKhachHang}")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> GetOne(string maKhachHang)
     {
-        var maUser = GetCurrentMaUser();
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
 
-        if (maUser is null)
+        var profile = await _context.KhachHangs
+            .AsNoTracking()
+            .Include(item => item.GiayTos)
+            .FirstOrDefaultAsync(item =>
+                item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang) &&
+                item.MaUser == maUserDb);
+
+        return profile is null
+            ? NotFound(new { message = "Không tìm thấy hồ sơ thuộc tài khoản của bạn." })
+            : Ok(ToProfile(profile));
+    }
+
+    [HttpPost]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> Create(KhachHangCreateDto request)
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+
+        return await CreateForUser(maUserDb, request);
+    }
+
+    [HttpPut("{maKhachHang}")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> Update(
+        string maKhachHang,
+        KhachHangUpdateDto request)
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+
+        var validation = ValidateProfile(request.Ho, request.Ten);
+        if (validation is not null) return validation;
+
+        var profile = await _context.KhachHangs.FirstOrDefaultAsync(item =>
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang) &&
+            item.MaUser == maUserDb);
+
+        if (profile is null)
         {
-            return Unauthorized();
+            return NotFound(new { message = "Không tìm thấy hồ sơ thuộc tài khoản của bạn." });
         }
 
-        if (string.IsNullOrWhiteSpace(request.Ho) || string.IsNullOrWhiteSpace(request.Ten))
+        Apply(profile, request);
+        await _context.SaveChangesAsync();
+        return Ok(ToProfile(profile));
+    }
+
+    [HttpDelete("{maKhachHang}")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<IActionResult> Delete(string maKhachHang)
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+
+        var profile = await _context.KhachHangs.FirstOrDefaultAsync(item =>
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang) &&
+            item.MaUser == maUserDb);
+
+        if (profile is null)
         {
-            return BadRequest(new { message = "Họ và tên không được để trống." });
+            return NotFound(new { message = "Không tìm thấy hồ sơ thuộc tài khoản của bạn." });
         }
 
+        var documents = await _context.GiayTos
+            .Where(item => item.MaKhachHang == profile.MaKhachHang)
+            .ToListAsync();
+
+        _context.GiayTos.RemoveRange(documents);
+        _context.KhachHangs.Remove(profile);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("{maKhachHang}/giay-to")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> AddDocument(
+        string maKhachHang,
+        GiayToCreateDto request)
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+
+        var profile = await OwnedProfile(maKhachHang, maUserDb);
+        if (profile is null) return NotFound(new { message = "Không tìm thấy hồ sơ thuộc tài khoản của bạn." });
+
+        return await AddDocumentToProfile(profile, request);
+    }
+
+    [HttpGet("{maKhachHang}/giay-to")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> GetDocuments(string maKhachHang)
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+
+        var profile = await OwnedProfile(maKhachHang, maUserDb);
+        if (profile is null) return NotFound(new { message = "Không tìm thấy hồ sơ thuộc tài khoản của bạn." });
+
+        var documents = await _context.GiayTos
+            .Where(item => item.MaKhachHang == profile.MaKhachHang)
+            .ToListAsync();
+
+        return Ok(documents.Select(ToDocument));
+    }
+
+    [HttpPut("{maKhachHang}/giay-to/{maGiayTo}")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> UpdateDocument(
+        string maKhachHang,
+        string maGiayTo,
+        GiayToUpdateDto request)
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+
+        var validation = ValidateDocument(request);
+        if (validation is not null) return validation;
+
+        var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
+            item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo) &&
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang) &&
+            item.MaKhachHangNavigation.MaUser == maUserDb);
+
+        if (document is null)
+        {
+            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ của bạn." });
+        }
+
+        Apply(document, request);
+        await _context.SaveChangesAsync();
+        return Ok(ToDocument(document));
+    }
+
+    [HttpDelete("{maKhachHang}/giay-to/{maGiayTo}")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<IActionResult> DeleteDocument(string maKhachHang, string maGiayTo)
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+
+        var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
+            item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo) &&
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang) &&
+            item.MaKhachHangNavigation.MaUser == maUserDb);
+
+        if (document is null)
+        {
+            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ của bạn." });
+        }
+
+        _context.GiayTos.Remove(document);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpGet("tim-kiem")]
+    [Authorize(Roles = "Sale")]
+    public async Task<ActionResult> Search([FromQuery] string soDienThoai)
+    {
+        if (string.IsNullOrWhiteSpace(soDienThoai))
+            return BadRequest(new { message = "Số điện thoại không được để trống." });
+
+        var phoneDb = FixedLengthHelper.PadTo20(soDienThoai.Trim());
+        var user = await _context.NguoiSuDungs.FirstOrDefaultAsync(item => item.SoDienThoai == phoneDb);
+
+        if (user is null) return NotFound(new { message = "Không tìm thấy tài khoản." });
+
+        var profiles = await _context.KhachHangs
+            .AsNoTracking()
+            .Include(item => item.GiayTos)
+            .Where(item => item.MaUser == user.MaUser)
+            .ToListAsync();
+
+        return Ok(profiles.Select(ToProfile));
+    }
+
+    [HttpPost("sale/{maUser}")]
+    [Authorize(Roles = "Sale")]
+    public async Task<ActionResult> SaleCreate(string maUser, KhachHangCreateDto request)
+    {
         var maUserDb = FixedLengthHelper.PadTo20(maUser);
+        if (!await _context.NguoiSuDungs.AnyAsync(item => item.MaUser == maUserDb))
+            return NotFound(new { message = "Không tìm thấy tài khoản khách hàng." });
 
-        var daCoHoSo = await _context.KhachHangs
-            .AnyAsync(kh => kh.MaUser == maUserDb);
+        return await CreateForUser(maUserDb, request);
+    }
 
-        if (daCoHoSo)
+    [HttpPut("sale/{maKhachHang}")]
+    [Authorize(Roles = "Sale")]
+    public async Task<ActionResult> SaleUpdate(string maKhachHang, KhachHangUpdateDto request)
+    {
+        var validation = ValidateProfile(request.Ho, request.Ten);
+        if (validation is not null) return validation;
+
+        var profile = await _context.KhachHangs.FirstOrDefaultAsync(item =>
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang));
+
+        if (profile is null) return NotFound(new { message = "Không tìm thấy hồ sơ khách hàng." });
+
+        Apply(profile, request);
+        await _context.SaveChangesAsync();
+        return Ok(ToProfile(profile));
+    }
+
+    [HttpPost("sale/{maKhachHang}/giay-to")]
+    [Authorize(Roles = "Sale")]
+    public async Task<ActionResult> SaleAddDocument(string maKhachHang, GiayToCreateDto request)
+    {
+        var profile = await _context.KhachHangs.FirstOrDefaultAsync(item =>
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang));
+
+        if (profile is null) return NotFound(new { message = "Không tìm thấy hồ sơ khách hàng." });
+        return await AddDocumentToProfile(profile, request);
+    }
+
+    [HttpPut("sale/{maKhachHang}/giay-to/{maGiayTo}")]
+    [Authorize(Roles = "Sale")]
+    public async Task<ActionResult> SaleUpdateDocument(
+        string maKhachHang,
+        string maGiayTo,
+        GiayToUpdateDto request)
+    {
+        var validation = ValidateDocument(request);
+        if (validation is not null) return validation;
+
+        var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
+            item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo) &&
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang));
+
+        if (document is null) return NotFound(new { message = "Không tìm thấy giấy tờ." });
+
+        Apply(document, request);
+        await _context.SaveChangesAsync();
+        return Ok(ToDocument(document));
+    }
+
+    [HttpDelete("sale/{maKhachHang}/giay-to/{maGiayTo}")]
+    [Authorize(Roles = "Sale")]
+    public async Task<IActionResult> SaleDeleteDocument(string maKhachHang, string maGiayTo)
+    {
+        var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
+            item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo) &&
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang));
+
+        if (document is null) return NotFound(new { message = "Không tìm thấy giấy tờ." });
+
+        _context.GiayTos.Remove(document);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private async Task<ActionResult> CreateForUser(string maUserDb, KhachHangCreateDto request)
+    {
+        var validation = ValidateProfile(request.Ho, request.Ten);
+        if (validation is not null) return validation;
+
+        var user = await _context.NguoiSuDungs.FirstOrDefaultAsync(item => item.MaUser == maUserDb);
+        if (user is null) return Unauthorized();
+
+        var phone = FixedLengthHelper.TrimSafe(user.SoDienThoai) ?? string.Empty;
+        if (phone.Length > 15)
+            return BadRequest(new { message = "Số điện thoại tài khoản vượt quá giới hạn 15 ký tự của hồ sơ khách hàng." });
+
+        var profile = new KhachHang
         {
-            return Conflict(new { message = "Tài khoản này đã có hồ sơ khách hàng." });
-        }
-
-        var nguoiSuDung = await _context.NguoiSuDungs
-            .FirstOrDefaultAsync(user => user.MaUser == maUserDb);
-
-        if (nguoiSuDung is null)
-        {
-            return Unauthorized();
-        }
-
-        var soDienThoai = FixedLengthHelper.TrimSafe(nguoiSuDung.SoDienThoai) ?? string.Empty;
-
-        if (soDienThoai.Length > 15)
-        {
-            return BadRequest(new
-            {
-                message = "Số điện thoại tài khoản vượt quá giới hạn 15 ký tự của hồ sơ khách hàng."
-            });
-        }
-
-        string maKhachHang;
-        string maKhachHangDb;
-
-        do
-        {
-            maKhachHang = $"KH{Guid.NewGuid():N}"[..20].ToUpperInvariant();
-            maKhachHangDb = FixedLengthHelper.PadTo20(maKhachHang);
-        }
-        while (await _context.KhachHangs
-            .AnyAsync(kh => kh.MaKhachHang == maKhachHangDb));
-
-        var khachHang = new KhachHang
-        {
-            MaKhachHang = maKhachHangDb,
+            MaKhachHang = await GenerateIdAsync("KH", _context.KhachHangs.Select(item => item.MaKhachHang)),
             Ho = request.Ho.Trim(),
             Ten = request.Ten.Trim(),
             HoGiayTo = request.HoGiayTo?.Trim(),
@@ -133,255 +320,166 @@ public class KhachHangController : ControllerBase
             GioiTinh = request.GioiTinh?.Trim(),
             NgaySinh = request.NgaySinh,
             Email = request.Email?.Trim(),
-            SoDienThoai = soDienThoai,
+            SoDienThoai = phone,
             MaUser = maUserDb
         };
 
-        _context.KhachHangs.Add(khachHang);
+        _context.KhachHangs.Add(profile);
         await _context.SaveChangesAsync();
-
-        return StatusCode(StatusCodes.Status201Created, new
-        {
-            maKhachHang = FixedLengthHelper.TrimSafe(khachHang.MaKhachHang),
-            ho = khachHang.Ho,
-            ten = khachHang.Ten,
-            soDienThoai = FixedLengthHelper.TrimSafe(khachHang.SoDienThoai)
-        });
+        return StatusCode(StatusCodes.Status201Created, ToProfile(profile));
     }
 
-    [HttpPut("me")]
-    public async Task<ActionResult> UpdateMyProfile(KhachHangUpdateDto request)
+    private async Task<ActionResult> AddDocumentToProfile(KhachHang profile, GiayToCreateDto request)
     {
-        var maUser = GetCurrentMaUser();
+        var validation = ValidateDocument(request);
+        if (validation is not null) return validation;
 
-        if (maUser is null)
+        var document = new GiayTo
         {
-            return Unauthorized();
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Ho) || string.IsNullOrWhiteSpace(request.Ten))
-        {
-            return BadRequest(new { message = "Họ và tên không được để trống." });
-        }
-
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
-
-        var khachHang = await _context.KhachHangs
-            .FirstOrDefaultAsync(kh => kh.MaUser == maUserDb);
-
-        if (khachHang is null)
-        {
-            return NotFound(new { message = "Bạn chưa có hồ sơ khách hàng." });
-        }
-
-        khachHang.Ho = request.Ho.Trim();
-        khachHang.Ten = request.Ten.Trim();
-        khachHang.HoGiayTo = request.HoGiayTo?.Trim();
-        khachHang.TenGiayTo = request.TenGiayTo?.Trim();
-        khachHang.QuocTich = request.QuocTich?.Trim();
-        khachHang.DanhXung = request.DanhXung?.Trim();
-        khachHang.GioiTinh = request.GioiTinh?.Trim();
-        khachHang.NgaySinh = request.NgaySinh;
-        khachHang.Email = request.Email?.Trim();
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new
-        {
-            maKhachHang = FixedLengthHelper.TrimSafe(khachHang.MaKhachHang),
-            ho = khachHang.Ho,
-            ten = khachHang.Ten
-        });
-    }
-
-    [HttpPost("me/giay-to")]
-    public async Task<ActionResult> AddMyDocument(GiayToCreateDto request)
-    {
-        var maUser = GetCurrentMaUser();
-
-        if (maUser is null)
-        {
-            return Unauthorized();
-        }
-
-        if (string.IsNullOrWhiteSpace(request.LoaiGiayTo) ||
-            string.IsNullOrWhiteSpace(request.SoTrenGiayTo) ||
-            string.IsNullOrWhiteSpace(request.NoiCap))
-        {
-            return BadRequest(new { message = "Thông tin giấy tờ không được để trống." });
-        }
-
-        if (request.NgayHetHan < request.NgayCap)
-        {
-            return BadRequest(new { message = "Ngày hết hạn phải sau hoặc bằng ngày cấp." });
-        }
-
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
-
-        var khachHang = await _context.KhachHangs
-            .FirstOrDefaultAsync(kh => kh.MaUser == maUserDb);
-
-        if (khachHang is null)
-        {
-            return NotFound(new { message = "Bạn chưa có hồ sơ khách hàng." });
-        }
-
-        string maGiayTo;
-        string maGiayToDb;
-
-        do
-        {
-            maGiayTo = $"GT{Guid.NewGuid():N}"[..20].ToUpperInvariant();
-            maGiayToDb = FixedLengthHelper.PadTo20(maGiayTo);
-        }
-        while (await _context.GiayTos
-            .AnyAsync(gt => gt.MaGiayTo == maGiayToDb));
-
-        var giayTo = new GiayTo
-        {
-            MaGiayTo = maGiayToDb,
+            MaGiayTo = await GenerateIdAsync("GT", _context.GiayTos.Select(item => item.MaGiayTo)),
             LoaiGiayTo = request.LoaiGiayTo.Trim(),
             SoTrenGiayTo = request.SoTrenGiayTo.Trim(),
             NgayCap = request.NgayCap,
             NgayHetHan = request.NgayHetHan,
             NoiCap = request.NoiCap.Trim(),
-            MaKhachHang = khachHang.MaKhachHang
+            MaKhachHang = profile.MaKhachHang
         };
 
-        _context.GiayTos.Add(giayTo);
+        _context.GiayTos.Add(document);
         await _context.SaveChangesAsync();
-
-        return StatusCode(StatusCodes.Status201Created, new
-        {
-            maGiayTo = FixedLengthHelper.TrimSafe(giayTo.MaGiayTo),
-            loaiGiayTo = giayTo.LoaiGiayTo,
-            soTrenGiayTo = giayTo.SoTrenGiayTo
-        });
+        return StatusCode(StatusCodes.Status201Created, ToDocument(document));
     }
 
-    [HttpGet("me/giay-to")]
-    public async Task<ActionResult> GetMyDocuments()
+    private async Task<KhachHang?> OwnedProfile(string maKhachHang, string maUserDb)
     {
-        var maUser = GetCurrentMaUser();
-
-        if (maUser is null)
-        {
-            return Unauthorized();
-        }
-
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
-
-        var giayTos = await _context.KhachHangs
-            .Where(kh => kh.MaUser == maUserDb)
-            .SelectMany(kh => kh.GiayTos.Select(gt => new
-            {
-                maGiayTo = FixedLengthHelper.TrimSafe(gt.MaGiayTo),
-                loaiGiayTo = gt.LoaiGiayTo,
-                soTrenGiayTo = gt.SoTrenGiayTo,
-                ngayCap = gt.NgayCap,
-                ngayHetHan = gt.NgayHetHan,
-                noiCap = gt.NoiCap
-            }))
-            .ToListAsync();
-
-        var coHoSo = await _context.KhachHangs
-            .AnyAsync(kh => kh.MaUser == maUserDb);
-
-        if (!coHoSo)
-        {
-            return NotFound(new { message = "Bạn chưa có hồ sơ khách hàng." });
-        }
-
-        return Ok(giayTos);
+        return await _context.KhachHangs.FirstOrDefaultAsync(item =>
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang) &&
+            item.MaUser == maUserDb);
     }
 
-    [HttpPut("me/giay-to/{maGiayTo}")]
-    public async Task<ActionResult> UpdateMyDocument(
-    string maGiayTo,
-    GiayToUpdateDto request)
+    private string? CurrentUserDb()
     {
-        var maUser = GetCurrentMaUser();
+        var maUser = User.FindFirst("MaUser")?.Value;
+        return string.IsNullOrWhiteSpace(maUser) ? null : FixedLengthHelper.PadTo20(maUser);
+    }
 
-        if (maUser is null)
-        {
-            return Unauthorized();
-        }
+    private static ActionResult? ValidateProfile(string? ho, string? ten)
+    {
+        return string.IsNullOrWhiteSpace(ho) || string.IsNullOrWhiteSpace(ten)
+            ? new BadRequestObjectResult(new { message = "Họ và tên không được để trống." })
+            : null;
+    }
 
+    private static ActionResult? ValidateDocument(GiayToCreateDto request)
+    {
         if (string.IsNullOrWhiteSpace(request.LoaiGiayTo) ||
             string.IsNullOrWhiteSpace(request.SoTrenGiayTo) ||
             string.IsNullOrWhiteSpace(request.NoiCap))
-        {
-            return BadRequest(new { message = "Thông tin giấy tờ không được để trống." });
-        }
+            return new BadRequestObjectResult(new { message = "Thông tin giấy tờ không được để trống." });
 
-        if (request.NgayHetHan < request.NgayCap)
-        {
-            return BadRequest(new { message = "Ngày hết hạn phải sau hoặc bằng ngày cấp." });
-        }
-
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
-        var maGiayToDb = FixedLengthHelper.PadTo20(maGiayTo);
-
-        var giayTo = await _context.GiayTos
-            .FirstOrDefaultAsync(gt =>
-                gt.MaGiayTo == maGiayToDb &&
-                gt.MaKhachHangNavigation.MaUser == maUserDb);
-
-        if (giayTo is null)
-        {
-            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ của bạn." });
-        }
-
-        giayTo.LoaiGiayTo = request.LoaiGiayTo.Trim();
-        giayTo.SoTrenGiayTo = request.SoTrenGiayTo.Trim();
-        giayTo.NgayCap = request.NgayCap;
-        giayTo.NgayHetHan = request.NgayHetHan;
-        giayTo.NoiCap = request.NoiCap.Trim();
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new
-        {
-            maGiayTo = FixedLengthHelper.TrimSafe(giayTo.MaGiayTo),
-            loaiGiayTo = giayTo.LoaiGiayTo,
-            soTrenGiayTo = giayTo.SoTrenGiayTo,
-            ngayCap = giayTo.NgayCap,
-            ngayHetHan = giayTo.NgayHetHan,
-            noiCap = giayTo.NoiCap
-        });
+        return request.NgayHetHan < request.NgayCap
+            ? new BadRequestObjectResult(new { message = "Ngày hết hạn phải sau hoặc bằng ngày cấp." })
+            : null;
     }
 
-    [HttpDelete("me/giay-to/{maGiayTo}")]
-    public async Task<IActionResult> DeleteMyDocument(string maGiayTo)
+    private static ActionResult? ValidateDocument(GiayToUpdateDto request)
     {
-        var maUser = GetCurrentMaUser();
+        if (string.IsNullOrWhiteSpace(request.LoaiGiayTo) ||
+            string.IsNullOrWhiteSpace(request.SoTrenGiayTo) ||
+            string.IsNullOrWhiteSpace(request.NoiCap))
+            return new BadRequestObjectResult(new { message = "Thông tin giấy tờ không được để trống." });
 
-        if (maUser is null)
-        {
-            return Unauthorized();
-        }
-
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
-        var maGiayToDb = FixedLengthHelper.PadTo20(maGiayTo);
-
-        var giayTo = await _context.GiayTos
-            .FirstOrDefaultAsync(gt =>
-                gt.MaGiayTo == maGiayToDb &&
-                gt.MaKhachHangNavigation.MaUser == maUserDb);
-
-        if (giayTo is null)
-        {
-            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ của bạn." });
-        }
-
-        _context.GiayTos.Remove(giayTo);
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+        return request.NgayHetHan < request.NgayCap
+            ? new BadRequestObjectResult(new { message = "Ngày hết hạn phải sau hoặc bằng ngày cấp." })
+            : null;
     }
 
-    private string? GetCurrentMaUser()
+    private static void Apply(KhachHang profile, KhachHangCreateDto request)
     {
-        return User.FindFirst("MaUser")?.Value;
+        profile.Ho = request.Ho.Trim();
+        profile.Ten = request.Ten.Trim();
+        profile.HoGiayTo = request.HoGiayTo?.Trim();
+        profile.TenGiayTo = request.TenGiayTo?.Trim();
+        profile.QuocTich = request.QuocTich?.Trim();
+        profile.DanhXung = request.DanhXung?.Trim();
+        profile.GioiTinh = request.GioiTinh?.Trim();
+        profile.NgaySinh = request.NgaySinh;
+        profile.Email = request.Email?.Trim();
+    }
+
+    private static void Apply(KhachHang profile, KhachHangUpdateDto request)
+    {
+        profile.Ho = request.Ho.Trim();
+        profile.Ten = request.Ten.Trim();
+        profile.HoGiayTo = request.HoGiayTo?.Trim();
+        profile.TenGiayTo = request.TenGiayTo?.Trim();
+        profile.QuocTich = request.QuocTich?.Trim();
+        profile.DanhXung = request.DanhXung?.Trim();
+        profile.GioiTinh = request.GioiTinh?.Trim();
+        profile.NgaySinh = request.NgaySinh;
+        profile.Email = request.Email?.Trim();
+    }
+
+    private static void Apply(GiayTo document, GiayToCreateDto request)
+    {
+        document.LoaiGiayTo = request.LoaiGiayTo.Trim();
+        document.SoTrenGiayTo = request.SoTrenGiayTo.Trim();
+        document.NgayCap = request.NgayCap;
+        document.NgayHetHan = request.NgayHetHan;
+        document.NoiCap = request.NoiCap.Trim();
+    }
+
+    private static void Apply(GiayTo document, GiayToUpdateDto request)
+    {
+        document.LoaiGiayTo = request.LoaiGiayTo.Trim();
+        document.SoTrenGiayTo = request.SoTrenGiayTo.Trim();
+        document.NgayCap = request.NgayCap;
+        document.NgayHetHan = request.NgayHetHan;
+        document.NoiCap = request.NoiCap.Trim();
+    }
+
+    private static object ToProfile(KhachHang profile)
+    {
+        return new
+        {
+            maKhachHang = FixedLengthHelper.TrimSafe(profile.MaKhachHang),
+            ho = profile.Ho,
+            ten = profile.Ten,
+            hoGiayTo = profile.HoGiayTo,
+            tenGiayTo = profile.TenGiayTo,
+            quocTich = profile.QuocTich,
+            danhXung = FixedLengthHelper.TrimSafe(profile.DanhXung),
+            gioiTinh = FixedLengthHelper.TrimSafe(profile.GioiTinh),
+            ngaySinh = profile.NgaySinh,
+            email = profile.Email,
+            soDienThoai = FixedLengthHelper.TrimSafe(profile.SoDienThoai),
+            giayTos = profile.GiayTos.Select(ToDocument)
+        };
+    }
+
+    private static object ToDocument(GiayTo document)
+    {
+        return new
+        {
+            maGiayTo = FixedLengthHelper.TrimSafe(document.MaGiayTo),
+            loaiGiayTo = document.LoaiGiayTo,
+            soTrenGiayTo = document.SoTrenGiayTo,
+            ngayCap = document.NgayCap,
+            ngayHetHan = document.NgayHetHan,
+            noiCap = document.NoiCap
+        };
+    }
+
+    private async Task<string> GenerateIdAsync(string prefix, IQueryable<string> existingIds)
+    {
+        string id;
+        do
+        {
+            id = FixedLengthHelper.PadTo20(
+                $"{prefix}{Guid.NewGuid():N}"[..20].ToUpperInvariant());
+        }
+        while (await existingIds.AnyAsync(item => item == id));
+
+        return id;
     }
 }

@@ -78,7 +78,7 @@ public class LichTrinhController : ControllerBase
 
     // POST /api/LichTrinh
     [HttpPost]
-    [Authorize]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> Create(LichTrinhCreateDto request)
     {
         var maTourDb = FixedLengthHelper.PadTo20(request.MaTour);
@@ -196,7 +196,7 @@ public class LichTrinhController : ControllerBase
 
     // PUT /api/LichTrinh/{maLichTrinh}
     [HttpPut("{maLichTrinh}")]
-    [Authorize]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> Update(
         string maLichTrinh,
         LichTrinhUpdateDto request)
@@ -316,7 +316,7 @@ public class LichTrinhController : ControllerBase
 
     // DELETE /api/LichTrinh/{maLichTrinh}
     [HttpDelete("{maLichTrinh}")]
-    [Authorize]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> Delete(string maLichTrinh)
     {
         var maLichTrinhDb = FixedLengthHelper.PadTo20(maLichTrinh);

@@ -29,7 +29,7 @@ public partial class NguoiSuDung
 
     public virtual ICollection<HopDong> HopDongs { get; set; } = new List<HopDong>();
 
-    public virtual KhachHang? KhachHang { get; set; }
+    public virtual ICollection<KhachHang> KhachHangs { get; set; } = new List<KhachHang>();
 
     public virtual VaiTro MaVaiTroNavigation { get; set; } = null!;
 

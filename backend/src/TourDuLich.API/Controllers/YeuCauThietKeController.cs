@@ -334,18 +334,9 @@ public class YeuCauThietKeController : ControllerBase
 
     // PUT /api/YeuCauThietKe/{maYeuCau}/duyet
     [HttpPut("{maYeuCau}/duyet")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> Approve(string maYeuCau)
     {
-        var maVaiTro = User.FindFirst("MaVaiTro")?.Value;
-
-        // TODO: chuyển sang policy-based authorization khi hệ thống có role claim chuẩn
-        var laAdminHoacSale = maVaiTro == "2" || maVaiTro == "3";
-
-        if (!laAdminHoacSale)
-        {
-            return Forbid();
-        }
-
         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
 
         var requestData = await _context.YeuCauThietKes

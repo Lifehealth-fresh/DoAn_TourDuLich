@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TourDuLich.Domain\TourDuLich.Domain.csproj" />
+    <ProjectReference Include="..\TourDuLich.Infrastructure\TourDuLich.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

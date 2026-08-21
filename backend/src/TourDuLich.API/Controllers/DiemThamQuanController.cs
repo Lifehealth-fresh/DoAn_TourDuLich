@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
@@ -72,6 +73,7 @@ public class DiemThamQuanController : ControllerBase
 
     // POST /api/DiemThamQuan
     [HttpPost]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> CreateDiemThamQuan([FromBody] DiemThamQuanCreateDto dto)
     {
         var maDthamQuan = FixedLengthHelper.PadTo20(dto.MaDthamQuan);
@@ -115,6 +117,7 @@ public class DiemThamQuanController : ControllerBase
 
     // PUT /api/DiemThamQuan/{maDthamQuan}
     [HttpPut("{maDthamQuan}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> UpdateDiemThamQuan(string maDthamQuan, [FromBody] DiemThamQuanUpdateDto dto)
     {
         var existing = await _context.DiemThamQuans.FindAsync(FixedLengthHelper.PadTo20(maDthamQuan));
@@ -134,6 +137,7 @@ public class DiemThamQuanController : ControllerBase
 
     // DELETE /api/DiemThamQuan/{maDthamQuan}
     [HttpDelete("{maDthamQuan}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> DeleteDiemThamQuan(string maDthamQuan)
     {
         var key = FixedLengthHelper.PadTo20(maDthamQuan);

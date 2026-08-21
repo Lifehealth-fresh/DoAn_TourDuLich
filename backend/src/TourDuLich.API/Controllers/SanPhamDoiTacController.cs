@@ -5,6 +5,8 @@ using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
 
+using Microsoft.AspNetCore.Authorization;
+
 namespace TourDuLich.API.Controllers;
 
 [ApiController]
@@ -93,6 +95,7 @@ public class SanPhamDoiTacController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> CreateProduct(
         SanPhamDoiTacCreateDto request)
     {
@@ -185,6 +188,7 @@ public class SanPhamDoiTacController : ControllerBase
     }
 
     [HttpPut("{maSanPham}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> UpdateProduct(
         string maSanPham,
         SanPhamDoiTacUpdateDto request)
@@ -262,6 +266,7 @@ public class SanPhamDoiTacController : ControllerBase
     }
 
     [HttpDelete("{maSanPham}")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> DeleteProduct(string maSanPham)
     {
         var maSanPhamDb = FixedLengthHelper.PadTo20(maSanPham);
