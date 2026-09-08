@@ -920,6 +920,7 @@ function BookingDetailPage() {
   const remain = Number(summary.conLai ?? item.thanhTien ?? item.tongTien ?? 0);
   const total = Number(summary.tongTien ?? item.thanhTien ?? item.tongTien ?? 0);
   const paid = Number(summary.daThanhToan ?? 0);
+  const deposit = remain > 0 ? Math.max(1, Math.min(Math.round(total * 0.3), remain)) : 0;
 
   return (
     <section className="page-section booking-detail">
@@ -968,8 +969,8 @@ function BookingDetailPage() {
                   <option value="TienMat">Tiền mặt</option>
                 </select>
               </label>
-              <button className="primary-button full" onClick={() => pay('DatCoc', Math.max(1, Math.round(total * 0.3)))}>
-                Đặt cọc 30% · {money(Math.round(total * 0.3))}
+              <button className="primary-button full" onClick={() => pay('DatCoc', deposit)}>
+                Đặt cọc 30% · {money(deposit)}
               </button>
               <button className="outline-button full" onClick={() => pay('ThanhToanDu', remain)}>
                 Thanh toán hết

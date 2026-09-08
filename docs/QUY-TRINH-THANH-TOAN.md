@@ -44,6 +44,8 @@ Nguồn file mermaid: `docs/QUY-TRINH-THANH-TOAN.md` (chính file này). Để c
 5. **Cổng thanh toán:** VNPay dùng HMAC-SHA512; MoMo dùng HMAC-SHA256. Return URL chỉ thông báo giao diện. IPN phải đúng chữ ký, đúng mã đơn và đúng số tiền mới ghi `DaXacNhan`, `GatewayTxnId`, `PaidAt`; kết quả cổng thất bại chuyển `TuChoi` để giải phóng số tiền đang chờ, còn chữ ký sai không đổi dữ liệu; gọi lại IPN không được ghi trùng.
 6. **Phạm vi mock:** chỉ `TienMat|ChuyenKhoan` còn là luồng Sale đối soát thủ công. `VNPay|MoMo` là tích hợp sandbox và cần credential, Return/IPN URL HTTPS public do nhà cung cấp cấp/cấu hình.
 
+IPN khóa giao dịch khi đối soát, không xác nhận booking `DaHuy` hoặc khoản thu làm vượt `ThanhTien`; khi tổng `DaXacNhan|ThanhCong` đủ tiền, booking ở `ChoXacNhan|DaXacNhan` tự chuyển sang `DaThanhToan` và không chuyển thẳng sang `HoanThanh`. Nút đặt cọc phía khách dùng `min(round(30% × tổng tiền), số còn lại)` và tối thiểu 1 đồng khi vẫn còn số dư.
+
 ## API liên quan sau sửa
 
 - `POST /api/ThanhToan` → `201 { ChoXacNhan }`

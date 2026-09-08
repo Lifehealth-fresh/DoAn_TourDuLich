@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Data;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -569,8 +571,14 @@ public class ThanhToanController : ControllerBase
             return Ok(new { RspCode = "01", Message = "Invalid merchant" });
 
         var orderId = Request.Query["vnp_TxnRef"].ToString();
-        var payment = await _context.ThanhToans.FirstOrDefaultAsync(item =>
-            item.GatewayOrderId == orderId && item.PhuongThuc == "VNPay");
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(IsolationLevel.Serializable);
+        var payment = await _context.ThanhToans
+            .FromSqlInterpolated($"""
+                SELECT * FROM dbo.ThanhToan WITH (UPDLOCK, ROWLOCK)
+                WHERE GatewayOrderId = {orderId} AND PhuongThuc = {"VNPay"}
+                """)
+            .FirstOrDefaultAsync();
         if (payment is null)
             return Ok(new { RspCode = "01", Message = "Order not found" });
 
@@ -581,24 +589,61 @@ public class ThanhToanController : ControllerBase
             return Ok(new { RspCode = "04", Message = "Invalid amount" });
         }
 
-        if (FixedLengthHelper.TrimSafe(payment.TrangThai) == "DaXacNhan")
+        var gatewayTxnId = Request.Query["vnp_TransactionNo"].ToString();
+        var paymentStatus = FixedLengthHelper.TrimSafe(payment.TrangThai);
+        if (!string.IsNullOrWhiteSpace(gatewayTxnId) &&
+            paymentStatus == "DaXacNhan" &&
+            string.Equals(payment.GatewayTxnId?.Trim(), gatewayTxnId, StringComparison.Ordinal))
+        {
+            await transaction.CommitAsync();
             return Ok(new { RspCode = "02", Message = "Order already confirmed" });
+        }
+        if (paymentStatus != "ChoXacNhan")
+            return Ok(new { RspCode = "01", Message = "Invalid order status" });
 
         var successful = Request.Query["vnp_ResponseCode"] == "00" &&
             Request.Query["vnp_TransactionStatus"] == "00";
         if (!successful)
         {
             payment.TrangThai = FixedLengthHelper.PadTo20("TuChoi");
-            payment.GatewayTxnId = Request.Query["vnp_TransactionNo"].ToString();
+            payment.GatewayTxnId = gatewayTxnId;
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
             return Ok(new { RspCode = "00", Message = "Payment result acknowledged" });
         }
 
+        var booking = await _context.DatDichVus
+            .FirstOrDefaultAsync(item => item.MaBooking == payment.MaBooking);
+        if (booking is null || FixedLengthHelper.TrimSafe(booking.TrangThai) == "DaHuy")
+        {
+            payment.TrangThai = FixedLengthHelper.PadTo20("TuChoi");
+            payment.GatewayTxnId = gatewayTxnId;
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return Ok(new { RspCode = "01", Message = "Invalid order" });
+        }
+
+        var thanhCong = FixedLengthHelper.PadTo20("ThanhCong");
+        var daXacNhan = FixedLengthHelper.PadTo20("DaXacNhan");
+        var daThanhToan = await _context.ThanhToans
+            .Where(item => item.MaBooking == payment.MaBooking &&
+                (item.TrangThai == thanhCong || item.TrangThai == daXacNhan))
+            .SumAsync(item => (int?)item.SoTien) ?? 0;
+        if (daThanhToan + (payment.SoTien ?? 0) > (booking.ThanhTien ?? 0))
+            return Ok(new { RspCode = "04", Message = "Invalid amount" });
+
         payment.TrangThai = FixedLengthHelper.PadTo20("DaXacNhan");
-        payment.GatewayTxnId = Request.Query["vnp_TransactionNo"].ToString();
+        payment.GatewayTxnId = gatewayTxnId;
         payment.PaidAt = DateTime.UtcNow;
+        var bookingStatus = FixedLengthHelper.TrimSafe(booking.TrangThai);
+        if (daThanhToan + (payment.SoTien ?? 0) >= (booking.ThanhTien ?? 0) &&
+            bookingStatus is "ChoXacNhan" or "DaXacNhan")
+        {
+            booking.TrangThai = FixedLengthHelper.PadTo20("DaThanhToan");
+        }
         await _context.SaveChangesAsync();
-        await LogConfirmedGatewayPaymentAsync(payment);
+        await transaction.CommitAsync();
+        await _hanhViLogger.LogAsync(booking.MaUser, booking.MaTour, "ThanhToan_DaXacNhan");
 
         return Ok(new { RspCode = "00", Message = "Confirm success" });
     }
@@ -654,8 +699,14 @@ public class ThanhToanController : ControllerBase
             return BadRequest(new { message = "Chữ ký MoMo không hợp lệ." });
 
         values.TryGetValue("orderId", out var orderId);
-        var payment = await _context.ThanhToans.FirstOrDefaultAsync(item =>
-            item.GatewayOrderId == orderId && item.PhuongThuc == "MoMo");
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(IsolationLevel.Serializable);
+        var payment = await _context.ThanhToans
+            .FromSqlInterpolated($"""
+                SELECT * FROM dbo.ThanhToan WITH (UPDLOCK, ROWLOCK)
+                WHERE GatewayOrderId = {orderId} AND PhuongThuc = {"MoMo"}
+                """)
+            .FirstOrDefaultAsync();
         if (payment is null)
             return NotFound(new { message = "Không tìm thấy giao dịch MoMo." });
 
@@ -666,21 +717,58 @@ public class ThanhToanController : ControllerBase
             return BadRequest(new { message = "Số tiền MoMo không khớp." });
         }
 
-        if (FixedLengthHelper.TrimSafe(payment.TrangThai) == "DaXacNhan")
+        var gatewayTxnId = values.GetValueOrDefault("transId");
+        var paymentStatus = FixedLengthHelper.TrimSafe(payment.TrangThai);
+        if (!string.IsNullOrWhiteSpace(gatewayTxnId) &&
+            paymentStatus == "DaXacNhan" &&
+            string.Equals(payment.GatewayTxnId?.Trim(), gatewayTxnId, StringComparison.Ordinal))
+        {
+            await transaction.CommitAsync();
             return NoContent();
+        }
+        if (paymentStatus != "ChoXacNhan")
+            return BadRequest(new { message = "Trạng thái giao dịch MoMo không hợp lệ." });
         if (!values.TryGetValue("resultCode", out var resultCode) || resultCode != "0")
         {
             payment.TrangThai = FixedLengthHelper.PadTo20("TuChoi");
-            payment.GatewayTxnId = values.GetValueOrDefault("transId");
+            payment.GatewayTxnId = gatewayTxnId;
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
             return NoContent();
         }
 
+        var booking = await _context.DatDichVus
+            .FirstOrDefaultAsync(item => item.MaBooking == payment.MaBooking);
+        if (booking is null || FixedLengthHelper.TrimSafe(booking.TrangThai) == "DaHuy")
+        {
+            payment.TrangThai = FixedLengthHelper.PadTo20("TuChoi");
+            payment.GatewayTxnId = gatewayTxnId;
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return BadRequest(new { message = "Booking không hợp lệ hoặc đã hủy." });
+        }
+
+        var thanhCong = FixedLengthHelper.PadTo20("ThanhCong");
+        var daXacNhan = FixedLengthHelper.PadTo20("DaXacNhan");
+        var daThanhToan = await _context.ThanhToans
+            .Where(item => item.MaBooking == payment.MaBooking &&
+                (item.TrangThai == thanhCong || item.TrangThai == daXacNhan))
+            .SumAsync(item => (int?)item.SoTien) ?? 0;
+        if (daThanhToan + (payment.SoTien ?? 0) > (booking.ThanhTien ?? 0))
+            return BadRequest(new { message = "Xác nhận sẽ làm tổng đã thanh toán vượt quá tổng phải thu." });
+
         payment.TrangThai = FixedLengthHelper.PadTo20("DaXacNhan");
-        payment.GatewayTxnId = values.GetValueOrDefault("transId");
+        payment.GatewayTxnId = gatewayTxnId;
         payment.PaidAt = DateTime.UtcNow;
+        var bookingStatus = FixedLengthHelper.TrimSafe(booking.TrangThai);
+        if (daThanhToan + (payment.SoTien ?? 0) >= (booking.ThanhTien ?? 0) &&
+            bookingStatus is "ChoXacNhan" or "DaXacNhan")
+        {
+            booking.TrangThai = FixedLengthHelper.PadTo20("DaThanhToan");
+        }
         await _context.SaveChangesAsync();
-        await LogConfirmedGatewayPaymentAsync(payment);
+        await transaction.CommitAsync();
+        await _hanhViLogger.LogAsync(booking.MaUser, booking.MaTour, "ThanhToan_DaXacNhan");
 
         return NoContent();
     }
@@ -795,6 +883,12 @@ public class ThanhToanController : ControllerBase
         int amount,
         string ipAddress)
     {
+        if (!IPAddress.TryParse(ipAddress, out var parsedIp) ||
+            parsedIp.AddressFamily != AddressFamily.InterNetwork)
+        {
+            ipAddress = "127.0.0.1";
+        }
+
         var vietnamTime = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7));
         var parameters = new SortedDictionary<string, string>(StringComparer.Ordinal)
         {
@@ -892,9 +986,32 @@ public class ThanhToanController : ControllerBase
     private static string BuildVnPayQuery(IEnumerable<KeyValuePair<string, string>> parameters)
     {
         return string.Join("&", parameters
-            .OrderBy(item => item.Key, StringComparer.Ordinal)
+            .OrderBy(item => item.Key, VnPayKeyComparer)
             .Where(item => !string.IsNullOrEmpty(item.Value))
-            .Select(item => $"{WebUtility.UrlEncode(item.Key)}={WebUtility.UrlEncode(item.Value)}"));
+            .Select(item => $"{VnPayUrlEncode(item.Key)}={VnPayUrlEncode(item.Value)}"));
+    }
+
+    private static readonly CompareInfo VnPayCompareInfo = CompareInfo.GetCompareInfo("en-US");
+    private static readonly IComparer<string> VnPayKeyComparer = Comparer<string>.Create(
+        (left, right) => VnPayCompareInfo.Compare(left, right, CompareOptions.Ordinal));
+
+    private static string VnPayUrlEncode(string value)
+    {
+        var encoded = WebUtility.UrlEncode(value);
+        var result = new StringBuilder(encoded.Length);
+        for (var index = 0; index < encoded.Length; index++)
+        {
+            if (encoded[index] == '%' && index + 2 < encoded.Length)
+            {
+                result.Append('%');
+                result.Append(char.ToUpperInvariant(encoded[index + 1]));
+                result.Append(char.ToUpperInvariant(encoded[index + 2]));
+                index += 2;
+                continue;
+            }
+            result.Append(encoded[index]);
+        }
+        return result.ToString();
     }
 
     private static bool VerifyMoMoSignature(
@@ -984,14 +1101,6 @@ public class ThanhToanController : ControllerBase
             ? string.Empty
             : $"maBooking={Uri.EscapeDataString(maBooking)}&";
         return $"{target}{separator}{bookingQuery}status={Uri.EscapeDataString(status)}&paid={paid}";
-    }
-
-    private async Task LogConfirmedGatewayPaymentAsync(ThanhToan payment)
-    {
-        var booking = await _context.DatDichVus
-            .FirstOrDefaultAsync(item => item.MaBooking == payment.MaBooking);
-        if (booking is not null)
-            await _hanhViLogger.LogAsync(booking.MaUser, booking.MaTour, "ThanhToan_DaXacNhan");
     }
 
     private static bool IsGatewayPayment(ThanhToan payment)
