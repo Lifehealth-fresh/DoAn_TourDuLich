@@ -821,6 +821,10 @@ function BookingDetailPage() {
   const [summary, setSummary] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(!location.state?.booking);
+  const [paymentMethod, setPaymentMethod] = useState('VNPay');
+  const returnParams = new URLSearchParams(location.search);
+  const gatewayReturnStatus = returnParams.get('status') ||
+    (returnParams.get('paid') === '1' ? 'success' : '');
 
   const load = async () => {
     if (!id) return;
@@ -851,17 +855,26 @@ function BookingDetailPage() {
     }
   };
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); }, [id, location.search]);
 
   const pay = async (kind, amount) => {
     setError('');
     try {
-      await api.createPayment({
+      const payload = {
         MaBooking: id,
         SoTien: Number(amount),
-        PhuongThuc: 'MoPhong',
+        PhuongThuc: paymentMethod,
         LoaiThanhToan: kind,
-      }, { headers: { 'Idempotency-Key': `${id}-${kind}-${Date.now()}` } });
+      };
+      const requestConfig = {
+        headers: { 'Idempotency-Key': `${id}-${kind}-${paymentMethod}-${Date.now()}` },
+      };
+      if (paymentMethod === 'VNPay' || paymentMethod === 'MoMo') {
+        const response = await api.createGatewayPayment(payload, requestConfig);
+        window.location.assign(response.data.payUrl);
+        return;
+      }
+      await api.createPayment(payload, requestConfig);
       await load();
     } catch (e2) {
       setError(api.errorMessage(e2, 'Thanh toán chưa thành công.'));
@@ -929,12 +942,32 @@ function BookingDetailPage() {
           )}
         </div>
         <div className="payment-card">
-          <p className="stamp">Thanh toán mô phỏng</p>
+          <p className="stamp">Thanh toán</p>
+          {gatewayReturnStatus === 'success' && (
+            <div className="success-message">
+              Cổng đã báo giao dịch thành công. Hệ thống đang đối chiếu IPN và đã tải lại số dư.
+            </div>
+          )}
+          {gatewayReturnStatus === 'failed' && (
+            <div className="form-error">Giao dịch tại cổng chưa thành công.</div>
+          )}
+          {gatewayReturnStatus === 'invalid' && (
+            <div className="form-error">Không xác minh được chữ ký trả về từ cổng thanh toán.</div>
+          )}
           <div className="total-row"><span>Tổng tiền</span><b>{money(total)}</b></div>
           <div className="total-row"><span>Đã thanh toán</span><b>{money(paid)}</b></div>
           <div className="total-row remain"><span>Còn lại</span><b>{money(remain)}</b></div>
           {remain > 0 && (
             <div className="pay-actions">
+              <label>
+                Phương thức thanh toán
+                <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
+                  <option value="VNPay">VNPay sandbox</option>
+                  <option value="MoMo">MoMo sandbox</option>
+                  <option value="ChuyenKhoan">Chuyển khoản</option>
+                  <option value="TienMat">Tiền mặt</option>
+                </select>
+              </label>
               <button className="primary-button full" onClick={() => pay('DatCoc', Math.max(1, Math.round(total * 0.3)))}>
                 Đặt cọc 30% · {money(Math.round(total * 0.3))}
               </button>

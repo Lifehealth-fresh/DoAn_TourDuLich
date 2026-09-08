@@ -21,5 +21,15 @@ public partial class ThanhToan
 
     public string? IdempotencyKey { get; set; }
 
+    public string? Gateway { get; set; }
+
+    public string? GatewayTxnId { get; set; }
+
+    public string? GatewayOrderId { get; set; }
+
+    public string? PayUrl { get; set; }
+
+    public DateTime? PaidAt { get; set; }
+
     public virtual DatDichVu MaBookingNavigation { get; set; } = null!;
 }

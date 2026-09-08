@@ -13,6 +13,30 @@
     "Issuer": "TourDuLichAPI",
     "Audience": "TourDuLichClient"
   },
+  "Cors": {
+    "Origins": [
+      "http://localhost:5173",
+      "http://localhost:5174"
+    ]
+  },
+  "VnPay": {
+    "TmnCode": "",
+    "HashSecret": "",
+    "BaseUrl": "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
+    "ReturnUrl": "https://localhost:7290/api/ThanhToan/vnpay/return",
+    "IpnUrl": "https://localhost:7290/api/ThanhToan/vnpay/ipn",
+    "FrontendReturnUrl": "http://localhost:5173"
+  },
+  "MoMo": {
+    "PartnerCode": "",
+    "AccessKey": "",
+    "SecretKey": "",
+    "Endpoint": "https://test-payment.momo.vn/v2/gateway/api/create",
+    "RequestType": "payWithMethod",
+    "RedirectUrl": "https://localhost:7290/api/ThanhToan/momo/return",
+    "IpnUrl": "https://localhost:7290/api/ThanhToan/momo/ipn",
+    "FrontendReturnUrl": "http://localhost:5173"
+  },
   "AiService": {
     "BaseUrl": "http://localhost:8000/",
     "ApiKey": "change-this-in-development"

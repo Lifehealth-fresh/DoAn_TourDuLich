@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5265',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://localhost:7290',
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -47,6 +47,13 @@ export const createPayment = (data, config = {}) => api.post('/api/ThanhToan', d
   ...config,
   headers: {
     'Idempotency-Key': config?.headers?.['Idempotency-Key'] || `${data?.MaBooking || 'pay'}-${Date.now()}`,
+    ...config.headers,
+  },
+});
+export const createGatewayPayment = (data, config = {}) => api.post('/api/ThanhToan/tao-phien-cong', data, {
+  ...config,
+  headers: {
+    'Idempotency-Key': config?.headers?.['Idempotency-Key'] || `${data?.MaBooking || 'gateway'}-${Date.now()}`,
     ...config.headers,
   },
 });

@@ -8,3 +8,4 @@ npm run dev
 ```
 
 Tài khoản khác `Admin`/`Sale` bị chặn ở frontend và backend bằng RBAC.
+Sale/Admin chỉ duyệt tay thanh toán `TienMat` và `ChuyenKhoan`; giao dịch `VNPay`/`MoMo` do IPN hợp lệ xác nhận.

@@ -21,10 +21,37 @@ builder.Services.AddControllers()
 
 builder.Services.AddEndpointsApiExplorer();
 
+var corsOriginsSection = builder.Configuration.GetSection("Cors:Origins");
+var corsOrigins = (corsOriginsSection.Value ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+if (corsOrigins.Length == 0)
+{
+    corsOrigins = corsOriginsSection.GetChildren()
+        .Select(item => item.Value)
+        .Where(value => !string.IsNullOrWhiteSpace(value))
+        .Select(value => value!)
+        .ToArray();
+}
+
+corsOrigins = corsOrigins
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
+if (corsOrigins.Length == 0 && builder.Environment.IsDevelopment())
+{
+    corsOrigins = ["http://localhost:5173", "http://localhost:5174"];
+}
+else if (corsOrigins.Length == 0)
+{
+    throw new InvalidOperationException(
+        "Cors:Origins must contain at least one frontend origin outside Development.");
+}
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("FrontendDev", policy =>
-        policy.WithOrigins("http://localhost:5173", "http://localhost:5174")
+    options.AddPolicy("Frontend", policy =>
+        policy.WithOrigins(corsOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod());
 });
@@ -48,6 +75,7 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IHanhViLogger, HanhViLogger>();
 builder.Services.AddScoped<IDeXuatLichTrinhService, DeXuatLichTrinhService>();
 builder.Services.AddSingleton<ITourMediaStorage, CloudinaryTourMediaStorage>();
+builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<IAiRecommendationClient, AiRecommendationClient>();
 builder.Services.AddHostedService<AiRecommendationRefreshWorker>();
 
@@ -89,7 +117,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseCors("FrontendDev");
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -901,6 +901,11 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(20)
                 .IsFixedLength();
             entity.Property(e => e.IdempotencyKey).HasMaxLength(100);
+            entity.Property(e => e.Gateway).HasMaxLength(20);
+            entity.Property(e => e.GatewayTxnId).HasMaxLength(100);
+            entity.Property(e => e.GatewayOrderId).HasMaxLength(100);
+            entity.Property(e => e.PayUrl).HasMaxLength(2000);
+            entity.Property(e => e.PaidAt).HasColumnType("datetime2");
             entity.Property(e => e.MaBooking)
                 .HasMaxLength(20)
                 .IsFixedLength();

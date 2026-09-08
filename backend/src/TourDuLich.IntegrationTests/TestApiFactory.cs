@@ -17,10 +17,14 @@ namespace TourDuLich.IntegrationTests;
 public sealed class TestApiFactory : WebApplicationFactory<Program>
 {
     private readonly Action<IServiceCollection>? _configureServices;
+    private readonly IReadOnlyDictionary<string, string?>? _configurationValues;
 
-    public TestApiFactory(Action<IServiceCollection>? configureServices = null)
+    public TestApiFactory(
+        Action<IServiceCollection>? configureServices = null,
+        IReadOnlyDictionary<string, string?>? configurationValues = null)
     {
         _configureServices = configureServices;
+        _configurationValues = configurationValues;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -39,6 +43,8 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                     ["ConnectionStrings:DefaultConnection"] = connection
                 });
             }
+            if (_configurationValues is not null)
+                configuration.AddInMemoryCollection(_configurationValues);
         });
         builder.ConfigureServices(services => _configureServices?.Invoke(services));
     }

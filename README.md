@@ -99,3 +99,11 @@ Repository này được cung cấp để review:
 \- Chức năng tự thiết kế lịch trình
 
 \- Khả năng triển khai production
+
+## Deploy Azure
+
+SQL đã có; triển khai thêm một Azure App Service cho API và hai Azure Static Web Apps cho Customer, Admin/Sale.
+Khai báo App Settings: `ConnectionStrings__DefaultConnection`, `Jwt__Key`, `Cors__Origins`, `VnPay__*`, `MoMo__*` và `AiService__*`.
+`Cors__Origins` chứa hai origin frontend public, phân tách bằng dấu phẩy; production thiếu origin sẽ không khởi động.
+Mỗi frontend đặt `VITE_API_BASE_URL` trỏ tới URL HTTPS public của API trước khi build.
+Không đưa connection string, mật khẩu, JWT key hay secret cổng thanh toán vào Git.
