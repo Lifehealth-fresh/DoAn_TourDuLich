@@ -29,6 +29,7 @@ public class DoiTacController : ControllerBase
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult> GetDoiTacs(
         [FromQuery] string? loaiDoiTac = null,
         [FromQuery] string? maKhuVuc = null)
@@ -78,6 +79,7 @@ public class DoiTacController : ControllerBase
     }
 
     [HttpGet("{maDoiTac}")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetDoiTac(string maDoiTac)
     {
         var maDoiTacDb = FixedLengthHelper.PadTo20(maDoiTac);

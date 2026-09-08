@@ -20,4 +20,6 @@ public partial class DanhGiaTour
     public virtual Tour? MaTourNavigation { get; set; }
 
     public virtual NguoiSuDung? MaUserNavigation { get; set; }
+
+    public virtual ICollection<MediaDanhGiaTour> MediaDanhGiaTours { get; set; } = new List<MediaDanhGiaTour>();
 }

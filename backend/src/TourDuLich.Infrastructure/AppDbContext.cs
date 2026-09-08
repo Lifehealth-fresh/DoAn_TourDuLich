@@ -22,6 +22,10 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<DanhGiaTour> DanhGiaTours { get; set; }
 
+    public virtual DbSet<MediaDanhGiaTour> MediaDanhGiaTours { get; set; }
+    public virtual DbSet<MediaDanhGiaHdv> MediaDanhGiaHdvs { get; set; }
+    public virtual DbSet<MediaDanhGiaSanPham> MediaDanhGiaSanPhams { get; set; }
+
     public virtual DbSet<DanhSachYeuThich> DanhSachYeuThiches { get; set; }
 
     public virtual DbSet<DatDichVu> DatDichVus { get; set; }
@@ -56,6 +60,11 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<LichTrinh> LichTrinhs { get; set; }
 
+    public virtual DbSet<LichTrinhDeXuat> LichTrinhDeXuats { get; set; }
+    public virtual DbSet<LichTrinhDeXuatChiTiet> LichTrinhDeXuatChiTiets { get; set; }
+
+    public virtual DbSet<JobRunLog> JobRunLogs { get; set; }
+
     public virtual DbSet<NguoiSuDung> NguoiSuDungs { get; set; }
 
     public virtual DbSet<NhomKhuyenMai> NhomKhuyenMais { get; set; }
@@ -76,6 +85,17 @@ public partial class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<JobRunLog>(entity =>
+        {
+            entity.HasKey(e => e.MaJobRun);
+            entity.ToTable("JobRunLog");
+            entity.Property(e => e.TenJob).HasMaxLength(100);
+            entity.Property(e => e.ThoiDiemBatDau).HasColumnType("datetime2");
+            entity.Property(e => e.ThoiDiemKetThuc).HasColumnType("datetime2");
+            entity.Property(e => e.TrangThai).HasMaxLength(20);
+            entity.Property(e => e.Loi).HasMaxLength(2000);
+        });
+
         modelBuilder.Entity<AigoiY>(entity =>
         {
             entity.HasKey(e => e.MaRecommodation).HasName("PK__AIGoiY__A3B0666F69D2BCA6");
@@ -115,6 +135,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ImageUrl)
                 .HasMaxLength(300)
                 .HasColumnName("ImageURL");
+            entity.Property(e => e.Url).HasMaxLength(300).HasColumnName("Url");
+            entity.Property(e => e.LoaiMedia).HasMaxLength(10).IsRequired();
+            entity.Property(e => e.CloudPublicId).HasMaxLength(255);
+            entity.Property(e => e.CloudResourceType).HasMaxLength(10);
             entity.Property(e => e.MaTour)
                 .HasMaxLength(20)
                 .IsFixedLength();
@@ -209,6 +233,51 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("FK_DanhGiaTour_NguoiSuDung");
         });
 
+        modelBuilder.Entity<MediaDanhGiaTour>(entity =>
+        {
+            entity.HasKey(e => e.MaMedia).HasName("PK_MediaDanhGiaTour");
+            entity.ToTable("MediaDanhGiaTour");
+            entity.Property(e => e.MaMedia).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaDanhGiaTour).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.LoaiMedia).HasMaxLength(10).IsRequired();
+            entity.Property(e => e.Url).HasMaxLength(300).IsRequired();
+            entity.HasOne(e => e.MaDanhGiaTourNavigation)
+                .WithMany(e => e.MediaDanhGiaTours)
+                .HasForeignKey(e => e.MaDanhGiaTour)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_MediaDanhGiaTour_DanhGiaTour");
+        });
+
+        modelBuilder.Entity<MediaDanhGiaHdv>(entity =>
+        {
+            entity.HasKey(e => e.MaMedia).HasName("PK_MediaDanhGiaHdv");
+            entity.ToTable("MediaDanhGiaHdv");
+            entity.Property(e => e.MaMedia).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaDanhGiaHdv).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.LoaiMedia).HasMaxLength(10).IsRequired();
+            entity.Property(e => e.Url).HasMaxLength(300).IsRequired();
+            entity.HasOne(e => e.MaDanhGiaHdvNavigation)
+                .WithMany(e => e.MediaDanhGiaHdvs)
+                .HasForeignKey(e => e.MaDanhGiaHdv)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_MediaDanhGiaHdv_DanhGiaHdv");
+        });
+
+        modelBuilder.Entity<MediaDanhGiaSanPham>(entity =>
+        {
+            entity.HasKey(e => e.MaMedia).HasName("PK_MediaDanhGiaSanPham");
+            entity.ToTable("MediaDanhGiaSanPham");
+            entity.Property(e => e.MaMedia).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaDanhGia).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.LoaiMedia).HasMaxLength(10).IsRequired();
+            entity.Property(e => e.Url).HasMaxLength(300).IsRequired();
+            entity.HasOne(e => e.MaDanhGiaNavigation)
+                .WithMany(e => e.MediaDanhGiaSanPhams)
+                .HasForeignKey(e => e.MaDanhGia)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_MediaDanhGiaSanPham_DanhGia");
+        });
+
         modelBuilder.Entity<DanhSachYeuThich>(entity =>
         {
             entity.HasKey(e => e.MaWish).HasName("PK__DanhSach__9591F60866139E0E");
@@ -246,6 +315,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.MaKhoiHanh)
                 .HasMaxLength(20)
                 .IsFixedLength();
+            entity.Property(e => e.MaKhachHang)
+                .HasMaxLength(20)
+                .IsFixedLength();
             entity.Property(e => e.MaTour)
                 .HasMaxLength(20)
                 .IsFixedLength();
@@ -257,10 +329,16 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.TrangThai)
                 .HasMaxLength(20)
                 .IsFixedLength();
+            entity.Property(e => e.TyLePhatHuy);
+            entity.Property(e => e.SoTienPhatHuy);
 
             entity.HasOne(d => d.MaKhoiHanhNavigation).WithMany(p => p.DatDichVus)
                 .HasForeignKey(d => d.MaKhoiHanh)
                 .HasConstraintName("FK_DatDichVu_KhoiHanh");
+
+            entity.HasOne(d => d.MaKhachHangNavigation).WithMany()
+                .HasForeignKey(d => d.MaKhachHang)
+                .HasConstraintName("FK_DatDichVu_KhachHang");
 
             entity.HasOne(d => d.MaTourNavigation).WithMany(p => p.DatDichVus)
                 .HasForeignKey(d => d.MaTour)
@@ -441,6 +519,9 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(20)
                 .IsFixedLength();
             entity.Property(e => e.SoHopDong).HasMaxLength(50);
+            entity.Property(e => e.HoTenKhach).HasMaxLength(70);
+            entity.Property(e => e.LoaiGiayTo).HasMaxLength(50);
+            entity.Property(e => e.SoGiayTo).HasMaxLength(50);
             entity.Property(e => e.TrangThai)
                 .HasMaxLength(20)
                 .IsFixedLength();
@@ -687,6 +768,39 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("FK_LichTrinh_Tour");
         });
 
+        modelBuilder.Entity<LichTrinhDeXuat>(entity =>
+        {
+            entity.HasKey(e => e.MaDeXuat).HasName("PK_LichTrinhDeXuat");
+            entity.ToTable("LichTrinhDeXuat");
+            entity.Property(e => e.MaDeXuat).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaYeuCau).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.TenPhuongAn).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.GhiChu).HasMaxLength(500);
+            entity.Property(e => e.TrangThai).HasMaxLength(20).IsFixedLength().IsRequired();
+            entity.Property(e => e.NgayTao).HasColumnType("datetime2");
+            entity.HasOne(e => e.MaYeuCauNavigation).WithMany(e => e.LichTrinhDeXuats)
+                .HasForeignKey(e => e.MaYeuCau).OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_LichTrinhDeXuat_YeuCau");
+        });
+
+        modelBuilder.Entity<LichTrinhDeXuatChiTiet>(entity =>
+        {
+            entity.HasKey(e => e.MaChiTiet).HasName("PK_LichTrinhDeXuatChiTiet");
+            entity.ToTable("LichTrinhDeXuatChiTiet");
+            entity.Property(e => e.MaChiTiet).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaDeXuat).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaDthamQuan).HasMaxLength(20).IsFixedLength().HasColumnName("MaDThamQuan");
+            entity.Property(e => e.MaSanPham).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.Mota).HasMaxLength(500);
+            entity.HasOne(e => e.MaDeXuatNavigation).WithMany(e => e.ChiTiets)
+                .HasForeignKey(e => e.MaDeXuat).OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_LichTrinhDeXuatChiTiet_DeXuat");
+            entity.HasOne(e => e.MaDthamQuanNavigation).WithMany()
+                .HasForeignKey(e => e.MaDthamQuan).HasConstraintName("FK_LichTrinhDeXuatChiTiet_Diem");
+            entity.HasOne(e => e.MaSanPhamNavigation).WithMany()
+                .HasForeignKey(e => e.MaSanPham).HasConstraintName("FK_LichTrinhDeXuatChiTiet_SanPham");
+        });
+
         modelBuilder.Entity<NguoiSuDung>(entity =>
         {
             entity.HasKey(e => e.MaUser).HasName("PK__NguoiSuD__55DAC4B7DBE7C8AF");
@@ -786,6 +900,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.LoaiThanhToan)
                 .HasMaxLength(20)
                 .IsFixedLength();
+            entity.Property(e => e.IdempotencyKey).HasMaxLength(100);
             entity.Property(e => e.MaBooking)
                 .HasMaxLength(20)
                 .IsFixedLength();
@@ -865,6 +980,7 @@ public partial class AppDbContext : DbContext
                 .IsFixedLength();
             entity.Property(e => e.DiemDenMongMuon).HasMaxLength(200);
             entity.Property(e => e.LyDoTuChoiGoiY).HasMaxLength(200);
+            entity.Property(e => e.LyDoTuChoiBoiSale).HasColumnType("nvarchar(max)");
             entity.Property(e => e.MaGoiYthamKhao)
                 .HasMaxLength(20)
                 .IsFixedLength()

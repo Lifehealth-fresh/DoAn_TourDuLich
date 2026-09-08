@@ -21,6 +21,12 @@ public partial class HopDong
 
     public string? TrangThai { get; set; }
 
+    public string? HoTenKhach { get; set; }
+
+    public string? LoaiGiayTo { get; set; }
+
+    public string? SoGiayTo { get; set; }
+
     public virtual DatDichVu MaBookingNavigation { get; set; } = null!;
 
     public virtual NguoiSuDung? NguoiDaiDienNavigation { get; set; }

@@ -1,10 +1,49 @@
+# .NET
 bin/
 obj/
+*.csproj.user
+*.user
+*.suo
+
+# Visual Studio
+.vs/
+
+# Node.js
 node_modules/
+dist/
+build/
+.next/
+out/
+
+# Python
+.venv/
+venv/
 __pycache__/
 *.pyc
-venv/
-appsettings.Development.json
+
+# Local environment
 .env
+.env.*
+!.env.example
+appsettings.Development.json
+
+# Credentials
+*.pem
+*.key
+*.pfx
+credentials.json
+
+# Database and backup
+*.bak
+*.mdf
+*.ldf
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Power BI backup
 *.pbix.bak
-.vs/
+
+# Báo cáo Word, thêm dòng này nếu không muốn push báo cáo
+*.docx

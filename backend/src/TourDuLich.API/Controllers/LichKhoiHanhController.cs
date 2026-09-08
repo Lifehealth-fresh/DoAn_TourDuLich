@@ -22,14 +22,19 @@ public class LichKhoiHanhController : ControllerBase
 
     // GET /api/LichKhoiHanh?maTour={maTour}
     [HttpGet]
-    public async Task<ActionResult> GetLichKhoiHanhs([FromQuery] string? maTour = null)
+    [AllowAnonymous]
+    public async Task<ActionResult> GetLichKhoiHanhs([FromQuery] string? maTour = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         var query = _context.LichKhoiHanhs.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(maTour))
             query = query.Where(x => x.MaTour == FixedLengthHelper.PadTo20(maTour));
 
-        var result = await query
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var totalCount = await query.CountAsync();
+        var result = await query.OrderBy(x => x.NgayKhoiHanh).ThenBy(x => x.MaKhoiHanh)
+            .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(x => new
             {
                 maKhoiHanh = FixedLengthHelper.TrimSafe(x.MaKhoiHanh),
@@ -40,11 +45,12 @@ public class LichKhoiHanhController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(result);
+        return Ok(new { items = result, page, pageSize, totalCount });
     }
 
     // GET /api/LichKhoiHanh/{maKhoiHanh}
     [HttpGet("{maKhoiHanh}")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetLichKhoiHanh(string maKhoiHanh)
     {
         var key = FixedLengthHelper.PadTo20(maKhoiHanh);

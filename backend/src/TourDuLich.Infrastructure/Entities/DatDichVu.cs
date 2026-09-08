@@ -13,6 +13,8 @@ public partial class DatDichVu
 
     public string? MaKhoiHanh { get; set; }
 
+    public string? MaKhachHang { get; set; }
+
     public DateOnly? NgayDat { get; set; }
 
     public int? SlnguoiLon { get; set; }
@@ -25,6 +27,10 @@ public partial class DatDichVu
 
     public int? ThanhTien { get; set; }
 
+    public int? TyLePhatHuy { get; set; }
+
+    public int? SoTienPhatHuy { get; set; }
+
     public string? TrangThai { get; set; }
 
     public virtual ICollection<DatDichVuKhuyenMai> DatDichVuKhuyenMais { get; set; } = new List<DatDichVuKhuyenMai>();
@@ -32,6 +38,8 @@ public partial class DatDichVu
     public virtual ICollection<HopDong> HopDongs { get; set; } = new List<HopDong>();
 
     public virtual LichKhoiHanh? MaKhoiHanhNavigation { get; set; }
+
+    public virtual KhachHang? MaKhachHangNavigation { get; set; }
 
     public virtual Tour MaTourNavigation { get; set; } = null!;
 

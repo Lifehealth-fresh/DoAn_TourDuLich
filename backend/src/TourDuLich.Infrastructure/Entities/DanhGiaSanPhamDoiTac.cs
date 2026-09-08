@@ -20,4 +20,6 @@ public partial class DanhGiaSanPhamDoiTac
     public virtual SanPhamDoiTac MaSanPhamNavigation { get; set; } = null!;
 
     public virtual NguoiSuDung MaUserNavigation { get; set; } = null!;
+
+    public virtual ICollection<MediaDanhGiaSanPham> MediaDanhGiaSanPhams { get; set; } = new List<MediaDanhGiaSanPham>();
 }

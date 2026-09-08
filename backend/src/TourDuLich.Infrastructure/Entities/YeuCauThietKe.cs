@@ -27,6 +27,8 @@ public partial class YeuCauThietKe
 
     public string? LyDoTuChoiGoiY { get; set; }
 
+    public string? LyDoTuChoiBoiSale { get; set; }
+
     public string? TrangThai { get; set; }
 
     public DateTime? NgayGui { get; set; }
@@ -38,4 +40,6 @@ public partial class YeuCauThietKe
     public virtual Tour? MaTourTaoNavigation { get; set; }
 
     public virtual NguoiSuDung MaUserNavigation { get; set; } = null!;
+
+    public virtual ICollection<LichTrinhDeXuat> LichTrinhDeXuats { get; set; } = new List<LichTrinhDeXuat>();
 }

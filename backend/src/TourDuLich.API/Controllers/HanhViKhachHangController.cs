@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
 using TourDuLich.Application.Helpers;
+using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
 
@@ -18,7 +19,22 @@ public class HanhViKhachHangController : ControllerBase
         "Xem",
         "TimKiem",
         "ThemYeuThich",
-        "XemLichTrinh"
+        "XemLichTrinh",
+        "DatTour",
+        "ThanhToan",
+        "DanhGiaTour",
+        "DanhGiaHdv",
+        "DanhGiaSanPham",
+        "TuChoiGoiY",
+        "HoanThanh"
+    };
+
+    // This endpoint is for client-side telemetry only. Business events are
+    // recorded by their owning backend transaction via IHanhViLogger.
+    private static readonly HashSet<string> HanhDongUiHopLe = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Xem",
+        "TimKiem"
     };
 
     private readonly AppDbContext _context;
@@ -43,11 +59,11 @@ public class HanhViKhachHangController : ControllerBase
         }
 
         if (string.IsNullOrWhiteSpace(request.HanhDong) ||
-            !HanhDongHopLe.Contains(request.HanhDong.Trim()))
+            !HanhDongUiHopLe.Contains(request.HanhDong.Trim()))
         {
             return BadRequest(new
             {
-                message = "Hành động không hợp lệ. Chỉ chấp nhận: Xem, TimKiem, ThemYeuThich, XemLichTrinh."
+                message = "Endpoint này chỉ nhận hành vi UI: Xem hoặc TimKiem. Hành vi nghiệp vụ được backend tự ghi."
             });
         }
 
@@ -87,7 +103,7 @@ public class HanhViKhachHangController : ControllerBase
     }
 
     [HttpGet("cua-toi")]
-    public async Task<ActionResult> GetMine([FromQuery] string? hanhDong)
+    public async Task<ActionResult> GetMine([FromQuery] string? hanhDong, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         var maUser = GetCurrentMaUser();
         if (maUser is null)
@@ -107,7 +123,7 @@ public class HanhViKhachHangController : ControllerBase
             {
                 return BadRequest(new
                 {
-                    message = "Hành động không hợp lệ. Chỉ chấp nhận: Xem, TimKiem, ThemYeuThich, XemLichTrinh."
+                    message = "Hành động không hợp lệ. Chỉ chấp nhận các hành động đã khai báo trong hệ thống."
                 });
             }
 
@@ -115,9 +131,11 @@ public class HanhViKhachHangController : ControllerBase
             query = query.Where(item => item.HanhDong == hanhDongDb);
         }
 
-        var items = await query
-            .OrderByDescending(item => item.ThoiGian)
-            .Take(100)
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var totalCount = await query.CountAsync();
+        var items = await query.OrderByDescending(item => item.ThoiGian).ThenBy(item => item.MaHanhDong)
+            .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(item => new
             {
                 maHanhDong = FixedLengthHelper.TrimSafe(item.MaHanhDong),
@@ -128,7 +146,7 @@ public class HanhViKhachHangController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(items);
+        return Ok(new { items, page, pageSize, totalCount });
     }
 
     private string? GetCurrentMaUser()
@@ -138,16 +156,6 @@ public class HanhViKhachHangController : ControllerBase
 
     private async Task<string> GenerateMaHanhDongAsync()
     {
-        string maHanhDongDb;
-
-        do
-        {
-            var maHanhDong = $"HV{Guid.NewGuid():N}"[..20].ToUpperInvariant();
-            maHanhDongDb = FixedLengthHelper.PadTo20(maHanhDong);
-        }
-        while (await _context.HanhViKhachHangs
-            .AnyAsync(item => item.MaHanhDong == maHanhDongDb));
-
-        return maHanhDongDb;
+        return await HanhViLogger.GenerateMaHanhDongAsync(_context);
     }
 }

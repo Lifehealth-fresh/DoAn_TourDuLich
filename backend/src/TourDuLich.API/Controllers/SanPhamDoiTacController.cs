@@ -21,6 +21,7 @@ public class SanPhamDoiTacController : ControllerBase
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult> GetProducts(
         [FromQuery] string? maDoiTac = null,
         [FromQuery] string? maDthamQuan = null)
@@ -61,6 +62,7 @@ public class SanPhamDoiTacController : ControllerBase
     }
 
     [HttpGet("{maSanPham}")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetProduct(string maSanPham)
     {
         var maSanPhamDb = FixedLengthHelper.PadTo20(maSanPham);

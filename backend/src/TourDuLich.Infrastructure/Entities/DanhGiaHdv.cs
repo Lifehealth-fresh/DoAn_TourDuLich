@@ -20,4 +20,6 @@ public partial class DanhGiaHdv
     public virtual HuongDanVien MaHdvNavigation { get; set; } = null!;
 
     public virtual NguoiSuDung MaUserNavigation { get; set; } = null!;
+
+    public virtual ICollection<MediaDanhGiaHdv> MediaDanhGiaHdvs { get; set; } = new List<MediaDanhGiaHdv>();
 }

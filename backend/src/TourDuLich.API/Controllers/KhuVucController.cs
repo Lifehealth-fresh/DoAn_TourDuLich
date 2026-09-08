@@ -21,6 +21,7 @@ public class KhuVucController : ControllerBase
 
     // GET /api/KhuVuc?trangThai={trangThai}
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult> GetKhuVucs([FromQuery] string? trangThai = null)
     {
         var query = _context.KhuVucs.AsNoTracking().AsQueryable();
@@ -46,6 +47,7 @@ public class KhuVucController : ControllerBase
 
     // GET /api/KhuVuc/{maKhuVuc}
     [HttpGet("{maKhuVuc}")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetKhuVuc(string maKhuVuc)
     {
         var key = FixedLengthHelper.PadTo20(maKhuVuc);

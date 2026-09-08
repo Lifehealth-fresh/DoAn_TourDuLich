@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
 using TourDuLich.Application.Helpers;
+using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
 
@@ -13,15 +14,18 @@ namespace TourDuLich.API.Controllers;
 public class DanhGiaController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IHanhViLogger _hanhViLogger;
 
-    public DanhGiaController(AppDbContext context)
+    public DanhGiaController(AppDbContext context, IHanhViLogger hanhViLogger)
     {
         _context = context;
+        _hanhViLogger = hanhViLogger;
     }
 
     // GET /api/DanhGia/tour/{maTour}
     [HttpGet("tour/{maTour}")]
-    public async Task<ActionResult> GetTourReviews(string maTour)
+    [AllowAnonymous]
+    public async Task<ActionResult> GetTourReviews(string maTour, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         var maTourDb = FixedLengthHelper.PadTo20(maTour);
 
@@ -33,36 +37,51 @@ public class DanhGiaController : ControllerBase
             return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
         }
 
-        var danhGias = await _context.DanhGiaTours
+        var query = _context.DanhGiaTours
             .AsNoTracking()
-            .Where(item => item.MaTour == maTourDb)
+            .Where(item => item.MaTour == maTourDb);
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var tongDanhGia = await query.CountAsync();
+        var diemTrungBinh = tongDanhGia == 0
+            ? (double?)null
+            : await query.AverageAsync(item => (double?)(item.SaoDanhGia ?? 0));
+
+        var danhGias = await query
             .OrderByDescending(item => item.ThoiGian)
+            .ThenBy(item => item.MaDanhGiaTour)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(item => new
             {
                 maDanhGiaTour = FixedLengthHelper.TrimSafe(item.MaDanhGiaTour),
-                maUser = FixedLengthHelper.TrimSafe(item.MaUser),
                 saoDanhGia = item.SaoDanhGia,
                 nhanXet = item.NhanXet,
-                thoiGian = item.ThoiGian
+                thoiGian = item.ThoiGian,
+                media = item.MediaDanhGiaTours.OrderBy(media => media.ThuTu).Select(media => new
+                {
+                    url = media.Url,
+                    loaiMedia = FixedLengthHelper.TrimSafe(media.LoaiMedia),
+                    thuTu = media.ThuTu
+                })
             })
             .ToListAsync();
-
-        var diemTrungBinh = danhGias.Count == 0
-            ? (double?)null
-            : danhGias.Average(item => item.saoDanhGia ?? 0);
 
         return Ok(new
         {
             maTour = FixedLengthHelper.TrimSafe(maTourDb),
             diemTrungBinh,
-            tongDanhGia = danhGias.Count,
+            tongDanhGia,
+            page,
+            pageSize,
             danhGias
         });
     }
 
     // GET /api/DanhGia/huong-dan-vien/{maHDV}
     [HttpGet("huong-dan-vien/{maHdv}")]
-    public async Task<ActionResult> GetHdvReviews(string maHdv)
+    [AllowAnonymous]
+    public async Task<ActionResult> GetHdvReviews(string maHdv, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         var maHdvDb = FixedLengthHelper.PadTo20(maHdv);
 
@@ -74,36 +93,51 @@ public class DanhGiaController : ControllerBase
             return NotFound(new { message = $"Không tìm thấy hướng dẫn viên '{maHdv}'." });
         }
 
-        var danhGias = await _context.DanhGiaHdvs
+        var query = _context.DanhGiaHdvs
             .AsNoTracking()
-            .Where(item => item.MaHdv == maHdvDb)
+            .Where(item => item.MaHdv == maHdvDb);
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var tongDanhGia = await query.CountAsync();
+        var diemTrungBinh = tongDanhGia == 0
+            ? (double?)null
+            : await query.AverageAsync(item => (double?)item.SaoDanhGia);
+
+        var danhGias = await query
             .OrderByDescending(item => item.ThoiGian)
+            .ThenBy(item => item.MaDanhGiaHdv)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(item => new
             {
                 maDanhGiaHdv = FixedLengthHelper.TrimSafe(item.MaDanhGiaHdv),
-                maUser = FixedLengthHelper.TrimSafe(item.MaUser),
                 saoDanhGia = item.SaoDanhGia,
                 nhanXet = item.NhanXet,
-                thoiGian = item.ThoiGian
+                thoiGian = item.ThoiGian,
+                media = item.MediaDanhGiaHdvs.OrderBy(media => media.ThuTu).Select(media => new
+                {
+                    url = media.Url,
+                    loaiMedia = FixedLengthHelper.TrimSafe(media.LoaiMedia),
+                    thuTu = media.ThuTu
+                })
             })
             .ToListAsync();
-
-        var diemTrungBinh = danhGias.Count == 0
-            ? (double?)null
-            : danhGias.Average(item => item.saoDanhGia);
 
         return Ok(new
         {
             maHdv = FixedLengthHelper.TrimSafe(maHdvDb),
             diemTrungBinh,
-            tongDanhGia = danhGias.Count,
+            tongDanhGia,
+            page,
+            pageSize,
             danhGias
         });
     }
 
     // GET /api/DanhGia/san-pham-doi-tac/{maSanPham}
     [HttpGet("san-pham-doi-tac/{maSanPham}")]
-    public async Task<ActionResult> GetSanPhamReviews(string maSanPham)
+    [AllowAnonymous]
+    public async Task<ActionResult> GetSanPhamReviews(string maSanPham, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         var maSanPhamDb = FixedLengthHelper.PadTo20(maSanPham);
 
@@ -115,29 +149,43 @@ public class DanhGiaController : ControllerBase
             return NotFound(new { message = $"Không tìm thấy sản phẩm '{maSanPham}'." });
         }
 
-        var danhGias = await _context.DanhGiaSanPhamDoiTacs
+        var query = _context.DanhGiaSanPhamDoiTacs
             .AsNoTracking()
-            .Where(item => item.MaSanPham == maSanPhamDb)
+            .Where(item => item.MaSanPham == maSanPhamDb);
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var tongDanhGia = await query.CountAsync();
+        var diemTrungBinh = tongDanhGia == 0
+            ? (double?)null
+            : await query.AverageAsync(item => (double?)item.SaoDanhGia);
+
+        var danhGias = await query
             .OrderByDescending(item => item.ThoiGian)
+            .ThenBy(item => item.MaDanhGia)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(item => new
             {
                 maDanhGia = FixedLengthHelper.TrimSafe(item.MaDanhGia),
-                maUser = FixedLengthHelper.TrimSafe(item.MaUser),
                 saoDanhGia = item.SaoDanhGia,
                 nhanXet = item.NhanXet,
-                thoiGian = item.ThoiGian
+                thoiGian = item.ThoiGian,
+                media = item.MediaDanhGiaSanPhams.OrderBy(media => media.ThuTu).Select(media => new
+                {
+                    url = media.Url,
+                    loaiMedia = FixedLengthHelper.TrimSafe(media.LoaiMedia),
+                    thuTu = media.ThuTu
+                })
             })
             .ToListAsync();
-
-        var diemTrungBinh = danhGias.Count == 0
-            ? (double?)null
-            : danhGias.Average(item => item.saoDanhGia);
 
         return Ok(new
         {
             maSanPham = FixedLengthHelper.TrimSafe(maSanPhamDb),
             diemTrungBinh,
-            tongDanhGia = danhGias.Count,
+            tongDanhGia,
+            page,
+            pageSize,
             danhGias
         });
     }
@@ -145,6 +193,7 @@ public class DanhGiaController : ControllerBase
     // POST /api/DanhGia/tour
     [HttpPost("tour")]
     [Authorize]
+    [Authorize(Roles = "KhachHang")]
     public async Task<ActionResult> CreateTourReview(DanhGiaTourCreateDto request)
     {
         var maUser = GetCurrentMaUser();
@@ -197,6 +246,10 @@ public class DanhGiaController : ControllerBase
             });
         }
 
+        var media = ParseMedia(request.MediaUrls, out var mediaError);
+        if (mediaError is not null)
+            return BadRequest(new { message = mediaError });
+
         var maDanhGiaTourDb = await GenerateMaDanhGiaTourAsync();
 
         var danhGia = new DanhGiaTour
@@ -209,8 +262,23 @@ public class DanhGiaController : ControllerBase
             ThoiGian = DateTime.UtcNow
         };
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         _context.DanhGiaTours.Add(danhGia);
         await _context.SaveChangesAsync();
+        foreach (var item in media)
+        {
+            _context.MediaDanhGiaTours.Add(new MediaDanhGiaTour
+            {
+                MaMedia = await GenerateMediaTourIdAsync(),
+                MaDanhGiaTour = danhGia.MaDanhGiaTour,
+                Url = item.Url,
+                LoaiMedia = item.LoaiMedia,
+                ThuTu = item.ThuTu
+            });
+        }
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+        await _hanhViLogger.LogAsync(maUserDb, maTourDb, "DanhGiaTour");
 
         return StatusCode(StatusCodes.Status201Created, new
         {
@@ -225,10 +293,14 @@ public class DanhGiaController : ControllerBase
     // PUT /api/DanhGia/tour/{maDanhGiaTour}
     [HttpPut("tour/{maDanhGiaTour}")]
     [Authorize]
+    [Authorize(Roles = "KhachHang")]
     public async Task<IActionResult> UpdateTourReview(
         string maDanhGiaTour,
         DanhGiaTourUpdateDto request)
     {
+        if (User.IsInRole("Sale") || User.IsInRole("Admin"))
+            return Forbid();
+
         var maUser = GetCurrentMaUser();
 
         if (maUser is null)
@@ -260,13 +332,36 @@ public class DanhGiaController : ControllerBase
         danhGia.NhanXet = request.NhanXet?.Trim();
         danhGia.ThoiGian = DateTime.UtcNow;
 
+        var media = ParseMedia(request.MediaUrls, out var mediaError);
+        if (mediaError is not null)
+            return BadRequest(new { message = mediaError });
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        if (request.MediaUrls is not null)
+        {
+            _context.MediaDanhGiaTours.RemoveRange(_context.MediaDanhGiaTours
+                .Where(item => item.MaDanhGiaTour == danhGia.MaDanhGiaTour));
+            foreach (var item in media)
+            {
+                _context.MediaDanhGiaTours.Add(new MediaDanhGiaTour
+                {
+                    MaMedia = await GenerateMediaTourIdAsync(),
+                    MaDanhGiaTour = danhGia.MaDanhGiaTour,
+                    Url = item.Url,
+                    LoaiMedia = item.LoaiMedia,
+                    ThuTu = item.ThuTu
+                });
+            }
+        }
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return NoContent();
     }
 
     // POST /api/DanhGia/huong-dan-vien
     [HttpPost("huong-dan-vien")]
     [Authorize]
+    [Authorize(Roles = "KhachHang")]
     public async Task<ActionResult> CreateHdvReview(DanhGiaHdvCreateDto request)
     {
         var maUser = GetCurrentMaUser();
@@ -300,19 +395,33 @@ public class DanhGiaController : ControllerBase
             return BadRequest(new { message = "Hướng dẫn viên không tồn tại." });
         }
 
-        // TODO: validate chặt hơn, kiểm tra đúng user đã đi tour do chính HDV này dẫn
         var coBookingHoanThanh = await _context.DatDichVus
-            .AnyAsync(item =>
-                item.MaUser == maUserDb &&
-                item.TrangThai == trangThaiHoanThanh);
+            .Where(item => item.MaUser == maUserDb &&
+                           item.TrangThai == trangThaiHoanThanh &&
+                           item.MaKhoiHanh != null)
+            .Join(_context.LichDanTours,
+                booking => booking.MaKhoiHanh!,
+                assignment => assignment.MaKhoiHanh,
+                (_, assignment) => assignment)
+            .AnyAsync(item => item.MaHdv == maHdvDb);
 
         if (!coBookingHoanThanh)
         {
             return BadRequest(new
             {
-                message = "Bạn cần hoàn thành ít nhất một tour trước khi đánh giá hướng dẫn viên."
+                message = "Bạn chưa từng đi tour do hướng dẫn viên này dẫn."
             });
         }
+
+        if (await _context.DanhGiaHdvs.AnyAsync(item =>
+                item.MaUser == maUserDb && item.MaHdv == maHdvDb))
+        {
+            return Conflict(new { message = "Bạn đã đánh giá rồi." });
+        }
+
+        var media = ParseMedia(request.MediaUrls, out var mediaError);
+        if (mediaError is not null)
+            return BadRequest(new { message = mediaError });
 
         var maDanhGiaHdvDb = await GenerateMaDanhGiaHdvAsync();
 
@@ -326,8 +435,23 @@ public class DanhGiaController : ControllerBase
             ThoiGian = DateTime.UtcNow
         };
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         _context.DanhGiaHdvs.Add(danhGia);
         await _context.SaveChangesAsync();
+        foreach (var item in media)
+        {
+            _context.MediaDanhGiaHdvs.Add(new MediaDanhGiaHdv
+            {
+                MaMedia = await GenerateMediaHdvIdAsync(),
+                MaDanhGiaHdv = danhGia.MaDanhGiaHdv,
+                Url = item.Url,
+                LoaiMedia = item.LoaiMedia,
+                ThuTu = item.ThuTu
+            });
+        }
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+        await _hanhViLogger.LogAsync(maUserDb, null, "DanhGiaHdv");
 
         return StatusCode(StatusCodes.Status201Created, new
         {
@@ -342,6 +466,7 @@ public class DanhGiaController : ControllerBase
     // POST /api/DanhGia/san-pham-doi-tac
     [HttpPost("san-pham-doi-tac")]
     [Authorize]
+    [Authorize(Roles = "KhachHang")]
     public async Task<ActionResult> CreateSanPhamReview(
         DanhGiaSanPhamDoiTacCreateDto request)
     {
@@ -375,6 +500,33 @@ public class DanhGiaController : ControllerBase
             return BadRequest(new { message = "Sản phẩm đối tác không tồn tại." });
         }
 
+        var daSuDung = await _context.DatDichVus
+            .Where(item => item.MaUser == maUserDb &&
+                           item.TrangThai == FixedLengthHelper.PadTo20("HoanThanh"))
+            .Join(_context.LichTrinhs,
+                booking => booking.MaTour,
+                schedule => schedule.MaTour,
+                (_, schedule) => schedule)
+            .AnyAsync(item => item.MaSanPham == maSanPhamDb);
+
+        if (!daSuDung)
+        {
+            return BadRequest(new
+            {
+                message = "Bạn chưa từng sử dụng sản phẩm này trong tour đã hoàn thành."
+            });
+        }
+
+        if (await _context.DanhGiaSanPhamDoiTacs.AnyAsync(item =>
+                item.MaUser == maUserDb && item.MaSanPham == maSanPhamDb))
+        {
+            return Conflict(new { message = "Bạn đã đánh giá rồi." });
+        }
+
+        var media = ParseMedia(request.MediaUrls, out var mediaError);
+        if (mediaError is not null)
+            return BadRequest(new { message = mediaError });
+
         var maDanhGiaDb = await GenerateMaDanhGiaSanPhamAsync();
 
         var danhGia = new DanhGiaSanPhamDoiTac
@@ -387,8 +539,23 @@ public class DanhGiaController : ControllerBase
             ThoiGian = DateTime.UtcNow
         };
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         _context.DanhGiaSanPhamDoiTacs.Add(danhGia);
         await _context.SaveChangesAsync();
+        foreach (var item in media)
+        {
+            _context.MediaDanhGiaSanPhams.Add(new MediaDanhGiaSanPham
+            {
+                MaMedia = await GenerateMediaSanPhamIdAsync(),
+                MaDanhGia = danhGia.MaDanhGia,
+                Url = item.Url,
+                LoaiMedia = item.LoaiMedia,
+                ThuTu = item.ThuTu
+            });
+        }
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+        await _hanhViLogger.LogAsync(maUserDb, null, "DanhGiaSanPham");
 
         return StatusCode(StatusCodes.Status201Created, new
         {
@@ -462,4 +629,55 @@ public class DanhGiaController : ControllerBase
 
         return maDanhGiaDb;
     }
+
+    private static List<MediaInput> ParseMedia(List<MediaItemDto>? items, out string? error)
+    {
+        var result = new List<MediaInput>();
+        if (items is null)
+        {
+            error = null;
+            return result;
+        }
+
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.Url))
+            {
+                error = "MediaUrl không được để trống.";
+                return result;
+            }
+            if (item.LoaiMedia is not ("Anh" or "Video"))
+            {
+                error = "LoaiMedia chỉ nhận Anh hoặc Video.";
+                return result;
+            }
+            result.Add(new MediaInput(item.Url.Trim(), item.LoaiMedia, result.Count));
+        }
+
+        error = null;
+        return result;
+    }
+
+    private async Task<string> GenerateMediaTourIdAsync() => await GenerateMediaIdAsync(
+        id => _context.MediaDanhGiaTours.AnyAsync(item => item.MaMedia == id), "MT");
+
+    private async Task<string> GenerateMediaHdvIdAsync() => await GenerateMediaIdAsync(
+        id => _context.MediaDanhGiaHdvs.AnyAsync(item => item.MaMedia == id), "MH");
+
+    private async Task<string> GenerateMediaSanPhamIdAsync() => await GenerateMediaIdAsync(
+        id => _context.MediaDanhGiaSanPhams.AnyAsync(item => item.MaMedia == id), "MS");
+
+    private static async Task<string> GenerateMediaIdAsync(
+        Func<string, Task<bool>> exists,
+        string prefix)
+    {
+        string id;
+        do
+        {
+            id = FixedLengthHelper.PadTo20($"{prefix}{Guid.NewGuid():N}"[..20].ToUpperInvariant());
+        } while (await exists(id));
+        return id;
+    }
+
+    private sealed record MediaInput(string Url, string LoaiMedia, int ThuTu);
 }

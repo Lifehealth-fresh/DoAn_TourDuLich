@@ -19,13 +19,12 @@ public class LichTrinhController : ControllerBase
         _context = context;
     }
 
-    // GHI CHÚ: Endpoint công khai theo yêu cầu nghiệp vụ — khách xem được lịch
-    // trình bất kỳ tour nào (kể cả tour đang được thiết kế riêng cho người khác)
-    // mà không cần đăng nhập. Nếu sau này cần giới hạn quyền riêng tư cho tour
-    // đang ở trạng thái "Nhap" (đang thiết kế dở), cân nhắc bổ sung điều kiện tại đây.
+    // GHI CHÚ: Endpoint công khai với tour chuẩn; tour tự thiết kế chỉ chủ sở hữu,
+    // Sale hoặc Admin được xem.
 
     // GET /api/LichTrinh/tour/{maTour}
     [HttpGet("tour/{maTour}")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetByTour(string maTour)
     {
         var maTourDb = FixedLengthHelper.PadTo20(maTour);
@@ -40,6 +39,12 @@ public class LichTrinhController : ControllerBase
             {
                 message = $"Không tìm thấy tour '{maTour}'."
             });
+        }
+
+        if (FixedLengthHelper.TrimSafe(tour.LoaiTour) == "TuThietKe" &&
+            !await UserCanAccessTourAsync(maTourDb))
+        {
+            return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
         }
 
         var items = await _context.LichTrinhs
@@ -408,10 +413,7 @@ public class LichTrinhController : ControllerBase
 
     private bool IsAdminOrSale()
     {
-        var maVaiTro = User.FindFirst("MaVaiTro")?.Value;
-
-        // TODO: chuyển sang policy-based authorization khi hệ thống có role claim chuẩn
-        return maVaiTro == "2" || maVaiTro == "3";
+        return User.IsInRole("Sale") || User.IsInRole("Admin");
     }
 
     private string? GetCurrentMaUser()

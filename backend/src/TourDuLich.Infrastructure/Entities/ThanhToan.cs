@@ -19,5 +19,7 @@ public partial class ThanhToan
 
     public string? LoaiThanhToan { get; set; }
 
+    public string? IdempotencyKey { get; set; }
+
     public virtual DatDichVu MaBookingNavigation { get; set; } = null!;
 }

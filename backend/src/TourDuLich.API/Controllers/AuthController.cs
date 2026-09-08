@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using TourDuLich.API.DTOs;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Application.Services;
@@ -22,6 +23,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
+    [AllowAnonymous]
     public async Task<ActionResult> Register(RegisterDto request)
     {
         var soDienThoai = request.SoDienThoai?.Trim();
@@ -88,6 +90,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<ActionResult> Login(LoginDto request)
     {
         var soDienThoai = request.SoDienThoai?.Trim();

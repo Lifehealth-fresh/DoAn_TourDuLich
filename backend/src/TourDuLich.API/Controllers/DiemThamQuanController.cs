@@ -21,6 +21,7 @@ public class DiemThamQuanController : ControllerBase
 
     // GET /api/DiemThamQuan?maKhuVuc={maKhuVuc}
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult> GetDiemThamQuans([FromQuery] string? maKhuVuc = null)
     {
         var query = _context.DiemThamQuans.AsNoTracking().AsQueryable();
@@ -46,6 +47,7 @@ public class DiemThamQuanController : ControllerBase
 
     // GET /api/DiemThamQuan/{maDthamQuan}
     [HttpGet("{maDthamQuan}")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetDiemThamQuan(string maDthamQuan)
     {
         var key = FixedLengthHelper.PadTo20(maDthamQuan);

@@ -27,6 +27,7 @@ public class KhuyenMaiController : ControllerBase
 
     // GET /api/KhuyenMai
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult> GetActivePromotions()
     {
         var now = DateTime.UtcNow;
@@ -57,6 +58,7 @@ public class KhuyenMaiController : ControllerBase
 
     // GET /api/KhuyenMai/{maKM}
     [HttpGet("{maKm}")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetPromotion(string maKm)
     {
         var maKmDb = FixedLengthHelper.PadTo20(maKm);
@@ -435,6 +437,22 @@ public class KhuyenMaiController : ControllerBase
                 {
                     message = "Booking chưa đạt đơn tối thiểu để áp dụng khuyến mãi."
                 });
+            }
+
+            if (dieuKien.LanDatDau == true)
+            {
+                var daDatTruocDo = await _context.DatDichVus
+                    .AnyAsync(item =>
+                        item.MaUser == maUserDb &&
+                        item.MaBooking != maBookingDb);
+
+                if (daDatTruocDo)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Mã khuyến mãi chỉ áp dụng cho đơn đặt tour đầu tiên của tài khoản."
+                    });
+                }
             }
 
             if (dieuKien.SoLuong.HasValue)

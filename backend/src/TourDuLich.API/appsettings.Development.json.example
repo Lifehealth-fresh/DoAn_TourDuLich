@@ -1,0 +1,20 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=True;Connection Timeout=60;"
+  },
+  "Jwt": {
+    "Key": "<generate-a-random-secret-key-at-least-32-characters>",
+    "Issuer": "TourDuLichAPI",
+    "Audience": "TourDuLichClient"
+  },
+  "AiService": {
+    "BaseUrl": "http://localhost:8000/",
+    "ApiKey": "change-this-in-development"
+  }
+}

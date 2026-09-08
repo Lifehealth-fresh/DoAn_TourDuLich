@@ -4,5 +4,6 @@
     <Project Path="src/TourDuLich.Application/TourDuLich.Application.csproj" />
     <Project Path="src/TourDuLich.Domain/TourDuLich.Domain.csproj" />
     <Project Path="src/TourDuLich.Infrastructure/TourDuLich.Infrastructure.csproj" />
+    <Project Path="src/TourDuLich.IntegrationTests/TourDuLich.IntegrationTests.csproj" />
   </Folder>
 </Solution>

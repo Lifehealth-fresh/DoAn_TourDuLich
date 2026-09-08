@@ -21,19 +21,53 @@ public class TourController : ControllerBase
 
     // GET /api/Tour
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult> GetTours(
         [FromQuery] string? loaiTour = null,
-        [FromQuery] string? trangThai = null)
+        [FromQuery] string? trangThai = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         var query = _context.Tours.AsNoTracking().AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(loaiTour))
-            query = query.Where(t => t.LoaiTour == FixedLengthHelper.PadTo20(loaiTour));
+        var loaiTourDb = string.IsNullOrWhiteSpace(loaiTour)
+            ? FixedLengthHelper.PadTo20("Chuan")
+            : FixedLengthHelper.PadTo20(loaiTour);
+
+        if (string.Equals(loaiTour?.Trim(), "TuThietKe", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!User.Identity?.IsAuthenticated ?? true)
+                return Unauthorized();
+
+            if (!User.IsInRole("Sale") && !User.IsInRole("Admin"))
+            {
+                var maUser = User.FindFirst("MaUser")?.Value;
+                if (string.IsNullOrWhiteSpace(maUser))
+                    return Unauthorized();
+
+                var maUserDb = FixedLengthHelper.PadTo20(maUser);
+                query = query.Where(t => t.LoaiTour == loaiTourDb &&
+                    _context.YeuCauThietKes.Any(item =>
+                        item.MaUser == maUserDb && item.MaTourTao == t.MaTour));
+            }
+            else
+            {
+                query = query.Where(t => t.LoaiTour == loaiTourDb);
+            }
+        }
+        else
+        {
+            query = query.Where(t => t.LoaiTour == loaiTourDb);
+        }
 
         if (!string.IsNullOrWhiteSpace(trangThai))
             query = query.Where(t => t.TrangThai == FixedLengthHelper.PadTo20(trangThai));
 
-        var result = await query
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var totalCount = await query.CountAsync();
+        var result = await query.OrderBy(t => t.MaTour)
+            .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(t => new
             {
                 maTour = FixedLengthHelper.TrimSafe(t.MaTour),
@@ -49,46 +83,53 @@ public class TourController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(result);
+        return Ok(new { items = result, page, pageSize, totalCount });
     }
 
     // GET /api/Tour/{maTour}
     [HttpGet("{maTour}")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetTour(string maTour)
     {
         var key = FixedLengthHelper.PadTo20(maTour);
 
-        var tour = await _context.Tours
-            .AsNoTracking()
-            .Where(t => t.MaTour == key)
-            .Select(t => new
-            {
-                maTour = FixedLengthHelper.TrimSafe(t.MaTour),
-                tenTour = t.TenTour,
-                mota = t.Mota,
-                thoiGian = t.ThoiGian,
-                dieuKhoan = t.DieuKhoan,
-                giaTour = t.GiaTour,
-                slkhach = t.Slkhach,
-                slhuongDanVien = t.SlhuongDanVien,
-                loaiTour = FixedLengthHelper.TrimSafe(t.LoaiTour),
-                trangThai = FixedLengthHelper.TrimSafe(t.TrangThai)
-            })
-            .FirstOrDefaultAsync();
+        var tourEntity = await _context.Tours.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.MaTour == key);
 
-        if (tour == null)
+        if (tourEntity is null ||
+            (FixedLengthHelper.TrimSafe(tourEntity.LoaiTour) == "TuThietKe" &&
+             !await CanViewPrivateTourAsync(key)))
             return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
+
+        var tour = new
+        {
+            maTour = FixedLengthHelper.TrimSafe(tourEntity.MaTour),
+            tenTour = tourEntity.TenTour,
+            mota = tourEntity.Mota,
+            thoiGian = tourEntity.ThoiGian,
+            dieuKhoan = tourEntity.DieuKhoan,
+            giaTour = tourEntity.GiaTour,
+            slkhach = tourEntity.Slkhach,
+            slhuongDanVien = tourEntity.SlhuongDanVien,
+            loaiTour = FixedLengthHelper.TrimSafe(tourEntity.LoaiTour),
+            trangThai = FixedLengthHelper.TrimSafe(tourEntity.TrangThai)
+        };
 
         return Ok(tour);
     }
 
     // GET /api/Tour/{maTour}/lich-khoi-hanh
     [HttpGet("{maTour}/lich-khoi-hanh")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetLichKhoiHanh(string maTour)
     {
         var key = FixedLengthHelper.PadTo20(maTour);
 
-        if (!await _context.Tours.AnyAsync(t => t.MaTour == key))
+        var tour = await _context.Tours.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.MaTour == key);
+        if (tour is null ||
+            (FixedLengthHelper.TrimSafe(tour.LoaiTour) == "TuThietKe" &&
+             !await CanViewPrivateTourAsync(key)))
             return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
 
         var result = await _context.LichKhoiHanhs
@@ -109,11 +150,16 @@ public class TourController : ControllerBase
 
     // GET /api/Tour/{maTour}/anh
     [HttpGet("{maTour}/anh")]
+    [AllowAnonymous]
     public async Task<ActionResult> GetAnhTour(string maTour)
     {
         var key = FixedLengthHelper.PadTo20(maTour);
 
-        if (!await _context.Tours.AnyAsync(t => t.MaTour == key))
+        var tour = await _context.Tours.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.MaTour == key);
+        if (tour is null ||
+            (FixedLengthHelper.TrimSafe(tour.LoaiTour) == "TuThietKe" &&
+             !await CanViewPrivateTourAsync(key)))
             return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
 
         var result = await _context.AnhTours
@@ -125,6 +171,8 @@ public class TourController : ControllerBase
                 maAnhTour = FixedLengthHelper.TrimSafe(x.MaAnhTour),
                 maTour = FixedLengthHelper.TrimSafe(x.MaTour),
                 imageUrl = x.ImageUrl,
+                url = x.Url ?? x.ImageUrl,
+                loaiMedia = FixedLengthHelper.TrimSafe(x.LoaiMedia),
                 thuTu = x.ThuTu,
                 isAvatar = x.IsAvatar
             })
@@ -175,14 +223,23 @@ public class TourController : ControllerBase
         });
     }
 
-    // PUT /api/Tour/{maTour}
+    // PUT /api/Tour/{maTour} — chặn sửa GiaTour/DieuKhoan khi đã có HopDong DaKy (snapshot bất biến sau ký)
     [HttpPut("{maTour}")]
     [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> UpdateTour(string maTour, [FromBody] TourUpdateDto dto)
     {
-        var existing = await _context.Tours.FindAsync(FixedLengthHelper.PadTo20(maTour));
+        var key = FixedLengthHelper.PadTo20(maTour);
+        var existing = await _context.Tours.FindAsync(key);
         if (existing == null)
             return NotFound();
+
+        var daKy = FixedLengthHelper.PadTo20("DaKy");
+        var hasSignedContract = await _context.HopDongs
+            .AnyAsync(h => h.MaBookingNavigation.MaTour == key && h.TrangThai == daKy);
+        if (hasSignedContract && (dto.GiaTour != existing.GiaTour || dto.DieuKhoan != existing.DieuKhoan))
+        {
+            return BadRequest(new { message = "Tour đã có hợp đồng đã ký (DaKy) — không được đổi Giá/Điều khoản. Hãy lập phụ lục hợp đồng thay vì sửa Tour gốc." });
+        }
 
         existing.TenTour = dto.TenTour;
         existing.Mota = dto.Mota;
@@ -336,5 +393,19 @@ public class TourController : ControllerBase
             slkhach = tour.Slkhach,
             giaTour = tour.GiaTour
         });
+    }
+
+    private async Task<bool> CanViewPrivateTourAsync(string maTourDb)
+    {
+        if (User.IsInRole("Sale") || User.IsInRole("Admin"))
+            return true;
+
+        var maUser = User.FindFirst("MaUser")?.Value;
+        if (string.IsNullOrWhiteSpace(maUser))
+            return false;
+
+        var maUserDb = FixedLengthHelper.PadTo20(maUser);
+        return await _context.YeuCauThietKes.AnyAsync(item =>
+            item.MaUser == maUserDb && item.MaTourTao == maTourDb);
     }
 }

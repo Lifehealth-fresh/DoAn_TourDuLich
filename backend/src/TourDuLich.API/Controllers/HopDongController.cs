@@ -24,19 +24,22 @@ public class HopDongController : ControllerBase
     public async Task<ActionResult> GetByBooking(string maBooking)
     {
         var maUser = GetCurrentMaUser();
+        var maBookingDb = FixedLengthHelper.PadTo20(maBooking);
+        var isStaff = User.IsInRole("Sale") || User.IsInRole("Admin");
 
-        if (maUser is null)
-        {
+        if (!isStaff && maUser is null)
             return Unauthorized();
+
+        var query = _context.HopDongs
+            .Where(contract => contract.MaBooking == maBookingDb);
+
+        if (!isStaff)
+        {
+            var maUserDb = FixedLengthHelper.PadTo20(maUser!);
+            query = query.Where(contract => contract.MaBookingNavigation.MaUser == maUserDb);
         }
 
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
-        var maBookingDb = FixedLengthHelper.PadTo20(maBooking);
-
-        var hopDong = await _context.HopDongs
-            .Where(contract =>
-                contract.MaBooking == maBookingDb &&
-                contract.MaBookingNavigation.MaUser == maUserDb)
+        var hopDong = await query
             .Select(contract => new
             {
                 maHopDong = FixedLengthHelper.TrimSafe(contract.MaHopDong),
@@ -46,7 +49,10 @@ public class HopDongController : ControllerBase
                 dieuKhoanCamKet = contract.DieuKhoanCamKet,
                 fileHopDongUrl = contract.FileHopDongUrl,
                 nguoiDaiDien = FixedLengthHelper.TrimSafe(contract.NguoiDaiDien),
-                trangThai = FixedLengthHelper.TrimSafe(contract.TrangThai)
+                trangThai = FixedLengthHelper.TrimSafe(contract.TrangThai),
+                hoTenKhach = contract.HoTenKhach,
+                loaiGiayTo = contract.LoaiGiayTo,
+                soGiayTo = contract.SoGiayTo
             })
             .FirstOrDefaultAsync();
 
@@ -62,27 +68,18 @@ public class HopDongController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> Create(HopDongCreateDto request)
     {
-        var maUser = GetCurrentMaUser();
-
-        if (maUser is null)
-        {
-            return Unauthorized();
-        }
-
         if (string.IsNullOrWhiteSpace(request.MaBooking))
         {
             return BadRequest(new { message = "Mã booking không được để trống." });
         }
 
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
         var maBookingDb = FixedLengthHelper.PadTo20(request.MaBooking);
 
         var bookingData = await _context.DatDichVus
-            .Where(booking =>
-                booking.MaBooking == maBookingDb &&
-                booking.MaUser == maUserDb)
+            .Where(booking => booking.MaBooking == maBookingDb)
             .Select(booking => new
             {
                 Booking = booking,
@@ -94,7 +91,7 @@ public class HopDongController : ControllerBase
         {
             return NotFound(new
             {
-                message = "Không tìm thấy booking thuộc tài khoản của bạn."
+                message = "Không tìm thấy booking."
             });
         }
 
@@ -138,17 +135,34 @@ public class HopDongController : ControllerBase
         var dieuKhoanCamKet = string.IsNullOrWhiteSpace(request.DieuKhoanCamKet)
             ? bookingData.DieuKhoanTour
             : request.DieuKhoanCamKet.Trim();
+        var khachHang = bookingData.Booking.MaKhachHang is null
+            ? null
+            : await _context.KhachHangs
+                .Include(item => item.GiayTos)
+                .FirstOrDefaultAsync(item =>
+                    item.MaKhachHang == bookingData.Booking.MaKhachHang);
+        var giayToMoiNhat = khachHang?.GiayTos
+            .OrderByDescending(item => item.MaGiayTo)
+            .FirstOrDefault();
+        var hoTenKhach = khachHang is null
+            ? null
+            : $"{khachHang.Ho} {khachHang.Ten}".Trim();
+        if (hoTenKhach?.Length > 70)
+            hoTenKhach = hoTenKhach[..70];
 
         var hopDong = new HopDong
         {
             MaHopDong = maHopDongDb,
             MaBooking = maBookingDb,
             SoHopDong = soHopDong,
-            NgayKy = DateOnly.FromDateTime(DateTime.UtcNow),
+            NgayKy = null,
             DieuKhoanCamKet = dieuKhoanCamKet,
             FileHopDongUrl = null,
             NguoiDaiDien = null,
-            TrangThai = FixedLengthHelper.PadTo20("DuThao")
+            TrangThai = FixedLengthHelper.PadTo20("DuThao"),
+            HoTenKhach = hoTenKhach,
+            LoaiGiayTo = giayToMoiNhat?.LoaiGiayTo,
+            SoGiayTo = giayToMoiNhat?.SoTrenGiayTo
         };
 
         _context.HopDongs.Add(hopDong);
@@ -161,33 +175,27 @@ public class HopDongController : ControllerBase
             soHopDong = hopDong.SoHopDong,
             ngayKy = hopDong.NgayKy,
             dieuKhoanCamKet = hopDong.DieuKhoanCamKet,
-            trangThai = FixedLengthHelper.TrimSafe(hopDong.TrangThai)
+            trangThai = FixedLengthHelper.TrimSafe(hopDong.TrangThai),
+            hoTenKhach = hopDong.HoTenKhach,
+            loaiGiayTo = hopDong.LoaiGiayTo,
+            soGiayTo = hopDong.SoGiayTo
         });
     }
 
     [HttpPut("{maHopDong}/ky")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> Sign(string maHopDong)
     {
-        var maUser = GetCurrentMaUser();
-
-        if (maUser is null)
-        {
-            return Unauthorized();
-        }
-
-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
         var maHopDongDb = FixedLengthHelper.PadTo20(maHopDong);
 
         var hopDong = await _context.HopDongs
-            .FirstOrDefaultAsync(contract =>
-                contract.MaHopDong == maHopDongDb &&
-                contract.MaBookingNavigation.MaUser == maUserDb);
+            .FirstOrDefaultAsync(contract => contract.MaHopDong == maHopDongDb);
 
         if (hopDong is null)
         {
             return NotFound(new
             {
-                message = "Không tìm thấy hợp đồng thuộc tài khoản của bạn."
+                message = "Không tìm thấy hợp đồng."
             });
         }
 
@@ -202,6 +210,7 @@ public class HopDongController : ControllerBase
         }
 
         hopDong.TrangThai = FixedLengthHelper.PadTo20("DaKy");
+        hopDong.NgayKy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         await _context.SaveChangesAsync();
 
@@ -209,7 +218,8 @@ public class HopDongController : ControllerBase
         {
             maHopDong = FixedLengthHelper.TrimSafe(hopDong.MaHopDong),
             maBooking = FixedLengthHelper.TrimSafe(hopDong.MaBooking),
-            trangThai = FixedLengthHelper.TrimSafe(hopDong.TrangThai)
+            trangThai = FixedLengthHelper.TrimSafe(hopDong.TrangThai),
+            ngayKy = hopDong.NgayKy
         });
     }
 

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.Application.Helpers;
+using TourDuLich.Application.Services;
 using TourDuLich.API.DTOs;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
@@ -14,13 +15,16 @@ namespace TourDuLich.API.Controllers;
 public class DanhSachYeuThichController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IHanhViLogger _hanhViLogger;
 
-    public DanhSachYeuThichController(AppDbContext context)
+    public DanhSachYeuThichController(AppDbContext context, IHanhViLogger hanhViLogger)
     {
         _context = context;
+        _hanhViLogger = hanhViLogger;
     }
 
     [HttpGet("cua-toi")]
+    [Authorize(Roles = "KhachHang")]
     public async Task<ActionResult> GetMine()
     {
         var maUser = GetCurrentMaUser();
@@ -50,6 +54,7 @@ public class DanhSachYeuThichController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "KhachHang")]
     public async Task<ActionResult> Add(DanhSachYeuThichCreateDto request)
     {
         var maUser = GetCurrentMaUser();
@@ -96,6 +101,7 @@ public class DanhSachYeuThichController : ControllerBase
 
         _context.DanhSachYeuThiches.Add(wish);
         await _context.SaveChangesAsync();
+        await _hanhViLogger.LogAsync(maUserDb, maTourDb, "ThemYeuThich");
 
         return StatusCode(StatusCodes.Status201Created, new
         {
@@ -106,6 +112,7 @@ public class DanhSachYeuThichController : ControllerBase
     }
 
     [HttpDelete("{maTour}")]
+    [Authorize(Roles = "KhachHang")]
     public async Task<IActionResult> Remove(string maTour)
     {
         var maUser = GetCurrentMaUser();
