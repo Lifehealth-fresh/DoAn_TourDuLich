@@ -903,6 +903,7 @@ public class ThanhToanController : ControllerBase
             ["vnp_OrderInfo"] = $"Thanh toan booking {orderId}",
             ["vnp_OrderType"] = "other",
             ["vnp_ReturnUrl"] = settings.ReturnUrl,
+            ["vnp_IpnUrl"] = settings.IpnUrl,
             ["vnp_TxnRef"] = orderId,
             ["vnp_ExpireDate"] = vietnamTime.AddMinutes(15)
                 .ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)
