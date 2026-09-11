@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as api from './api';
 import { useAuth } from './context';
 import { Notice } from './components';
+export { DesignRequests } from './DesignRequests';
 
 const v = (o, ...ks) => ks.map((k) => o?.[k]).find((x) => x !== undefined && x !== null);
 const itemsOf = (r) => (Array.isArray(r?.data) ? r.data : (r?.data?.items || []));

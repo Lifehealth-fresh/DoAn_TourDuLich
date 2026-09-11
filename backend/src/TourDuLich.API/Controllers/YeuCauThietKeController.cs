@@ -17,15 +17,18 @@ public class YeuCauThietKeController : ControllerBase
     private readonly AppDbContext _context;
     private readonly IHanhViLogger _hanhViLogger;
     private readonly IDeXuatLichTrinhService _deXuatService;
+    private readonly ILogger<YeuCauThietKeController> _logger;
 
     public YeuCauThietKeController(
         AppDbContext context,
         IHanhViLogger hanhViLogger,
-        IDeXuatLichTrinhService deXuatService)
+        IDeXuatLichTrinhService deXuatService,
+        ILogger<YeuCauThietKeController> logger)
     {
         _context = context;
         _hanhViLogger = hanhViLogger;
         _deXuatService = deXuatService;
+        _logger = logger;
     }
 
     [HttpGet("cua-toi")]
@@ -201,6 +204,21 @@ public class YeuCauThietKeController : ControllerBase
             !string.IsNullOrWhiteSpace(yeuCau.LyDoTuChoiGoiY))
             await _hanhViLogger.LogAsync(maUserDb, null, "TuChoiGoiY");
 
+        // Yêu cầu đã được lưu độc lập; sinh đề xuất thất bại không làm mất yêu cầu.
+        try
+        {
+            var proposals = await _deXuatService.GenerateAsync(yeuCau);
+            if (proposals.Count == 0)
+                _logger.LogWarning("Chưa ghép được đề xuất cho yêu cầu {RequestId}.", maYeuCau);
+        }
+        catch (Exception exception)
+        {
+            // Không giữ các entity đề xuất còn pending sau transaction sinh thất bại.
+            _context.ChangeTracker.Clear();
+            _logger.LogWarning("Sinh đề xuất thất bại cho yêu cầu {RequestId} ({ErrorType}); Sale có thể xử lý lại.",
+                maYeuCau, exception.GetType().Name);
+        }
+
         return StatusCode(StatusCodes.Status201Created, new
         {
             maYeuCau = FixedLengthHelper.TrimSafe(yeuCau.MaYeuCau),
@@ -286,7 +304,7 @@ public class YeuCauThietKeController : ControllerBase
     }
 
     [HttpGet("{maYeuCau}/de-xuat")]
-    [Authorize(Roles = "KhachHang")]
+    [Authorize(Roles = "KhachHang,Sale,Admin")]
     public async Task<ActionResult> GetProposals(string maYeuCau, CancellationToken cancellationToken)
     {
         var request = await GetRequestForViewerAsync(maYeuCau, cancellationToken);
@@ -334,6 +352,7 @@ public class YeuCauThietKeController : ControllerBase
             MaTour = maTourDb,
             TenTour = $"Tour tự thiết kế - {request.DiemDenMongMuon}"[..Math.Min(150, $"Tour tự thiết kế - {request.DiemDenMongMuon}".Length)],
             GiaTour = proposal.TongTienDuKien,
+            ThoiGian = Math.Clamp(request.SoNgay ?? 1, 1, 30),
             Slkhach = (request.SoNguoiLon ?? 0) + (request.SoTreEm ?? 0),
             LoaiTour = FixedLengthHelper.PadTo20("TuThietKe"),
             TrangThai = FixedLengthHelper.PadTo20("Nhap")
@@ -656,8 +675,33 @@ public class YeuCauThietKeController : ControllerBase
         await using var transaction =
             await _context.Database.BeginTransactionAsync();
 
-        requestData.Tour.TrangThai =
-            FixedLengthHelper.PadTo20("DaXacNhan");
+        if (FixedLengthHelper.TrimSafe(requestData.Tour.LoaiTour) == "TuThietKe")
+        {
+            requestData.Tour.TrangThai = FixedLengthHelper.PadTo20("HoatDong");
+            var days = Math.Clamp(requestData.Request.SoNgay ?? 1, 1, 30);
+            requestData.Tour.ThoiGian = days;
+            var now = DateTime.UtcNow;
+            if (!await _context.LichKhoiHanhs.AnyAsync(item => item.MaTour == requestData.Tour.MaTour && item.NgayKhoiHanh > now))
+            {
+                var start = requestData.Request.NgayDuKienDi?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+                // Ngày dự kiến có thể đã qua trong thời gian chờ Sale xử lý.
+                if (!start.HasValue || start.Value <= now)
+                    start = now.AddDays(14);
+                var destination = requestData.Request.DiemDenMongMuon?.Trim();
+                _context.LichKhoiHanhs.Add(new LichKhoiHanh
+                {
+                    MaKhoiHanh = await GenerateIdAsync("KH", id => _context.LichKhoiHanhs.AnyAsync(item => item.MaKhoiHanh == id)),
+                    MaTour = requestData.Tour.MaTour,
+                    NgayKhoiHanh = start.Value,
+                    NgayKetThuc = start.Value.AddDays(days - 1),
+                    DiaDiem = destination is { Length: > 100 } ? destination[..100] : destination
+                });
+            }
+        }
+        else
+        {
+            requestData.Tour.TrangThai = FixedLengthHelper.PadTo20("DaXacNhan");
+        }
 
         requestData.Request.TrangThai =
             FixedLengthHelper.PadTo20("DaDuyet");

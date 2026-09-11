@@ -18,7 +18,14 @@ api.interceptors.response.use(
 export const errorMessage=(e,f='Có lỗi xảy ra.')=>e?.response?.data?.message||(e?.response?.status===403?'Bạn không có quyền thực hiện thao tác này.':e?.response?.status===401?'Phiên đăng nhập đã hết hạn.':f);
 export const login=data=>api.post('/api/Auth/login',data);
 export const tours=(params)=>api.get('/api/Tour',{params:{pageSize:50,...params}}); export const createTour=d=>api.post('/api/Tour',d); export const updateTour=(id,d)=>api.put(`/api/Tour/${id}`,d); export const deleteTour=id=>api.delete(`/api/Tour/${id}`);
-export const designRequests=()=>api.get('/api/YeuCauThietKe/danh-sach'); export const proposals=id=>api.get(`/api/YeuCauThietKe/${id}/de-xuat`); export const generate=id=>api.post(`/api/YeuCauThietKe/${id}/sinh-de-xuat`); export const reject=(id,d)=>api.put(`/api/YeuCauThietKe/${id}/tu-choi-boi-sale`,d); export const approve=id=>api.put(`/api/YeuCauThietKe/${id}/duyet`);
+export const designRequests=()=>api.get('/api/YeuCauThietKe/danh-sach');
+export const proposals=id=>api.get(`/api/YeuCauThietKe/${encodeURIComponent(id)}/de-xuat`);
+export const generate=id=>api.post(`/api/YeuCauThietKe/${encodeURIComponent(id)}/sinh-de-xuat`);
+export const reject=(id,{lyDo})=>api.put(`/api/YeuCauThietKe/${encodeURIComponent(id)}/tu-choi-boi-sale`,{lyDoTuChoi:lyDo});
+export const submitDesignForApproval=id=>api.put(`/api/YeuCauThietKe/${encodeURIComponent(id)}/gui-duyet`);
+export const approve=id=>api.put(`/api/YeuCauThietKe/${encodeURIComponent(id)}/duyet`);
+export const designSchedule=tourId=>api.get(`/api/LichTrinh/tour/${encodeURIComponent(tourId)}`);
+export const editDesignSchedule=(id,data)=>api.put(`/api/YeuCauThietKe/${encodeURIComponent(id)}/sua-lich-trinh`,data);
 export const bookings=(params)=>api.get('/api/DatDichVu/danh-sach',{params:{pageSize:50,...params}});
 export const booking=id=>api.get(`/api/DatDichVu/${encodeURIComponent(id)}`);
 export const status=(id,s)=>api.put(`/api/DatDichVu/${encodeURIComponent(id)}/trang-thai`,{trangThai:s});

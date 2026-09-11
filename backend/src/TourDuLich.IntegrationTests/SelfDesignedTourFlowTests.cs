@@ -46,8 +46,13 @@ public sealed class SelfDesignedTourFlowTests : ApiTestBase
         var requestJson = await createRequest.Content.ReadFromJsonAsync<JsonElement>();
         var maYeuCau = requestJson.GetProperty("maYeuCau").GetString()!;
 
+        // Khách có đề xuất ngay sau POST, không cần Sale sinh lần đầu.
+        var automaticProposals = await Client.GetFromJsonAsync<JsonElement>($"/api/YeuCauThietKe/{maYeuCau}/de-xuat");
+        Assert.True(automaticProposals.GetArrayLength() >= 2);
+
         var sale = await LoginSaleAsync();
         UseToken(sale);
+        (await Client.GetAsync($"/api/YeuCauThietKe/{maYeuCau}/de-xuat")).EnsureSuccessStatusCode();
         var generate = await Client.PostAsJsonAsync($"/api/YeuCauThietKe/{maYeuCau}/sinh-de-xuat", new { });
         generate.EnsureSuccessStatusCode();
         var proposals = await generate.Content.ReadFromJsonAsync<JsonElement>();
@@ -61,11 +66,13 @@ public sealed class SelfDesignedTourFlowTests : ApiTestBase
         choose.EnsureSuccessStatusCode();
         var chooseJson = await choose.Content.ReadFromJsonAsync<JsonElement>();
         var maTour = chooseJson.GetProperty("maTour").GetString()!;
+        Assert.Equal(HttpStatusCode.Conflict, (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/chon-de-xuat/{maDeXuat}", null)).StatusCode);
         var firstDetail = proposals[0].GetProperty("chiTiets")[0];
         var maDthamQuan = firstDetail.GetProperty("maDthamQuan").GetString();
         var maSanPham = firstDetail.GetProperty("maSanPham").GetString();
 
         UseToken(sale);
+        Assert.Equal(HttpStatusCode.Conflict, (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/duyet", null)).StatusCode);
         (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/gui-duyet", null)).EnsureSuccessStatusCode();
         var rejected = await Client.PutAsJsonAsync($"/api/YeuCauThietKe/{maYeuCau}/tu-choi-boi-sale", new { lyDoTuChoi = "Cần bổ sung dịch vụ phù hợp hơn." });
         rejected.EnsureSuccessStatusCode();
@@ -82,7 +89,17 @@ public sealed class SelfDesignedTourFlowTests : ApiTestBase
         (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/duyet", null)).EnsureSuccessStatusCode();
 
         var tour = await Client.GetFromJsonAsync<JsonElement>($"/api/Tour/{maTour}");
-        Assert.Equal("DaXacNhan", tour.GetProperty("trangThai").GetString());
+        Assert.Equal("HoatDong", tour.GetProperty("trangThai").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/duyet", null)).StatusCode);
+        UseToken(customer);
+        var departures = await Client.GetFromJsonAsync<JsonElement>($"/api/Tour/{maTour}/lich-khoi-hanh");
+        Assert.Equal(1, departures.GetArrayLength());
+        Assert.True(departures[0].GetProperty("ngayKhoiHanh").GetDateTime() > DateTime.UtcNow);
+        var booking = await Client.PostAsJsonAsync("/api/DatDichVu", new
+        {
+            maTour, maKhoiHanh = departures[0].GetProperty("maKhoiHanh").GetString(), slnguoiLon = 2, sltreEm = 0
+        });
+        Assert.Equal(HttpStatusCode.Created, booking.StatusCode);
     }
 
     [Fact]

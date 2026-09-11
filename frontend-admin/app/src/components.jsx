@@ -15,6 +15,7 @@ export function Layout() {
         <Link to="/">Tổng quan</Link>
         <Link to="/tours">Quản lý tour</Link>
         <Link to="/booking">Booking</Link>
+        <Link to="/thiet-ke">Thiết kế</Link>
         <button onClick={() => { logout(); nav('/dang-nhap'); }}>Đăng xuất</button>
       </aside>
       <main><Outlet /></main>

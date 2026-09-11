@@ -8,6 +8,7 @@ import {
   FaPassport, FaPhoneAlt, FaPlane, FaSearch, FaStar, FaTimes, FaUserCircle,
 } from 'react-icons/fa';
 import * as api from './api';
+import { DesignRequestsPage, DesignRequestDetailPage } from './DesignRequests';
 import imgHaLong from './assets/vietnam/halong.jpg';
 import imgHoiAn from './assets/vietnam/hoian.jpg';
 import imgHaNoi from './assets/vietnam/hanoi.jpg';
@@ -156,6 +157,7 @@ function Layout() {
         <nav className={open ? 'nav open' : 'nav'} onClick={() => setOpen(false)}>
           <Link to="/tours">Khám phá</Link>
           <Link to="/tim-tour">Tìm đúng gu</Link>
+          <Link to="/tu-thiet-ke">Tự thiết kế</Link>
           {user && <Link to="/goi-y">Gợi ý AI</Link>}
           <Link to="/uu-dai">Ưu đãi</Link>
           {user ? (
@@ -1448,8 +1450,9 @@ export default function App() {
           <Route path="/dang-ky" element={<AuthPage register />} />
           <Route path="/goi-y" element={<Protected><RecommendationPage /></Protected>} />
           <Route path="/tim-tour" element={<FindTourPage />} />
-          <Route path="/tu-thiet-ke" element={<Navigate to="/tim-tour" replace />} />
-          <Route path="/tu-thiet-ke/de-xuat" element={<Navigate to="/tim-tour" replace />} />
+          <Route path="/tu-thiet-ke" element={<Protected><DesignRequestsPage /></Protected>} />
+          <Route path="/tu-thiet-ke/de-xuat" element={<Protected><DesignRequestsPage /></Protected>} />
+          <Route path="/tu-thiet-ke/:id" element={<Protected><DesignRequestDetailPage /></Protected>} />
           <Route path="/booking" element={<Protected><BookingsPage /></Protected>} />
           <Route path="/booking/:id" element={<Protected><BookingDetailPage /></Protected>} />
           <Route path="/ho-so" element={<Protected><ProfilePage /></Protected>} />
