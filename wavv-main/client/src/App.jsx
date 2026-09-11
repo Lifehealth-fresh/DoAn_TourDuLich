@@ -414,8 +414,12 @@ function TourDetail() {
         const shots = itemsOf(p);
         const local = next.gallery || [next.image];
         setTour(next);
-        setDates(itemsOf(d));
-        setDate(String(itemsOf(d)[0]?.maKhoiHanh || ''));
+        const now = Date.now();
+        const upcomingDates = itemsOf(d)
+          .filter((item) => new Date(item.ngayKhoiHanh).getTime() > now)
+          .sort((a, b) => new Date(a.ngayKhoiHanh).getTime() - new Date(b.ngayKhoiHanh).getTime());
+        setDates(upcomingDates);
+        setDate(String(upcomingDates[0]?.maKhoiHanh || ''));
         setPlan(i.data?.lichTrinh || []);
         setPhotos(shots.length ? shots : local.map((url) => ({ url })));
         setActivePhoto(shots[0]?.url || shots[0]?.imageUrl || local[0]);

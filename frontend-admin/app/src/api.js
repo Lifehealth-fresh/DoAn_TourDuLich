@@ -1,6 +1,20 @@
 import axios from 'axios';
 const api=axios.create({baseURL:import.meta.env.VITE_API_BASE_URL||'https://localhost:7290',headers:{'Content-Type':'application/json'}});
 api.interceptors.request.use(c=>{const t=localStorage.getItem('admin_token');if(t)c.headers.Authorization=`Bearer ${t}`;return c;});
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const isLoginRequest = error.config?.method?.toLowerCase() === 'post' &&
+      /\/api\/Auth\/login\/?(?:[?#]|$)/i.test(error.config?.url || '');
+    if (error.response?.status === 401 && !isLoginRequest) {
+      localStorage.removeItem('admin_token');
+      if (window.location.pathname !== '/dang-nhap') {
+        window.location.assign('/dang-nhap');
+      }
+    }
+    return Promise.reject(error);
+  },
+);
 export const errorMessage=(e,f='Có lỗi xảy ra.')=>e?.response?.data?.message||(e?.response?.status===403?'Bạn không có quyền thực hiện thao tác này.':e?.response?.status===401?'Phiên đăng nhập đã hết hạn.':f);
 export const login=data=>api.post('/api/Auth/login',data);
 export const tours=(params)=>api.get('/api/Tour',{params:{pageSize:50,...params}}); export const createTour=d=>api.post('/api/Tour',d); export const updateTour=(id,d)=>api.put(`/api/Tour/${id}`,d); export const deleteTour=id=>api.delete(`/api/Tour/${id}`);

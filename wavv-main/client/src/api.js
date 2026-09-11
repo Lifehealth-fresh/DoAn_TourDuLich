@@ -11,6 +11,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const isAuthRequest = /\/api\/Auth\/(?:login|register)\/?(?:[?#]|$)/i.test(error.config?.url || '');
+    if (error.response?.status === 401 && !isAuthRequest) {
+      localStorage.removeItem('wavv_token');
+      localStorage.removeItem('wavv_user');
+      if (!['/dang-nhap', '/dang-ky'].includes(window.location.pathname)) {
+        window.location.assign('/dang-nhap');
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
 export const errorMessage = (error, fallback = 'Có lỗi xảy ra. Vui lòng thử lại.') => {
   const data = error?.response?.data;
   if (typeof data === 'string' && data.trim()) return data;

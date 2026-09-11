@@ -134,7 +134,8 @@ public class TourController : ControllerBase
 
         var result = await _context.LichKhoiHanhs
             .AsNoTracking()
-            .Where(x => x.MaTour == key)
+            .Where(x => x.MaTour == key && x.NgayKhoiHanh > DateTime.UtcNow)
+            .OrderBy(x => x.NgayKhoiHanh)
             .Select(x => new
             {
                 maKhoiHanh = FixedLengthHelper.TrimSafe(x.MaKhoiHanh),
