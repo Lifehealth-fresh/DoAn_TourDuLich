@@ -119,6 +119,7 @@ export function BookingManagement() {
   const [item, setItem] = useState(null);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const load = () => api.bookings({ pageSize: 50, trangThai: filter || undefined })
     .then((r) => setItems(itemsOf(r)))
@@ -126,37 +127,52 @@ export function BookingManagement() {
 
   useEffect(() => { load(); }, [filter]);
 
-  const find = async (x) => {
-    x.preventDefault();
-    if (!id.trim()) return;
+  const openBooking = async (bookingId) => {
+    if (!bookingId || busy) return;
+    setBusy(true);
+    setId(bookingId);
     setError('');
     setOk('');
     try {
-      const r = await api.booking(id.trim());
+      const r = await api.booking(bookingId);
       setItem(r.data);
+      setItems((list) => list.map((booking) => booking.maBooking === bookingId ? { ...booking, ...r.data } : booking));
     } catch (err) {
       setItem(null);
       setError(api.errorMessage(err, 'Không tìm thấy booking.'));
-    }
+    } finally { setBusy(false); }
+  };
+
+  const find = (event) => {
+    event.preventDefault();
+    openBooking(id.trim());
   };
 
   const change = async (status) => {
     const target = item?.maBooking || id;
-    if (!target) return;
+    if (!target || busy) return;
+    setBusy(true);
     setError('');
     setOk('');
     try {
-      await api.status(target, status);
-      const next = { ...item, trangThai: status };
+      const response = await api.status(target, status);
+      const next = { ...item, ...response.data };
       setItem(next);
-      setItems((list) => list.map((b) => (b.maBooking === target ? { ...b, trangThai: status } : b)));
+      setItems((list) => list.map((b) => (b.maBooking === target ? { ...b, ...response.data } : b)));
       setOk(`Đã chuyển sang ${label(status)}.`);
     } catch (err) {
       setError(api.errorMessage(err, 'Không cập nhật được trạng thái.'));
-    }
+    } finally { setBusy(false); }
   };
 
-  const next = NEXT[String(item?.trangThai || '').trim()] || [];
+  const state = String(item?.trangThai || '').trim();
+  const next = NEXT[state] || [];
+  const total = Number(item?.thanhTien ?? 0);
+  const paid = Number(item?.tongDaThanhToan ?? 0);
+  const remaining = Number(item?.conLai ?? (total - paid));
+  const paymentBlock = state === 'ChoXacNhan' && paid <= 0
+    ? 'Chưa có thanh toán.'
+    : state === 'DaXacNhan' && remaining > 0 ? 'Mới đặt cọc, chưa đủ.' : '';
 
   return (
     <>
@@ -165,8 +181,8 @@ export function BookingManagement() {
       {ok && <div className="notice ok">{ok}</div>}
 
       <form className="panel inline" onSubmit={find}>
-        <input placeholder="Mã booking (tuỳ chọn)" value={id} onChange={(x) => setId(x.target.value)} />
-        <button>Tra cứu</button>
+        <input placeholder="Mã booking (tuỳ chọn)" value={id} disabled={busy} onChange={(x) => setId(x.target.value)} />
+        <button disabled={busy}>Tra cứu</button>
         <select value={filter} onChange={(x) => setFilter(x.target.value)}>
           <option value="">Tất cả trạng thái</option>
           {Object.entries(STATUS).map(([k, name]) => <option value={k} key={k}>{name}</option>)}
@@ -177,14 +193,25 @@ export function BookingManagement() {
         <div className="panel">
           <h3>{item.maBooking} · {item.tenTour}</h3>
           <p>{item.hoTen || 'Khách'} · {item.soDienThoai || '—'} · đặt ngày {dateText(item.ngayDat)}</p>
-          <p>{item.slnguoiLon || 0} người lớn, {item.sltreEm || 0} trẻ em · {money(item.thanhTien)}</p>
+          <p>{item.slnguoiLon || 0} người lớn, {item.sltreEm || 0} trẻ em</p>
+          <div className="inline" aria-label="Số tiền booking" style={{ gap: 16 }}>
+            <div className="notice"><span>Thành tiền</span><br /><strong>{money(total)}</strong></div>
+            <div className="notice ok"><span>Đã thanh toán</span><br /><strong>{money(paid)}</strong></div>
+            <div className={`notice ${remaining > 0 ? 'error' : 'ok'}`}><span>Còn lại</span><br /><strong>{money(remaining)}</strong></div>
+          </div>
+          <button type="button" disabled={busy} onClick={() => openBooking(item.maBooking)}>Tải lại số tiền</button>
           <p>Trạng thái: <em className={`badge ${String(item.trangThai || '').trim()}`}>{label(item.trangThai)}</em></p>
+          {paymentBlock && <p id="booking-payment-block" className="notice" role="status">{paymentBlock}</p>}
           <div className="inline">
-            {next.map((s) => (
-              <button key={s} className={s === 'DaHuy' ? 'danger' : undefined} onClick={() => change(s)}>
+            {next.map((s) => {
+              const paymentLocked = (s === 'DaXacNhan' && paid <= 0) || (s === 'DaThanhToan' && remaining > 0);
+              const disabled = busy || paymentLocked;
+              return <button key={s} className={s === 'DaHuy' ? 'danger' : undefined} disabled={disabled}
+                style={{ opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+                aria-describedby={paymentLocked ? 'booking-payment-block' : undefined} onClick={() => change(s)}>
                 {label(s)}
-              </button>
-            ))}
+              </button>;
+            })}
             {!next.length && <span className="muted">Không còn bước tiếp theo.</span>}
           </div>
         </div>
@@ -196,7 +223,8 @@ export function BookingManagement() {
             type="button"
             className={`row booking-row ${item?.maBooking === x.maBooking ? 'on' : ''}`}
             key={x.maBooking}
-            onClick={() => { setItem(x); setId(x.maBooking); setError(''); setOk(''); }}
+            disabled={busy}
+            onClick={() => openBooking(x.maBooking)}
           >
             <b>{x.maBooking}</b>
             <span>{x.tenTour || x.maTour}</span>
@@ -212,118 +240,375 @@ export function BookingManagement() {
 }
 
 export function TourAdminPage() {
+  const emptyTour = () => ({
+    MaTour: '', TenTour: '', Mota: '', ThoiGian: 1, GiaTour: 0, Slkhach: 1,
+    SlhuongDanVien: 1, LoaiTour: 'Chuan', TrangThai: 'HoatDong', DieuKhoan: '',
+  });
+  const emptySchedule = () => ({ NgayThu: 1, ThuTuTrongNgay: 1, MaDthamQuan: '', MaSanPham: '', Mota: '', SoLuong: 1 });
+  const emptyMedia = () => ({ File: null, ThuTu: 0, IsAvatar: false });
   const [items, setItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [listType, setListType] = useState('Chuan');
   const [selected, setSelected] = useState('');
-  const [media, setMedia] = useState([]);
-  const [form, setForm] = useState({ TenTour: '', GiaTour: 0 });
-  const [mediaForm, setMediaForm] = useState({ File: null, ThuTu: 0, IsAvatar: false });
+  const [detail, setDetail] = useState(null);
+  const [schedule, setSchedule] = useState(null);
+  const [places, setPlaces] = useState([]);
+  const [media, setMedia] = useState(null);
+  const [form, setForm] = useState(emptyTour);
+  const [scheduleForm, setScheduleForm] = useState(emptySchedule);
+  const [mediaForm, setMediaForm] = useState(emptyMedia);
+  const [fileKey, setFileKey] = useState(0);
+  const [busy, setBusy] = useState(true);
   const [e, setE] = useState('');
+  const [message, setMessage] = useState('');
+  const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))', gap: 14 };
+  const field = { display: 'grid', gap: 6, minWidth: 0 };
+  const control = { width: '100%', minWidth: 0 };
+  const fieldset = { border: 0, padding: 0, margin: 0, minWidth: 0 };
+  const stateNames = { Nhap: 'Nháp', HoatDong: 'Hoạt động', An: 'Ẩn' };
 
-  const load = () => api.tours({ pageSize: 50 }).then((r) => setItems(itemsOf(r))).catch((x) => setE(api.errorMessage(x, 'Không tải được tour.')));
-  useEffect(load, []);
-
-  const edit = (x) => setForm({ TenTour: v(x, 'tenTour', 'TenTour') || '', GiaTour: v(x, 'giaTour', 'GiaTour') || 0 });
-
-  const save = async (x) => {
-    x.preventDefault();
-    try {
-      if (selected) await api.updateTour(selected, { ...form, GiaTour: +form.GiaTour });
-      else await api.createTour({ ...form, GiaTour: +form.GiaTour });
-      setForm({ TenTour: '', GiaTour: 0 });
-      setSelected('');
-      load();
-    } catch (err) {
-      setE(api.errorMessage(err, 'Không thể lưu tour.'));
-    }
+  const toForm = (data) => Object.fromEntries(Object.keys(emptyTour()).map((key) => {
+    const camelKey = key[0].toLowerCase() + key.slice(1);
+    const value = v(data, camelKey, key);
+    return [key, ['MaTour', 'LoaiTour', 'TrangThai'].includes(key) ? String(value ?? '').trim() : (value ?? '')];
+  }));
+  const loadList = async (nextPage = page, type = listType) => {
+    const response = await api.tours({ page: nextPage, pageSize: 50, loaiTour: type });
+    setItems(itemsOf(response));
+    setTotal(response.data.totalCount ?? itemsOf(response).length);
+    setPage(nextPage);
+    setListType(type);
   };
-
-  const remove = async (id) => {
-    if (!confirm('Xóa tour này?')) return;
-    try {
-      await api.deleteTour(id);
-      setSelected('');
-      load();
-    } catch (err) {
-      setE(api.errorMessage(err, 'Không thể xóa tour.'));
-    }
-  };
-
-  const loadMedia = async (id) => {
+  const loadDetails = async (id) => {
+    const results = await Promise.allSettled([api.tourDetail(id), api.tourSchedule(id), api.tourMedia(id)]);
+    if (results[0].status === 'rejected') throw results[0].reason;
+    const data = results[0].value.data;
     setSelected(id);
-    try {
-      const r = await api.tourMedia(id);
-      setMedia(r.data.items || r.data || []);
-    } catch (err) {
-      setE(api.errorMessage(err, 'Không tải được media.'));
+    setDetail(data);
+    setForm(toForm(data));
+    setSchedule(results[1].status === 'fulfilled' ? results[1].value.data.lichTrinh ?? [] : null);
+    setMedia(results[2].status === 'fulfilled' ? itemsOf(results[2].value) : null);
+    const errors = results.slice(1).flatMap((result, index) => result.status === 'rejected'
+      ? [api.errorMessage(result.reason, index === 0 ? 'Không tải được lịch trình.' : 'Không tải được ảnh/video.')]
+      : []);
+    if (errors.length) setE(errors.join(' '));
+    if (id !== selected) {
+      setScheduleForm(emptySchedule());
+      setMediaForm(emptyMedia());
+      setFileKey((key) => key + 1);
     }
   };
-
-  const addMedia = async (x) => {
-    x.preventDefault();
-    if (!mediaForm.File) {
-      setE('Hãy chọn ảnh hoặc video.');
-      return;
-    }
-    try {
-      await api.uploadTourMedia(selected, mediaForm.File, +mediaForm.ThuTu, mediaForm.IsAvatar);
-      await loadMedia(selected);
-      setMediaForm({ File: null, ThuTu: 0, IsAvatar: false });
-      x.currentTarget.reset();
-    } catch (err) {
-      setE(api.errorMessage(err, 'Không thể upload media.'));
-    }
+  const run = async (action, fallback) => {
+    if (busy) return;
+    setBusy(true);
+    setE('');
+    setMessage('');
+    try { await action(); }
+    catch (err) { setE(api.errorMessage(err, fallback)); }
+    finally { setBusy(false); }
   };
+  useEffect(() => {
+    let active = true;
+    Promise.allSettled([api.tours({ page: 1, pageSize: 50 }), api.sightseeingPlaces()]).then(([toursResult, placesResult]) => {
+      if (!active) return;
+      const errors = [];
+      if (toursResult.status === 'fulfilled') {
+        setItems(itemsOf(toursResult.value));
+        setTotal(toursResult.value.data.totalCount ?? itemsOf(toursResult.value).length);
+      } else errors.push(api.errorMessage(toursResult.reason, 'Không tải được tour.'));
+      if (placesResult.status === 'fulfilled') setPlaces(itemsOf(placesResult.value));
+      else errors.push(api.errorMessage(placesResult.reason, 'Không tải được danh sách điểm. Bạn vẫn có thể nhập mã điểm.'));
+      setE(errors.join(' '));
+      setBusy(false);
+    });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (e || message) document.getElementById('tour-notice')?.scrollIntoView({ block: 'nearest' });
+  }, [e, message]);
 
-  const removeMedia = async (id) => {
-    try {
+  const selectTour = (id) => run(() => loadDetails(id), 'Không tải được chi tiết tour.');
+  const newTour = () => {
+    if (busy) return;
+    setSelected('');
+    setDetail(null);
+    setSchedule(null);
+    setMedia(null);
+    setForm(emptyTour());
+    setScheduleForm(emptySchedule());
+    setMediaForm(emptyMedia());
+    setFileKey((key) => key + 1);
+    setE('');
+    setMessage('');
+    document.getElementById('tour-form')?.scrollIntoView({ block: 'start' });
+  };
+  const save = (event) => {
+    event.preventDefault();
+    run(async () => {
+      const optionalNumber = (value) => value === '' ? null : Number(value);
+      const optionalText = (key) => form[key] === '' && selected && v(detail, key[0].toLowerCase() + key.slice(1), key) == null
+        ? null : form[key];
+      const data = {
+        TenTour: form.TenTour.trim(), Mota: optionalText('Mota'), ThoiGian: optionalNumber(form.ThoiGian),
+        GiaTour: Number(form.GiaTour), Slkhach: Number(form.Slkhach),
+        SlhuongDanVien: optionalNumber(form.SlhuongDanVien), LoaiTour: form.LoaiTour,
+        TrangThai: form.TrangThai, DieuKhoan: optionalText('DieuKhoan'),
+      };
+      if (!data.TenTour || !data.LoaiTour || (!selected && !form.MaTour.trim())) {
+        setE('Hãy nhập mã, tên và loại tour.'); return;
+      }
+      let id = selected;
+      if (id) {
+        await api.updateTour(id, data);
+        setMessage('Đã lưu thay đổi tour.');
+      } else {
+        const response = await api.createTour({ MaTour: form.MaTour.trim(), ...data });
+        id = v(response.data, 'maTour', 'MaTour') || form.MaTour.trim();
+        setSelected(id);
+        setDetail({ ...response.data, trangThai: data.TrangThai });
+        setForm({ ...form, MaTour: id });
+        setMessage('Đã thêm tour ' + id + '.');
+      }
+      await loadDetails(id);
+      await loadList();
+    }, 'Không thể lưu tour hoặc tải lại chi tiết. Dữ liệu vừa lưu có thể đã thành công; hãy tải lại trước khi thử lại.');
+  };
+  const remove = (id) => {
+    if (busy || !confirm('Xóa tour ' + id + '? Nếu đã có booking, hệ thống sẽ ẩn tour.')) return;
+    run(async () => {
+      const response = await api.deleteTour(id);
+      setMessage(response.data?.message || 'Đã xóa tour ' + id + '.');
+      if (response.status === 200) await loadDetails(id);
+      else if (selected === id) {
+        setSelected(''); setDetail(null); setForm(emptyTour()); setSchedule(null); setMedia(null);
+        setScheduleForm(emptySchedule()); setMediaForm(emptyMedia()); setFileKey((key) => key + 1);
+      }
+      await loadList();
+    }, 'Không thể xóa tour hoặc tải lại danh sách.');
+  };
+  const addSchedule = (event) => {
+    event.preventDefault();
+    if (!selected) return;
+    run(async () => {
+      if (!scheduleForm.MaDthamQuan.trim() && !scheduleForm.MaSanPham.trim()) {
+        setE('Hãy chọn/nhập mã điểm tham quan hoặc mã sản phẩm đối tác.'); return;
+      }
+      await api.createTourSchedule({
+        MaTour: selected, NgayThu: Number(scheduleForm.NgayThu), ThuTuTrongNgay: Number(scheduleForm.ThuTuTrongNgay),
+        MaDthamQuan: scheduleForm.MaDthamQuan.trim() || null, MaSanPham: scheduleForm.MaSanPham.trim() || null,
+        SoLuong: Number(scheduleForm.SoLuong), Mota: scheduleForm.Mota,
+      });
+      setMessage('Đã thêm dòng lịch trình. Giá tour được tính lại theo lịch trình.');
+      setScheduleForm(emptySchedule());
+      await loadDetails(selected);
+      await loadList();
+    }, 'Không thể thêm lịch trình hoặc tải lại chi tiết.');
+  };
+  const removeSchedule = (id) => {
+    if (busy || !confirm('Xóa dòng lịch trình ' + id + '? Giá tour sẽ được tính lại.')) return;
+    run(async () => {
+      const response = await api.deleteTourSchedule(id);
+      setMessage(response.data?.message || 'Đã xóa dòng lịch trình.');
+      await loadDetails(selected);
+      await loadList();
+    }, 'Không thể xóa lịch trình hoặc tải lại chi tiết.');
+  };
+  const addMedia = (event) => {
+    event.preventDefault();
+    if (!selected) return;
+    run(async () => {
+      if (!mediaForm.File) { setE('Hãy chọn ảnh hoặc video.'); return; }
+      await api.uploadTourMedia(selected, mediaForm.File, Number(mediaForm.ThuTu), mediaForm.IsAvatar);
+      setMessage('Đã upload ảnh/video cho tour ' + selected + '.');
+      setMediaForm(emptyMedia());
+      setFileKey((key) => key + 1);
+      await loadDetails(selected);
+    }, 'Không thể upload ảnh/video hoặc tải lại chi tiết.');
+  };
+  const removeMedia = (id) => {
+    if (busy || !confirm('Xóa ảnh/video này?')) return;
+    run(async () => {
       await api.deleteMedia(id);
-      await loadMedia(selected);
-    } catch (err) {
-      setE(api.errorMessage(err, 'Không thể xóa media.'));
-    }
+      setMessage('Đã xóa ảnh/video.');
+      await loadDetails(selected);
+    }, 'Không thể xóa ảnh/video hoặc tải lại chi tiết.');
   };
+  const setTourField = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+  const setScheduleField = (key) => (event) => setScheduleForm((current) => ({ ...current, [key]: event.target.value }));
+  const currentState = String(v(detail, 'trangThai', 'TrangThai') ?? '').trim();
+  const scheduleLocked = selected && !['Nhap', 'HoatDong'].includes(currentState);
 
   return (
-    <>
+    <div className="tour-admin" style={{ minWidth: 0, overflowWrap: 'anywhere' }} onInvalidCapture={() => {
+      setMessage('');
+      setE('Hãy điền đủ các trường bắt buộc và kiểm tra giới hạn số trong biểu mẫu.');
+    }}>
       <h1>Quản lý tour</h1>
-      <Notice error={e} />
-      <form className="panel inline" onSubmit={save}>
-        <input placeholder="Tên tour" value={form.TenTour} onChange={(x) => setForm({ ...form, TenTour: x.target.value })} />
-        <input type="number" placeholder="Giá" value={form.GiaTour} onChange={(x) => setForm({ ...form, GiaTour: x.target.value })} />
-        <button>{selected ? 'Lưu thay đổi' : 'Thêm tour'}</button>
-      </form>
-      <div className="table">
-        {items.map((x) => {
-          const id = v(x, 'maTour', 'MaTour');
+      <div id="tour-notice" aria-live="polite">
+        <Notice error={e} />
+        {message && <div className="notice ok" role="status">{message}</div>}
+      </div>
+      {busy && <p role="status">Đang xử lý…</p>}
+      <div className="inline">
+        <button type="button" disabled={busy} onClick={newTour}>Thêm tour mới</button>
+        <button type="button" disabled={busy} onClick={() => run(async () => {
+          if (selected) await loadDetails(selected);
+          await loadList();
+        }, 'Không tải lại được dữ liệu tour.')}>Tải lại dữ liệu</button>
+        <label style={field}>Danh sách loại tour
+          <select aria-label="Danh sách loại tour" value={listType} disabled={busy} onChange={(event) => {
+            const type = event.target.value;
+            run(() => loadList(1, type), 'Không tải được danh sách tour.');
+          }}>
+            <option value="Chuan">Tour chuẩn</option>
+            <option value="TuThietKe">Tour tự thiết kế</option>
+          </select>
+        </label>
+      </div>
+      <div className="table" aria-label="Danh sách tour">
+        {items.map((item) => {
+          const id = v(item, 'maTour', 'MaTour');
+          const state = String(v(item, 'trangThai', 'TrangThai') || '').trim();
           return (
-            <div className="row" key={id}>
-              <b>{id}</b>
-              <span>{v(x, 'tenTour', 'TenTour')}</span>
-              <span>{v(x, 'giaTour', 'GiaTour')} đ</span>
-              <button onClick={() => { setSelected(id); edit(x); }}>Sửa</button>
-              <button onClick={() => remove(id)}>Xóa</button>
-              <button onClick={() => loadMedia(id)}>Ảnh/video</button>
+            <div className={'row' + (selected === id ? ' on' : '')} key={id}
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', cursor: busy ? 'wait' : 'pointer',
+                outline: selected === id ? '3px solid var(--gold)' : undefined }}
+              onClick={() => !busy && selectTour(id)}>
+              <button type="button" disabled={busy} aria-label={'Chọn tour ' + id}
+                onClick={(event) => { event.stopPropagation(); selectTour(id); }}>{id}</button>
+              <span>{v(item, 'tenTour', 'TenTour')}</span>
+              <span>Giá: {money(v(item, 'giaTour', 'GiaTour'))}</span>
+              <span>Số khách: {v(item, 'slkhach', 'Slkhach') ?? '—'}</span>
+              <span className="badge">{stateNames[state] || state}</span>
+              <div className="inline" style={{ margin: 0 }}>
+                <button type="button" disabled={busy} onClick={(event) => {
+                  event.stopPropagation();
+                  run(async () => { await loadDetails(id); document.getElementById('tour-form')?.scrollIntoView({ block: 'start' }); },
+                    'Không tải được đầy đủ thông tin để sửa tour.');
+                }}>Sửa</button>
+                <button type="button" className="danger" disabled={busy}
+                  onClick={(event) => { event.stopPropagation(); remove(id); }}>Xóa</button>
+              </div>
             </div>
           );
         })}
+        {!items.length && !busy && <p>Không có tour trong danh sách này.</p>}
       </div>
-      {selected && (
-        <section className="panel">
-          <h2>Media tour {selected}</h2>
-          <form className="inline" onSubmit={addMedia}>
-            <input type="file" accept=".jpg,.jpeg,.png,.webp,.mp4,.webm,image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={(x) => setMediaForm({ ...mediaForm, File: x.target.files?.[0] || null })} required />
-            <input type="number" min="0" placeholder="Thứ tự" value={mediaForm.ThuTu} onChange={(x) => setMediaForm({ ...mediaForm, ThuTu: x.target.value })} />
-            <label><input type="checkbox" checked={mediaForm.IsAvatar} onChange={(x) => setMediaForm({ ...mediaForm, IsAvatar: x.target.checked })} /> Ảnh đại diện</label>
-            <button>Upload media</button>
+      <div className="inline" style={{ marginTop: 18 }}>
+        <button type="button" disabled={busy || page <= 1} onClick={() => run(() => loadList(page - 1), 'Không tải được tour.')}>Trang trước</button>
+        <span>Trang {page} / {Math.max(1, Math.ceil(total / 50))} · {total} tour</span>
+        <button type="button" disabled={busy || page * 50 >= total} onClick={() => run(() => loadList(page + 1), 'Không tải được tour.')}>Trang sau</button>
+      </div>
+
+      <section className="panel" id="tour-form" style={{ marginBottom: 24 }}>
+        <h2>{selected ? 'Chi tiết / sửa tour ' + selected : 'Thêm tour'}</h2>
+        <form onSubmit={save} aria-label="Thông tin tour">
+          <fieldset disabled={busy} style={fieldset}>
+            <div style={grid}>
+              <label style={field}>Mã tour<input style={control} maxLength={20} required readOnly={!!selected}
+                value={form.MaTour} onChange={setTourField('MaTour')} /></label>
+              <label style={field}>Tên tour<input style={control} maxLength={150} required
+                value={form.TenTour} onChange={setTourField('TenTour')} /></label>
+              <label style={field}>Số ngày (ThoiGian)<input style={control} type="number" min="1" max="2147483647" step="1"
+                required={!selected} value={form.ThoiGian} onChange={setTourField('ThoiGian')} /></label>
+              <label style={field}>Giá tour (đ)<input style={control} type="number" min="0" max="2147483647" step="1" required
+                value={form.GiaTour} onChange={setTourField('GiaTour')} /></label>
+              <label style={field}>Số khách<input style={control} type="number" min="1" max="2147483647" step="1" required
+                value={form.Slkhach} onChange={setTourField('Slkhach')} /></label>
+              <label style={field}>Số hướng dẫn viên<input style={control} type="number" min="0" max="2147483647" step="1"
+                value={form.SlhuongDanVien} onChange={setTourField('SlhuongDanVien')} /></label>
+              <label style={field}>Loại tour<input style={control} readOnly required value={form.LoaiTour} /></label>
+              <label style={field}>Trạng thái tour<select aria-label="Trạng thái tour" style={control} required value={form.TrangThai} onChange={setTourField('TrangThai')}>
+                {!Object.hasOwn(stateNames, form.TrangThai) && <option value={form.TrangThai}>{form.TrangThai || 'Chọn trạng thái'}</option>}
+                {Object.entries(stateNames).map(([key, name]) => <option key={key} value={key}>{name} ({key})</option>)}
+              </select></label>
+              <label style={{ ...field, gridColumn: '1 / -1' }}>Mô tả tour<textarea aria-label="Mô tả tour" style={control} rows={3}
+                value={form.Mota} onChange={setTourField('Mota')} /></label>
+              <label style={{ ...field, gridColumn: '1 / -1' }}>Điều khoản<textarea aria-label="Điều khoản" style={control} rows={3}
+                value={form.DieuKhoan} onChange={setTourField('DieuKhoan')} /></label>
+            </div>
+            <p className="muted">Tour mới thuộc loại Chuan. Khi sửa, mã và loại tour được giữ nguyên; hãy lưu thông tin trước khi thao tác lịch trình/ảnh hoặc tải lại.</p>
+            <button type="submit">{selected ? 'Lưu thay đổi' : 'Thêm tour'}</button>
+          </fieldset>
+        </form>
+      </section>
+
+      {selected && <>
+        <section className="panel" style={{ marginBottom: 24 }}>
+          <h2>Lịch trình tour {selected}</h2>
+          <p className="muted">Chỉ sửa lịch trình khi tour Nhap/HoatDong và chưa có hợp đồng DaKy. Thêm/xóa dòng sẽ tính lại giá tour theo tổng thành tiền. Điểm không gắn sản phẩm đối tác có đơn giá 0 theo API hiện tại.</p>
+          {scheduleLocked && <p className="notice error">Tour {currentState === 'An' ? 'đang ẩn (An)' : 'không ở trạng thái Nhap/HoatDong'}, không thể thay đổi lịch trình.</p>}
+          {schedule === null ? <p>Chưa tải được lịch trình. Hãy bấm Tải lại dữ liệu.</p> : <>
+            <div className="table" aria-label="Lịch trình tour">
+              {schedule.map((line) => (
+                <div className="row" key={line.maLichTrinh} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))' }}>
+                  <b>Ngày {line.ngayThu ?? '—'} · Thứ tự {line.thuTuTrongNgay ?? '—'}</b>
+                  <span>{line.tenDiaDanh || line.maDthamQuan || 'Không gắn điểm'}{line.maSanPham && <small style={{ display: 'block' }}>Sản phẩm: {line.tenSanPham || line.maSanPham}</small>}</span>
+                  <span>{line.mota || '—'}</span>
+                  <span>SL: {line.soLuong ?? '—'} · Đơn giá: {money(line.donGia)}</span>
+                  <b>Thành tiền: {money(line.thanhTien)}</b>
+                  <button type="button" className="danger" disabled={busy || scheduleLocked} aria-label={'Xóa lịch trình ' + line.maLichTrinh}
+                    onClick={() => removeSchedule(line.maLichTrinh)}>Xóa dòng</button>
+                </div>
+              ))}
+            </div>
+            {!schedule.length && <p>Chưa có dòng lịch trình.</p>}
+          </>}
+          <form onSubmit={addSchedule} aria-label="Thêm lịch trình" style={{ marginTop: 20 }}>
+            <fieldset disabled={busy || scheduleLocked} style={fieldset}>
+              <div style={grid}>
+                <label style={field}>Ngày thứ<input style={control} type="number" min="1" max={v(detail, 'thoiGian', 'ThoiGian') || 2147483647} required
+                  value={scheduleForm.NgayThu} onChange={setScheduleField('NgayThu')} /></label>
+                <label style={field}>Thứ tự trong ngày<input style={control} type="number" min="1" max="2147483647" required
+                  value={scheduleForm.ThuTuTrongNgay} onChange={setScheduleField('ThuTuTrongNgay')} /></label>
+                <label style={field}>Mã điểm tham quan<input style={control} list="tour-places" maxLength={20}
+                  value={scheduleForm.MaDthamQuan} onChange={setScheduleField('MaDthamQuan')} /></label>
+                <datalist id="tour-places">{places.map((place) => <option key={place.maDthamQuan} value={place.maDthamQuan}>{place.tenDiaDanh}</option>)}</datalist>
+                <label style={field}>Mã sản phẩm đối tác (nếu có)<input style={control} maxLength={20}
+                  value={scheduleForm.MaSanPham} onChange={setScheduleField('MaSanPham')} /></label>
+                <label style={field}>Số lượng<input style={control} type="number" min="1" max="2147483647" required
+                  value={scheduleForm.SoLuong} onChange={setScheduleField('SoLuong')} /></label>
+                <label style={{ ...field, gridColumn: '1 / -1' }}>Mô tả lịch trình<textarea aria-label="Mô tả lịch trình" style={control} rows={2}
+                  value={scheduleForm.Mota} onChange={setScheduleField('Mota')} /></label>
+              </div>
+              <button style={{ marginTop: 16 }} type="submit">Thêm dòng lịch trình</button>
+            </fieldset>
           </form>
-          <p>Ảnh: JPEG/PNG/WebP tối đa 10 MB. Video: MP4/WebM tối đa 100 MB.</p>
-          <div className="list">
-            {media.map((m) => (
-              <div key={m.maAnhTour}>{m.loaiMedia} · <a href={m.url} target="_blank" rel="noreferrer">Xem media</a> <button onClick={() => removeMedia(m.maAnhTour)}>Xóa</button></div>
-            ))}
-          </div>
         </section>
-      )}
-    </>
+        <section className="panel">
+          <h2>Ảnh / video tour {selected}</h2>
+          <form onSubmit={addMedia} aria-label="Upload ảnh tour">
+            <fieldset disabled={busy} style={fieldset}>
+              <div style={grid}>
+                <label style={field}>File ảnh / video<input key={fileKey} style={control} type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.mp4,.webm,image/jpeg,image/png,image/webp,video/mp4,video/webm" required
+                  onChange={(event) => setMediaForm({ ...mediaForm, File: event.target.files?.[0] || null })} /></label>
+                <label style={field}>Thứ tự ảnh<input style={control} type="number" min="0" max="2147483647" required value={mediaForm.ThuTu}
+                  onChange={(event) => setMediaForm({ ...mediaForm, ThuTu: event.target.value })} /></label>
+                <label><input type="checkbox" checked={mediaForm.IsAvatar}
+                  onChange={(event) => setMediaForm({ ...mediaForm, IsAvatar: event.target.checked })} /> Ảnh đại diện</label>
+              </div>
+              <button type="submit" style={{ marginTop: 16 }}>Upload media</button>
+            </fieldset>
+          </form>
+          <p className="muted">Ảnh: JPEG/PNG/WebP tối đa 10 MB. Video: MP4/WebM tối đa 100 MB.</p>
+          {media === null ? <p>Chưa tải được ảnh/video. Hãy bấm Tải lại dữ liệu.</p> : <div style={grid}>
+            {media.map((item) => <div key={item.maAnhTour} style={{ minWidth: 0 }}>
+              {item.loaiMedia === 'Video'
+                ? <video src={item.url} controls preload="metadata" style={{ width: '100%', height: 150, objectFit: 'contain' }} />
+                : <img src={item.url} alt={'Ảnh tour ' + selected + ' · ' + item.maAnhTour} loading="lazy" style={{ width: '100%', height: 150, objectFit: 'cover' }} />}
+              <p>{item.loaiMedia} · Thứ tự: {item.thuTu ?? 0}{item.isAvatar ? ' · Ảnh đại diện' : ''}</p>
+              <div className="inline">
+                <a href={item.url} target="_blank" rel="noreferrer">Xem media</a>
+                <button type="button" className="danger" disabled={busy} aria-label={'Xóa ảnh ' + item.maAnhTour}
+                  onClick={() => removeMedia(item.maAnhTour)}>Xóa ảnh/video</button>
+              </div>
+            </div>)}
+            {!media.length && <p>Chưa có ảnh/video.</p>}
+          </div>}
+        </section>
+      </>}
+    </div>
   );
 }

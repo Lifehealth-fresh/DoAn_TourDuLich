@@ -74,6 +74,8 @@ public class DatDichVuController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
+        var daXacNhan = FixedLengthHelper.PadTo20("DaXacNhan");
+        var thanhCong = FixedLengthHelper.PadTo20("ThanhCong");
         var query = _context.DatDichVus.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(trangThai))
@@ -109,6 +111,12 @@ public class DatDichVuController : ControllerBase
                 tongTien = item.TongTien,
                 tongGiamGia = item.TongGiamGia,
                 thanhTien = item.ThanhTien,
+                tongDaThanhToan = item.ThanhToans
+                    .Where(payment => payment.TrangThai == daXacNhan || payment.TrangThai == thanhCong)
+                    .Sum(payment => (long?)payment.SoTien) ?? 0L,
+                conLai = (item.ThanhTien ?? 0) - (item.ThanhToans
+                    .Where(payment => payment.TrangThai == daXacNhan || payment.TrangThai == thanhCong)
+                    .Sum(payment => (long?)payment.SoTien) ?? 0L),
                 trangThai = FixedLengthHelper.TrimSafe(item.TrangThai)
             })
             .ToListAsync();
@@ -120,6 +128,8 @@ public class DatDichVuController : ControllerBase
     [Authorize(Roles = "KhachHang,Sale,Admin")]
     public async Task<ActionResult> GetMyBooking(string maBooking)
     {
+        var daXacNhan = FixedLengthHelper.PadTo20("DaXacNhan");
+        var thanhCong = FixedLengthHelper.PadTo20("ThanhCong");
         var isStaff = User.IsInRole("Sale") || User.IsInRole("Admin");
         var maUser = GetCurrentMaUser();
 
@@ -159,6 +169,12 @@ public class DatDichVuController : ControllerBase
                 tongTien = item.TongTien,
                 tongGiamGia = item.TongGiamGia,
                 thanhTien = item.ThanhTien,
+                tongDaThanhToan = item.ThanhToans
+                    .Where(payment => payment.TrangThai == daXacNhan || payment.TrangThai == thanhCong)
+                    .Sum(payment => (long?)payment.SoTien) ?? 0L,
+                conLai = (item.ThanhTien ?? 0) - (item.ThanhToans
+                    .Where(payment => payment.TrangThai == daXacNhan || payment.TrangThai == thanhCong)
+                    .Sum(payment => (long?)payment.SoTien) ?? 0L),
                 tyLePhatHuy = item.TyLePhatHuy,
                 soTienPhatHuy = item.SoTienPhatHuy,
                 trangThai = FixedLengthHelper.TrimSafe(item.TrangThai)
@@ -436,22 +452,19 @@ public class DatDichVuController : ControllerBase
             });
         }
 
-        if (trangThaiCu == "DaXacNhan" && trangThaiMoi == "DaThanhToan")
-        {
-            var tongDaThanhToan = await _context.ThanhToans
-                .Where(payment =>
-                    payment.MaBooking == maBookingDb &&
-                    FixedLengthHelper.TrimSafe(payment.TrangThai) != "DaHuy")
-                .SumAsync(payment => (int?)payment.SoTien) ?? 0;
+        var daXacNhan = FixedLengthHelper.PadTo20("DaXacNhan");
+        var thanhCong = FixedLengthHelper.PadTo20("ThanhCong");
+        var tongDaTra = await _context.ThanhToans
+            .Where(payment => payment.MaBooking == maBookingDb &&
+                (payment.TrangThai == daXacNhan || payment.TrangThai == thanhCong))
+            .SumAsync(payment => (long?)payment.SoTien) ?? 0L;
+        var conLai = (booking.ThanhTien ?? 0) - tongDaTra;
 
-            if (tongDaThanhToan < (booking.ThanhTien ?? 0))
-            {
-                return BadRequest(new
-                {
-                    message = "Khách hàng chưa thanh toán đủ, không thể chuyển sang trạng thái đã thanh toán."
-                });
-            }
-        }
+        if (trangThaiCu == "ChoXacNhan" && trangThaiMoi == "DaXacNhan" && tongDaTra <= 0)
+            return BadRequest(new { message = "Khách chưa thanh toán (cọc hoặc hết), không thể xác nhận." });
+
+        if (trangThaiCu == "DaXacNhan" && trangThaiMoi == "DaThanhToan" && conLai > 0)
+            return BadRequest(new { message = $"Khách chưa thanh toán đủ. Đã trả {tongDaTra}, còn {conLai}." });
 
         await using var transaction =
             await _context.Database.BeginTransactionAsync();
@@ -471,7 +484,9 @@ public class DatDichVuController : ControllerBase
         return Ok(new
         {
             maBooking = FixedLengthHelper.TrimSafe(booking.MaBooking),
-            trangThai = FixedLengthHelper.TrimSafe(booking.TrangThai)
+            trangThai = FixedLengthHelper.TrimSafe(booking.TrangThai),
+            tongDaThanhToan = tongDaTra,
+            conLai
         });
     }
 

@@ -15,9 +15,14 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
-export const errorMessage=(e,f='Có lỗi xảy ra.')=>e?.response?.data?.message||(e?.response?.status===403?'Bạn không có quyền thực hiện thao tác này.':e?.response?.status===401?'Phiên đăng nhập đã hết hạn.':f);
+export const errorMessage=(e,f='Có lỗi xảy ra.')=>e?.response?.data?.message||e?.response?.data?.title||(e?.response?.status===403?'Bạn không có quyền thực hiện thao tác này.':e?.response?.status===401?'Phiên đăng nhập đã hết hạn.':f);
 export const login=data=>api.post('/api/Auth/login',data);
-export const tours=(params)=>api.get('/api/Tour',{params:{pageSize:50,...params}}); export const createTour=d=>api.post('/api/Tour',d); export const updateTour=(id,d)=>api.put(`/api/Tour/${id}`,d); export const deleteTour=id=>api.delete(`/api/Tour/${id}`);
+export const tours=(params)=>api.get('/api/Tour',{params:{pageSize:50,...params}}); export const createTour=d=>api.post('/api/Tour',d); export const updateTour=(id,d)=>api.put(`/api/Tour/${encodeURIComponent(id)}`,d); export const deleteTour=id=>api.delete(`/api/Tour/${encodeURIComponent(id)}`);
+export const tourDetail=id=>api.get(`/api/Tour/${encodeURIComponent(id)}`);
+export const tourSchedule=id=>api.get(`/api/LichTrinh/tour/${encodeURIComponent(id)}`);
+export const createTourSchedule=data=>api.post('/api/LichTrinh',data);
+export const deleteTourSchedule=id=>api.delete(`/api/LichTrinh/${encodeURIComponent(id)}`);
+export const sightseeingPlaces=()=>api.get('/api/DiemThamQuan');
 export const designRequests=()=>api.get('/api/YeuCauThietKe/danh-sach');
 export const proposals=id=>api.get(`/api/YeuCauThietKe/${encodeURIComponent(id)}/de-xuat`);
 export const generate=id=>api.post(`/api/YeuCauThietKe/${encodeURIComponent(id)}/sinh-de-xuat`);
