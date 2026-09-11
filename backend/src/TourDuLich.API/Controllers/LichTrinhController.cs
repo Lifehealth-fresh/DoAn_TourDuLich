@@ -123,13 +123,9 @@ public class LichTrinhController : ControllerBase
             });
         }
 
-        if (FixedLengthHelper.TrimSafe(tour.TrangThai) != "Nhap")
-        {
-            return BadRequest(new
-            {
-                message = "Chỉ tour đang ở trạng thái Nhap mới có thể chỉnh sửa lịch trình."
-            });
-        }
+        var editError = await GetScheduleEditErrorAsync(tour);
+        if (editError is not null)
+            return BadRequest(new { message = editError });
 
         var maDthamQuanDb = await ValidateDiemThamQuanAsync(
             request.MaDthamQuan);
@@ -256,13 +252,9 @@ public class LichTrinhController : ControllerBase
             });
         }
 
-        if (FixedLengthHelper.TrimSafe(tour.TrangThai) != "Nhap")
-        {
-            return BadRequest(new
-            {
-                message = "Chỉ tour đang ở trạng thái Nhap mới có thể chỉnh sửa lịch trình."
-            });
-        }
+        var editError = await GetScheduleEditErrorAsync(tour);
+        if (editError is not null)
+            return BadRequest(new { message = editError });
 
         var maDthamQuanDb = await ValidateDiemThamQuanAsync(
             request.MaDthamQuan);
@@ -357,13 +349,9 @@ public class LichTrinhController : ControllerBase
             });
         }
 
-        if (FixedLengthHelper.TrimSafe(tour.TrangThai) != "Nhap")
-        {
-            return BadRequest(new
-            {
-                message = "Chỉ tour đang ở trạng thái Nhap mới có thể xóa lịch trình."
-            });
-        }
+        var editError = await GetScheduleEditErrorAsync(tour);
+        if (editError is not null)
+            return BadRequest(new { message = editError });
 
         await using var transaction =
             await _context.Database.BeginTransactionAsync();
@@ -382,6 +370,22 @@ public class LichTrinhController : ControllerBase
             message = "Đã xóa dòng lịch trình.",
             giaTourMoi
         });
+    }
+
+    private async Task<string?> GetScheduleEditErrorAsync(Tour tour)
+    {
+        var trangThai = FixedLengthHelper.TrimSafe(tour.TrangThai);
+        if (trangThai == "An")
+            return "Tour đang ẩn (An), không thể thay đổi lịch trình.";
+        if (trangThai is not ("Nhap" or "HoatDong"))
+            return "Chỉ tour ở trạng thái Nhap hoặc HoatDong mới được thay đổi lịch trình.";
+
+        var daKy = FixedLengthHelper.PadTo20("DaKy");
+        var hasSignedContract = await _context.HopDongs.AnyAsync(item =>
+            item.MaBookingNavigation.MaTour == tour.MaTour && item.TrangThai == daKy);
+        return hasSignedContract
+            ? "Tour đã có hợp đồng đã ký (DaKy), không thể thay đổi lịch trình. Hãy lập phụ lục hợp đồng."
+            : null;
     }
 
     private async Task<bool> UserCanAccessTourAsync(string maTourDb)
