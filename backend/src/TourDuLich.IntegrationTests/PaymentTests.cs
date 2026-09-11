@@ -5,7 +5,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
@@ -53,18 +57,27 @@ public sealed class PaymentTests : ApiTestBase
         return (payment.GetProperty("maTt").GetString()!, amount.Value);
     }
 
-    private async Task<HttpResponseMessage> SendValidVnPayIpnAsync(
+    private Task<HttpResponseMessage> SendValidVnPayIpnAsync(
         string maTt,
         int amount,
-        string transactionNo)
+        string transactionNo) => SendVnPayCallbackAsync("ipn", maTt, amount, transactionNo);
+
+    private async Task<HttpResponseMessage> SendVnPayCallbackAsync(
+        string endpoint,
+        string maTt,
+        int amount,
+        string transactionNo,
+        bool validSignature = true,
+        string responseCode = "00",
+        string transactionStatus = "00")
     {
         var parameters = new Dictionary<string, string>
         {
             ["vnp_Amount"] = ((long)amount * 100L).ToString(),
-            ["vnp_ResponseCode"] = "00",
+            ["vnp_ResponseCode"] = responseCode,
             ["vnp_TmnCode"] = "TESTCODE",
             ["vnp_TransactionNo"] = transactionNo,
-            ["vnp_TransactionStatus"] = "00",
+            ["vnp_TransactionStatus"] = transactionStatus,
             ["vnp_TxnRef"] = maTt
         };
         var query = BuildVnPayQuery(parameters);
@@ -73,9 +86,16 @@ public sealed class PaymentTests : ApiTestBase
         var signature = Convert.ToHexString(
             hmac.ComputeHash(Encoding.UTF8.GetBytes(query))).ToLowerInvariant();
 
-        Client.DefaultRequestHeaders.Authorization = null;
-        return await Client.GetAsync(
-            $"/api/ThanhToan/vnpay/ipn?{query}&vnp_SecureHash={signature}");
+        if (!validSignature)
+            signature = (signature[0] == '0' ? "1" : "0") + signature[1..];
+
+        // Giữ lại redirect để kiểm tra Location; không truy cập frontend/cổng thật.
+        using var callbackClient = Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        return await callbackClient.GetAsync(
+            $"/api/ThanhToan/vnpay/{endpoint}?{query}&vnp_SecureHash={signature}");
     }
 
     private static string BuildVnPayQuery(IEnumerable<KeyValuePair<string, string>> parameters) =>
@@ -324,6 +344,172 @@ public sealed class PaymentTests : ApiTestBase
         booking.GetProperty("trangThai").GetString().Should().Be("DaThanhToan");
     }
 
+    [Theory]
+    [InlineData("return", "ipn")]
+    [InlineData("ipn", "return")]
+    public async Task VnPayReturnAndIpn_ForFullAmount_ConfirmOnlyOnce(
+        string firstEndpoint, string secondEndpoint)
+    {
+        var data = await CreateBookingAsync();
+        var payment = await CreateVnPayPaymentAsync(data.Customer, data.Booking);
+        const string transactionNo = "VNP-RETURN-PAID";
+
+        var first = await SendVnPayCallbackAsync(
+            firstEndpoint, payment.MaTt, payment.Amount, transactionNo);
+        await AssertVnPayCallbackAcceptedAsync(first, firstEndpoint, data.Booking, "00");
+        (await GetPaymentStatusAsync(data.Customer, data.Booking, payment.MaTt))
+            .Should().Be("DaXacNhan");
+        var firstPayments = await Client.GetFromJsonAsync<JsonElement>(
+            $"/api/ThanhToan/theo-booking/{data.Booking}");
+        var paidAt = firstPayments[0].GetProperty("paidAt").GetDateTime();
+
+        var second = await SendVnPayCallbackAsync(
+            secondEndpoint, payment.MaTt, payment.Amount, transactionNo);
+        await AssertVnPayCallbackAcceptedAsync(second, secondEndpoint, data.Booking, "02");
+        UseToken(data.Customer);
+        var payments = await Client.GetFromJsonAsync<JsonElement>(
+            $"/api/ThanhToan/theo-booking/{data.Booking}");
+        payments.GetArrayLength().Should().Be(1);
+        payments[0].GetProperty("trangThai").GetString().Should().Be("DaXacNhan");
+        payments[0].GetProperty("gatewayTxnId").GetString().Should().Be(transactionNo);
+        payments[0].GetProperty("paidAt").GetDateTime().Should().Be(paidAt);
+        var booking = await Client.GetFromJsonAsync<JsonElement>(
+            $"/api/DatDichVu/{data.Booking}");
+        booking.GetProperty("trangThai").GetString().Should().Be("DaThanhToan");
+        var summary = await Client.GetFromJsonAsync<JsonElement>(
+            $"/api/ThanhToan/theo-booking/{data.Booking}/tong-hop");
+        summary.GetProperty("daThanhToan").GetInt32().Should().Be(payment.Amount);
+    }
+
+    private static async Task AssertVnPayCallbackAcceptedAsync(
+        HttpResponseMessage response, string endpoint, string booking, string ipnCode)
+    {
+        if (endpoint == "return")
+        {
+            response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+            response.Headers.Location!.AbsoluteUri.Should().Be(
+                $"https://customer.test.local/booking/{booking}?maBooking={booking}&status=success&paid=1");
+            return;
+        }
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+        result.GetProperty("rspCode").GetString().Should().Be(ipnCode);
+    }
+
+    [Fact]
+    public async Task InvalidVnPayReturnSignature_DoesNotChangePaymentOrBooking()
+    {
+        var data = await CreateBookingAsync();
+        var payment = await CreateVnPayPaymentAsync(data.Customer, data.Booking);
+
+        var response = await SendVnPayCallbackAsync(
+            "return", payment.MaTt, payment.Amount, "VNP-BAD-RETURN", validSignature: false);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.AbsoluteUri.Should().Be(
+            "https://customer.test.local/?status=invalid&paid=0");
+        (await GetPaymentStatusAsync(data.Customer, data.Booking, payment.MaTt))
+            .Should().Be("ChoXacNhan");
+        var payments = await Client.GetFromJsonAsync<JsonElement>(
+            $"/api/ThanhToan/theo-booking/{data.Booking}");
+        payments[0].GetProperty("gatewayTxnId").ValueKind.Should().Be(JsonValueKind.Null);
+        payments[0].GetProperty("paidAt").ValueKind.Should().Be(JsonValueKind.Null);
+        var booking = await Client.GetFromJsonAsync<JsonElement>(
+            $"/api/DatDichVu/{data.Booking}");
+        booking.GetProperty("trangThai").GetString().Should().Be("ChoXacNhan");
+    }
+
+    [Fact]
+    public async Task ValidVnPayReturn_ForCancelledBooking_DoesNotConfirmPayment()
+    {
+        var data = await CreateBookingAsync();
+        var payment = await CreateVnPayPaymentAsync(data.Customer, data.Booking, 10_000);
+        (await Client.PutAsync($"/api/DatDichVu/{data.Booking}/huy", null))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var response = await SendVnPayCallbackAsync(
+            "return", payment.MaTt, payment.Amount, "VNP-RETURN-CANCELLED");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.Query.Should().Contain("status=invalid&paid=0");
+        (await GetPaymentStatusAsync(data.Customer, data.Booking, payment.MaTt))
+            .Should().NotBe("DaXacNhan");
+        var booking = await Client.GetFromJsonAsync<JsonElement>(
+            $"/api/DatDichVu/{data.Booking}");
+        booking.GetProperty("trangThai").GetString().Should().Be("DaHuy");
+    }
+
+    [Fact]
+    public async Task ValidVnPayReturn_ThatWouldOverpay_DoesNotConfirmPayment()
+    {
+        var data = await CreateBookingAsync();
+        var payment = await CreateVnPayPaymentAsync(data.Customer, data.Booking, 10_000);
+        await SetBookingTotalAsync(data.Booking, payment.Amount - 1);
+
+        var response = await SendVnPayCallbackAsync(
+            "return", payment.MaTt, payment.Amount, "VNP-RETURN-OVERPAY");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.Query.Should().Contain("status=invalid&paid=0");
+        (await GetPaymentStatusAsync(data.Customer, data.Booking, payment.MaTt))
+            .Should().Be("ChoXacNhan");
+    }
+
+    [Theory]
+    [InlineData("24", "00")]
+    [InlineData("00", "02")]
+    public async Task SignedVnPayReturn_WithUnsuccessfulResult_DoesNotConfirmPayment(
+        string responseCode, string transactionStatus)
+    {
+        var data = await CreateBookingAsync();
+        var payment = await CreateVnPayPaymentAsync(data.Customer, data.Booking, 10_000);
+
+        var response = await SendVnPayCallbackAsync(
+            "return", payment.MaTt, payment.Amount, "VNP-RETURN-FAILED",
+            responseCode: responseCode, transactionStatus: transactionStatus);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.Query.Should().Contain("status=failed&paid=0");
+        (await GetPaymentStatusAsync(data.Customer, data.Booking, payment.MaTt))
+            .Should().Be("ChoXacNhan");
+    }
+}
+
+public sealed class VnPayReturnGuardTests
+{
+    [Fact]
+    public async Task InvalidSignature_RedirectsBeforeAccessingDatabase()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["VnPay:TmnCode"] = "TESTCODE",
+                ["VnPay:HashSecret"] = "fake-vnpay-secret-for-integration-tests-only",
+                ["VnPay:BaseUrl"] = "https://gateway.test.local/pay",
+                ["VnPay:ReturnUrl"] = "https://api.test.local/api/ThanhToan/vnpay/return",
+                ["VnPay:IpnUrl"] = "https://api.test.local/api/ThanhToan/vnpay/ipn",
+                ["VnPay:FrontendReturnUrl"] = "https://customer.test.local"
+            }).Build();
+
+        // Không cấu hình DB provider: test sẽ lỗi nếu callback đụng tới database.
+        await using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().Options);
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.QueryString = new QueryString(
+            "?vnp_TxnRef=TEST&vnp_Amount=1000000&vnp_TmnCode=TESTCODE" +
+            "&vnp_ResponseCode=00&vnp_TransactionStatus=00&vnp_TransactionNo=TEST123" +
+            "&vnp_SecureHash=bad-signature");
+        var controller = new TourDuLich.API.Controllers.ThanhToanController(
+            context, null!, configuration, null!)
+        {
+            ControllerContext = new ControllerContext { HttpContext = httpContext }
+        };
+
+        var response = await controller.VnPayReturn();
+
+        response.Should().BeOfType<RedirectResult>().Which.Url.Should().Be(
+            "https://customer.test.local?status=invalid&paid=0");
+    }
 }
 
 public sealed class VnPayEncodingTests

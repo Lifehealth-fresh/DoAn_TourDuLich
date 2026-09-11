@@ -527,21 +527,31 @@ public class ThanhToanController : ControllerBase
         }
 
         var signatureValid = VerifyVnPaySignature(Request.Query, settings.HashSecret);
+        if (!signatureValid)
+            return Redirect(BuildFrontendRedirect(settings.FrontendReturnUrl, null, "invalid"));
+
+        var gatewaySuccessful = Request.Query["vnp_ResponseCode"] == "00" &&
+            Request.Query["vnp_TransactionStatus"] == "00";
+        if (gatewaySuccessful)
+        {
+            var result = await ConfirmGatewayPaymentFromVnPayQueryAsync(settings);
+            return Redirect(BuildFrontendRedirect(
+                settings.FrontendReturnUrl,
+                result.MaBooking,
+                result.RspCode is "00" or "02" ? "success" : "invalid"));
+        }
+
         var orderId = Request.Query["vnp_TxnRef"].ToString();
-        var payment = signatureValid && !string.IsNullOrWhiteSpace(orderId)
-            ? await _context.ThanhToans.FirstOrDefaultAsync(item =>
+        var payment = !string.IsNullOrWhiteSpace(orderId)
+            ? await _context.ThanhToans.AsNoTracking().FirstOrDefaultAsync(item =>
                 item.GatewayOrderId == orderId && item.PhuongThuc == "VNPay")
             : null;
-        var gatewaySuccessful = signatureValid &&
-            Request.Query["vnp_ResponseCode"] == "00" &&
-            Request.Query["vnp_TransactionStatus"] == "00";
 
-        // Return URL chỉ hiển thị kết quả phía cổng. Trạng thái thanh toán trong DB
-        // vẫn là ChoXacNhan cho tới khi IPN hợp lệ được xử lý.
+        // Return thất bại chỉ thông báo; IPN vẫn xử lý kết quả từ chối của cổng.
         return Redirect(BuildFrontendRedirect(
             settings.FrontendReturnUrl,
             payment is null ? null : FixedLengthHelper.TrimSafe(payment.MaBooking),
-            signatureValid ? (gatewaySuccessful ? "success" : "failed") : "invalid"));
+            "failed"));
     }
 
     [HttpGet("vnpay/ipn")]
@@ -567,10 +577,21 @@ public class ThanhToanController : ControllerBase
             });
         }
 
+        var result = await ConfirmGatewayPaymentFromVnPayQueryAsync(settings);
+        return Ok(new { result.RspCode, result.Message });
+    }
+
+    // Cả Return và IPN phải xác minh HMAC trước khi gọi hàm ghi nhận kết quả này.
+    private async Task<(string RspCode, string Message, string? MaBooking)>
+        ConfirmGatewayPaymentFromVnPayQueryAsync(VnPaySettings settings)
+    {
         if (Request.Query["vnp_TmnCode"] != settings.TmnCode)
-            return Ok(new { RspCode = "01", Message = "Invalid merchant" });
+            return ("01", "Invalid merchant", null);
 
         var orderId = Request.Query["vnp_TxnRef"].ToString();
+        if (string.IsNullOrWhiteSpace(orderId))
+            return ("01", "Order not found", null);
+
         await using var transaction = await _context.Database
             .BeginTransactionAsync(IsolationLevel.Serializable);
         var payment = await _context.ThanhToans
@@ -580,13 +601,15 @@ public class ThanhToanController : ControllerBase
                 """)
             .FirstOrDefaultAsync();
         if (payment is null)
-            return Ok(new { RspCode = "01", Message = "Order not found" });
+            return ("01", "Order not found", null);
+
+        var maBooking = FixedLengthHelper.TrimSafe(payment.MaBooking);
 
         if (!long.TryParse(Request.Query["vnp_Amount"], NumberStyles.None,
                 CultureInfo.InvariantCulture, out var gatewayAmount) ||
             gatewayAmount != (long)(payment.SoTien ?? 0) * 100L)
         {
-            return Ok(new { RspCode = "04", Message = "Invalid amount" });
+            return ("04", "Invalid amount", maBooking);
         }
 
         var gatewayTxnId = Request.Query["vnp_TransactionNo"].ToString();
@@ -596,10 +619,10 @@ public class ThanhToanController : ControllerBase
             string.Equals(payment.GatewayTxnId?.Trim(), gatewayTxnId, StringComparison.Ordinal))
         {
             await transaction.CommitAsync();
-            return Ok(new { RspCode = "02", Message = "Order already confirmed" });
+            return ("02", "Order already confirmed", maBooking);
         }
         if (paymentStatus != "ChoXacNhan")
-            return Ok(new { RspCode = "01", Message = "Invalid order status" });
+            return ("01", "Invalid order status", maBooking);
 
         var successful = Request.Query["vnp_ResponseCode"] == "00" &&
             Request.Query["vnp_TransactionStatus"] == "00";
@@ -609,18 +632,26 @@ public class ThanhToanController : ControllerBase
             payment.GatewayTxnId = gatewayTxnId;
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
-            return Ok(new { RspCode = "00", Message = "Payment result acknowledged" });
+            return ("00", "Payment result acknowledged", maBooking);
         }
 
+        if (string.IsNullOrWhiteSpace(gatewayTxnId))
+            return ("01", "Invalid transaction", maBooking);
+
+        // Tuần tự hóa các khoản thanh toán khác nhau của cùng một booking.
         var booking = await _context.DatDichVus
-            .FirstOrDefaultAsync(item => item.MaBooking == payment.MaBooking);
+            .FromSqlInterpolated($"""
+                SELECT * FROM dbo.DatDichVu WITH (UPDLOCK, ROWLOCK)
+                WHERE MaBooking = {payment.MaBooking}
+                """)
+            .FirstOrDefaultAsync();
         if (booking is null || FixedLengthHelper.TrimSafe(booking.TrangThai) == "DaHuy")
         {
             payment.TrangThai = FixedLengthHelper.PadTo20("TuChoi");
             payment.GatewayTxnId = gatewayTxnId;
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
-            return Ok(new { RspCode = "01", Message = "Invalid order" });
+            return ("01", "Invalid order", maBooking);
         }
 
         var thanhCong = FixedLengthHelper.PadTo20("ThanhCong");
@@ -628,9 +659,9 @@ public class ThanhToanController : ControllerBase
         var daThanhToan = await _context.ThanhToans
             .Where(item => item.MaBooking == payment.MaBooking &&
                 (item.TrangThai == thanhCong || item.TrangThai == daXacNhan))
-            .SumAsync(item => (int?)item.SoTien) ?? 0;
+            .SumAsync(item => (long?)item.SoTien) ?? 0;
         if (daThanhToan + (payment.SoTien ?? 0) > (booking.ThanhTien ?? 0))
-            return Ok(new { RspCode = "04", Message = "Invalid amount" });
+            return ("04", "Invalid amount", maBooking);
 
         payment.TrangThai = FixedLengthHelper.PadTo20("DaXacNhan");
         payment.GatewayTxnId = gatewayTxnId;
@@ -645,7 +676,7 @@ public class ThanhToanController : ControllerBase
         await transaction.CommitAsync();
         await _hanhViLogger.LogAsync(booking.MaUser, booking.MaTour, "ThanhToan_DaXacNhan");
 
-        return Ok(new { RspCode = "00", Message = "Confirm success" });
+        return ("00", "Confirm success", maBooking);
     }
 
     [HttpGet("momo/return")]
@@ -903,7 +934,6 @@ public class ThanhToanController : ControllerBase
             ["vnp_OrderInfo"] = $"Thanh toan booking {orderId}",
             ["vnp_OrderType"] = "other",
             ["vnp_ReturnUrl"] = settings.ReturnUrl,
-            ["vnp_IpnUrl"] = settings.IpnUrl,
             ["vnp_TxnRef"] = orderId,
             ["vnp_ExpireDate"] = vietnamTime.AddMinutes(15)
                 .ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)
