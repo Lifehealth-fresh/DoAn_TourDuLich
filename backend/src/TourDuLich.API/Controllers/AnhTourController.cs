@@ -71,7 +71,15 @@ public class AnhTourController : ControllerBase
             return BadRequest(new { message = validation.Error });
 
         var maTourDb = FixedLengthHelper.PadTo20(maTour);
-        var uploaded = await _storage.UploadAsync(request.File, FixedLengthHelper.TrimSafe(maTourDb)!, validation.Kind, cancellationToken);
+        StoredTourMedia uploaded;
+        try
+        {
+            uploaded = await _storage.UploadAsync(request.File, FixedLengthHelper.TrimSafe(maTourDb)!, validation.Kind, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
+        }
         var media = new AnhTour
         {
             MaAnhTour = await GenerateIdAsync(),
@@ -123,7 +131,15 @@ public class AnhTourController : ControllerBase
         if (media is null)
             return NotFound(new { message = "Không tìm thấy media tour." });
 
-        var uploaded = await _storage.UploadAsync(request.File, FixedLengthHelper.TrimSafe(media.MaTour)!, validation.Kind, cancellationToken);
+        StoredTourMedia uploaded;
+        try
+        {
+            uploaded = await _storage.UploadAsync(request.File, FixedLengthHelper.TrimSafe(media.MaTour)!, validation.Kind, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
+        }
         var oldPublicId = media.CloudPublicId;
         var oldKind = media.CloudResourceType == "video" ? TourMediaKind.Video : TourMediaKind.Image;
         media.Url = uploaded.SecureUrl;
@@ -193,7 +209,12 @@ public class AnhTourController : ControllerBase
         var kind = expected.Item1.Value;
         if (file.Length > expected.Item3)
             return new UploadValidation(false, kind, kind == TourMediaKind.Image ? "Ảnh tối đa 10 MB." : "Video tối đa 100 MB.");
-        if (!string.Equals(file.ContentType, expected.Item2, StringComparison.OrdinalIgnoreCase))
+        var mime = file.ContentType ?? string.Empty;
+        var mimeOk = string.IsNullOrWhiteSpace(mime)
+            || mime.Equals(expected.Item2, StringComparison.OrdinalIgnoreCase)
+            || mime.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)
+            || mime.StartsWith(kind == TourMediaKind.Image ? "image/" : "video/", StringComparison.OrdinalIgnoreCase);
+        if (!mimeOk)
             return new UploadValidation(false, kind, $"MIME type phải là {expected.Item2}.");
 
         var header = new byte[12];

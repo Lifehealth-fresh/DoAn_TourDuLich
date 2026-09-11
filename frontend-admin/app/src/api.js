@@ -1,6 +1,6 @@
 import axios from 'axios';
 const api=axios.create({baseURL:import.meta.env.VITE_API_BASE_URL||'https://localhost:7290',headers:{'Content-Type':'application/json'}});
-api.interceptors.request.use(c=>{const t=localStorage.getItem('admin_token');if(t)c.headers.Authorization=`Bearer ${t}`;return c;});
+api.interceptors.request.use(c=>{const t=localStorage.getItem('admin_token');if(t)c.headers.Authorization=`Bearer ${t}`;if(typeof FormData!=='undefined'&&c.data instanceof FormData){delete c.headers['Content-Type'];}return c;});
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -34,6 +34,7 @@ export const editDesignSchedule=(id,data)=>api.put(`/api/YeuCauThietKe/${encodeU
 export const bookings=(params)=>api.get('/api/DatDichVu/danh-sach',{params:{pageSize:50,...params}});
 export const booking=id=>api.get(`/api/DatDichVu/${encodeURIComponent(id)}`);
 export const status=(id,s)=>api.put(`/api/DatDichVu/${encodeURIComponent(id)}/trang-thai`,{trangThai:s});
+export const confirmRefund=id=>api.put(`/api/DatDichVu/${encodeURIComponent(id)}/xac-nhan-hoan-tien`);
 export const promotions=()=>api.get('/api/KhuyenMai'); export const reviews=id=>api.get(`/api/DanhGia/tour/${id}`);
-export const tourMedia=id=>api.get(`/api/AnhTour/theo-tour/${id}`); export const uploadTourMedia=(tourId,file,thuTu=0,isAvatar=false)=>{const data=new FormData();data.append('file',file);data.append('thuTu',String(thuTu));data.append('isAvatar',String(isAvatar));return api.post(`/api/AnhTour/theo-tour/${encodeURIComponent(tourId)}/upload`,data,{headers:{'Content-Type':'multipart/form-data'}})}; export const replaceTourMedia=(mediaId,file,thuTu=0,isAvatar=false)=>{const data=new FormData();data.append('file',file);data.append('thuTu',String(thuTu));data.append('isAvatar',String(isAvatar));return api.put(`/api/AnhTour/${encodeURIComponent(mediaId)}/upload`,data,{headers:{'Content-Type':'multipart/form-data'}})}; export const deleteMedia=id=>api.delete(`/api/AnhTour/${id}`);
+export const tourMedia=id=>api.get(`/api/AnhTour/theo-tour/${id}`); export const uploadTourMedia=(tourId,file,thuTu=0,isAvatar=false)=>{const data=new FormData();data.append('file',file);data.append('thuTu',String(thuTu));data.append('isAvatar',String(isAvatar));return api.post(`/api/AnhTour/theo-tour/${encodeURIComponent(tourId)}/upload`,data)}; export const replaceTourMedia=(mediaId,file,thuTu=0,isAvatar=false)=>{const data=new FormData();data.append('file',file);data.append('thuTu',String(thuTu));data.append('isAvatar',String(isAvatar));return api.put(`/api/AnhTour/${encodeURIComponent(mediaId)}/upload`,data)}; export const deleteMedia=id=>api.delete(`/api/AnhTour/${id}`);
 export default api;

@@ -71,7 +71,7 @@ public sealed class CloudinaryTourMediaStorage : ITourMediaStorage
     {
         if (string.IsNullOrWhiteSpace(_cloudinaryUrl))
             throw new InvalidOperationException("Cloudinary chưa được cấu hình. Đặt CLOUDINARY_URL hoặc Cloudinary:Url trong User Secrets.");
-        var client = new Cloudinary(new Account(_cloudinaryUrl));
+        var client = new Cloudinary(_cloudinaryUrl);
         client.Api.Secure = true;
         return client;
     }

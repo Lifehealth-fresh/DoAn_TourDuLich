@@ -15,6 +15,7 @@ const STATUS = {
   DaXacNhan: 'Đã xác nhận',
   DaThanhToan: 'Đã thanh toán',
   HoanThanh: 'Hoàn thành',
+  ChoHoanTien: 'Chờ hoàn tiền',
   DaHuy: 'Đã hủy',
 };
 
@@ -22,6 +23,7 @@ const NEXT = {
   ChoXacNhan: ['DaXacNhan', 'DaHuy'],
   DaXacNhan: ['DaThanhToan', 'DaHuy'],
   DaThanhToan: ['HoanThanh'],
+  ChoHoanTien: [],
 };
 
 const label = (s) => STATUS[String(s || '').trim()] || s || '—';
@@ -165,6 +167,24 @@ export function BookingManagement() {
     } finally { setBusy(false); }
   };
 
+  const refund = async () => {
+    const target = item?.maBooking || id;
+    if (!target || busy) return;
+    if (!confirm('Xác nhận đã hoàn tiền cho khách trên booking ' + target + '?')) return;
+    setBusy(true);
+    setError('');
+    setOk('');
+    try {
+      const response = await api.confirmRefund(target);
+      const next = { ...item, ...response.data };
+      setItem(next);
+      setItems((list) => list.map((b) => (b.maBooking === target ? { ...b, ...response.data } : b)));
+      setOk(`Đã xác nhận hoàn tiền ${money(response.data?.soTienHoan)}.`);
+    } catch (err) {
+      setError(api.errorMessage(err, 'Không xác nhận được hoàn tiền.'));
+    } finally { setBusy(false); }
+  };
+
   const state = String(item?.trangThai || '').trim();
   const next = NEXT[state] || [];
   const total = Number(item?.thanhTien ?? 0);
@@ -172,7 +192,9 @@ export function BookingManagement() {
   const remaining = Number(item?.conLai ?? (total - paid));
   const paymentBlock = state === 'ChoXacNhan' && paid <= 0
     ? 'Chưa có thanh toán.'
-    : state === 'DaXacNhan' && remaining > 0 ? 'Mới đặt cọc, chưa đủ.' : '';
+    : state === 'DaXacNhan' && remaining > 0 ? 'Mới đặt cọc, chưa đủ.'
+    : state === 'ChoHoanTien' ? 'Khách đã gửi hủy. Xác nhận hoàn tiền trước khi đóng vé.'
+    : '';
 
   return (
     <>
@@ -204,15 +226,20 @@ export function BookingManagement() {
           {paymentBlock && <p id="booking-payment-block" className="notice" role="status">{paymentBlock}</p>}
           <div className="inline">
             {next.map((s) => {
-              const paymentLocked = (s === 'DaXacNhan' && paid <= 0) || (s === 'DaThanhToan' && remaining > 0);
+              const cancelLocked = s === 'DaHuy' && paid > 0;
+              const paymentLocked = (s === 'DaXacNhan' && paid <= 0) || (s === 'DaThanhToan' && remaining > 0) || cancelLocked;
               const disabled = busy || paymentLocked;
               return <button key={s} className={s === 'DaHuy' ? 'danger' : undefined} disabled={disabled}
                 style={{ opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+                title={cancelLocked ? 'Khách đã thanh toán. Chờ yêu cầu hủy rồi xác nhận hoàn tiền.' : undefined}
                 aria-describedby={paymentLocked ? 'booking-payment-block' : undefined} onClick={() => change(s)}>
                 {label(s)}
               </button>;
             })}
-            {!next.length && <span className="muted">Không còn bước tiếp theo.</span>}
+            {state === 'ChoHoanTien' && (
+              <button type="button" disabled={busy} onClick={refund}>Xác nhận hoàn tiền</button>
+            )}
+            {!next.length && state !== 'ChoHoanTien' && <span className="muted">Không còn bước tiếp theo.</span>}
           </div>
         </div>
       )}

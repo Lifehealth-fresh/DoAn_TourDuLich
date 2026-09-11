@@ -466,6 +466,9 @@ public class DatDichVuController : ControllerBase
         if (trangThaiCu == "DaXacNhan" && trangThaiMoi == "DaThanhToan" && conLai > 0)
             return BadRequest(new { message = $"Khách chưa thanh toán đủ. Đã trả {tongDaTra}, còn {conLai}." });
 
+        if (trangThaiMoi == "DaHuy" && tongDaTra > 0)
+            return BadRequest(new { message = "Khách đã thanh toán. Chờ khách gửi hủy rồi bấm Xác nhận hoàn tiền." });
+
         await using var transaction =
             await _context.Database.BeginTransactionAsync();
 
@@ -515,6 +518,10 @@ public class DatDichVuController : ControllerBase
         }
 
         var trangThaiBooking = FixedLengthHelper.TrimSafe(booking.TrangThai);
+        if (trangThaiBooking == "ChoHoanTien")
+        {
+            return BadRequest(new { message = "Đã gửi yêu cầu hủy. Đang chờ Sale xác nhận hoàn tiền." });
+        }
         if (trangThaiBooking is not ("ChoXacNhan" or "DaXacNhan" or "DaThanhToan"))
         {
             return BadRequest(new
@@ -545,18 +552,19 @@ public class DatDichVuController : ControllerBase
                         ? 70
                         : 100;
 
+        var daXacNhan = FixedLengthHelper.PadTo20("DaXacNhan");
+        var thanhCong = FixedLengthHelper.PadTo20("ThanhCong");
+        var tongDaTra = await _context.ThanhToans
+            .Where(payment => payment.MaBooking == maBookingDb &&
+                (payment.TrangThai == daXacNhan || payment.TrangThai == thanhCong))
+            .SumAsync(payment => (long?)payment.SoTien) ?? 0L;
+
         var soTienPhatHuy = (int)Math.Round(
             (booking.ThanhTien ?? 0) * tyLePhatHuy / 100m);
-        var daThu = await _context.ThanhToans
-            .Where(payment =>
-                payment.MaBooking == maBookingDb &&
-                FixedLengthHelper.TrimSafe(payment.TrangThai) != "DaHuy")
-            .SumAsync(payment => (int?)payment.SoTien) ?? 0;
-
-        soTienPhatHuy = Math.Min(soTienPhatHuy, daThu);
+        soTienPhatHuy = (int)Math.Min(soTienPhatHuy, tongDaTra);
         booking.TyLePhatHuy = tyLePhatHuy;
         booking.SoTienPhatHuy = soTienPhatHuy;
-        booking.TrangThai = FixedLengthHelper.PadTo20("DaHuy");
+        booking.TrangThai = FixedLengthHelper.PadTo20(tongDaTra <= 0 ? "DaHuy" : "ChoHoanTien");
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -565,6 +573,43 @@ public class DatDichVuController : ControllerBase
             maBooking = FixedLengthHelper.TrimSafe(booking.MaBooking),
             trangThai = FixedLengthHelper.TrimSafe(booking.TrangThai),
             tyLePhatHuy = booking.TyLePhatHuy,
+            soTienPhatHuy = booking.SoTienPhatHuy,
+            soTienChoHoan = tongDaTra,
+            daHoanTien = tongDaTra <= 0 ? 0 : (int?)null
+        });
+    }
+
+    [HttpPut("{maBooking}/xac-nhan-hoan-tien")]
+    [Authorize(Roles = "Sale,Admin")]
+    public async Task<ActionResult> ConfirmRefund(string maBooking)
+    {
+        var maBookingDb = FixedLengthHelper.PadTo20(maBooking);
+        var booking = await _context.DatDichVus
+            .FirstOrDefaultAsync(item => item.MaBooking == maBookingDb);
+        if (booking is null)
+            return NotFound(new { message = "Không tìm thấy booking." });
+
+        var trangThai = FixedLengthHelper.TrimSafe(booking.TrangThai);
+        if (trangThai != "ChoHoanTien")
+            return BadRequest(new { message = "Chỉ xác nhận hoàn tiền khi khách đã gửi yêu cầu hủy (Chờ hoàn tiền)." });
+
+        var daXacNhan = FixedLengthHelper.PadTo20("DaXacNhan");
+        var thanhCong = FixedLengthHelper.PadTo20("ThanhCong");
+        var tongDaTra = await _context.ThanhToans
+            .Where(payment => payment.MaBooking == maBookingDb &&
+                (payment.TrangThai == daXacNhan || payment.TrangThai == thanhCong))
+            .SumAsync(payment => (long?)payment.SoTien) ?? 0L;
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        booking.TrangThai = FixedLengthHelper.PadTo20("DaHuy");
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return Ok(new
+        {
+            maBooking = FixedLengthHelper.TrimSafe(booking.MaBooking),
+            trangThai = FixedLengthHelper.TrimSafe(booking.TrangThai),
+            soTienHoan = tongDaTra,
             soTienPhatHuy = booking.SoTienPhatHuy
         });
     }

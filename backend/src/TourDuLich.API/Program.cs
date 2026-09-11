@@ -74,7 +74,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IHanhViLogger, HanhViLogger>();
 builder.Services.AddScoped<IDeXuatLichTrinhService, DeXuatLichTrinhService>();
-builder.Services.AddSingleton<ITourMediaStorage, CloudinaryTourMediaStorage>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<ITourMediaStorage, TourMediaStorage>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<IAiRecommendationClient, AiRecommendationClient>();
 builder.Services.AddHostedService<AiRecommendationRefreshWorker>();
@@ -117,6 +118,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();

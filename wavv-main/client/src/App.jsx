@@ -54,6 +54,7 @@ const STATUS = {
   DaThanhToan: 'Đã thanh toán',
   HoanThanh: 'Hoàn thành',
   DaHuy: 'Đã hủy',
+  ChoHoanTien: 'Chờ hoàn tiền',
   Moi: 'Mới gửi',
   DangThietKe: 'Đang thiết kế',
   ChoDuyet: 'Chờ duyệt',
@@ -888,9 +889,12 @@ function BookingDetailPage() {
   };
 
   const cancel = async () => {
+    if (!window.confirm('Hủy booking này? Nếu đã thanh toán, Sale sẽ xác nhận hoàn tiền.')) return;
     try {
-      await api.cancelBooking(id);
+      const response = await api.cancelBooking(id);
+      const next = trim(response.data?.trangThai);
       await load();
+      if (next === 'DaHuy') setError('');
     } catch (e) {
       setError(api.errorMessage(e, 'Không hủy được booking.'));
     }
@@ -913,6 +917,12 @@ function BookingDetailPage() {
         <div className="empty-state">
           <h2>Chưa xem được vé</h2>
           {error && <div className="form-error">{error}</div>}
+          {trim(item.trangThai) === 'ChoHoanTien' && (
+            <div className="success-message">Đã gửi yêu cầu hủy. Sale sẽ xác nhận hoàn tiền.</div>
+          )}
+          {trim(item.trangThai) === 'DaHuy' && (
+            <div className="success-message">Booking đã hủy.</div>
+          )}
           <p>Đăng nhập đúng tài khoản khách đã đặt chỗ, rồi mở lại trang này.</p>
           <div className="hero-actions" style={{ justifyContent: 'center' }}>
             <Link className="primary-button" to="/dang-nhap" state={{ from: `/booking/${id}` }}>Đăng nhập</Link>
@@ -944,7 +954,7 @@ function BookingDetailPage() {
             <span>Số khách</span><b>{item.slnguoiLon ?? 1} người lớn · {item.sltreEm ?? 0} trẻ em</b>
             <span>Trạng thái</span><b className="status">{statusLabel(item.trangThai)}</b>
           </div>
-          {statusLabel(item.trangThai) !== 'Đã hủy' && (
+          {!['Đã hủy', 'Chờ hoàn tiền', 'Hoàn thành'].includes(statusLabel(item.trangThai)) && (
             <button className="outline-button" onClick={cancel}>Hủy booking</button>
           )}
         </div>
