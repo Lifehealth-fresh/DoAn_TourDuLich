@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import * as api from './api';
+import CurrentDesignSchedule from './CurrentDesignSchedule.jsx';
 
 const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
 const dateText = (value) => value ? new Date(value).toLocaleDateString('vi-VN') : 'Chưa cập nhật';
 const itemsOf = (response) => Array.isArray(response.data) ? response.data : response.data?.items || [];
-const labels = { Moi: 'Mới gửi', Huy: 'Đã hủy', DangThietKe: 'Đang thiết kế', CanChinhSua: 'Cần chỉnh sửa', ChoDuyet: 'Chờ duyệt', DaDuyet: 'Đã duyệt' };
+const labels = { Moi: 'Mới gửi', Huy: 'Đã hủy', DangThietKe: 'Đang thiết kế', CanChinhSua: 'Cần chỉnh sửa', ChoKhachXacNhan: 'Chờ bạn xác nhận', ChoDuyet: 'Chờ duyệt', DaDuyet: 'Đã duyệt' };
 const statusLabel = (value) => labels[trim(value)] || trim(value) || '—';
 const newForm = () => ({ DiemDenMongMuon: '', NgayDuKienDi: '', SoNgay: 3, SoNguoiLon: 2, SoTreEm: 0, NganSachDuKien: '', SoThichGhiChu: '' });
 const tomorrowDate = () => {
@@ -70,7 +71,7 @@ export function DesignRequestsPage() {
   return (
     <section className="page-section" style={{ overflowWrap: 'anywhere' }}>
       <div className="page-heading"><div><span className="stamp">Hành trình của riêng bạn</span><h1>Tự thiết kế <em>chuyến đi</em></h1></div></div>
-      <p>Gửi mong muốn để hệ thống ghép đề xuất. Bạn chọn phương án, trao đổi với Sale rồi đặt tour sau khi được duyệt.</p>
+      <p>Gửi mong muốn để hệ thống ghép đề xuất. Bạn chọn phương án, xem lịch Sale đã sửa và xác nhận rồi đặt tour sau khi được duyệt.</p>
       {createdId && <div className="success-message" role="status">Đã gửi yêu cầu <b>{createdId}</b>. <Link to={`/tu-thiet-ke/${encodeURIComponent(createdId)}`}>Xem chi tiết và đề xuất</Link></div>}
       {error && <div className="form-error" role="alert">{error}</div>}
       <form className="design-form profile-form" onSubmit={submit} aria-busy={sending}>
@@ -111,6 +112,7 @@ export function DesignRequestDetailPage() {
 function DesignRequestDetail({ id }) {
   const [request, setRequest] = useState(null);
   const [proposals, setProposals] = useState([]);
+  const [schedule,setSchedule] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
   const [choosing, setChoosing] = useState('');
@@ -121,8 +123,12 @@ function DesignRequestDetail({ id }) {
   useEffect(() => {
     let active = true;
     setLoading(true); setLoadError('');
-    Promise.all([api.designRequestDetail(id), api.designProposals(id)]).then(([detail, plans]) => {
-      if (active) { setRequest(detail.data); setProposals(itemsOf(plans)); }
+    Promise.all([api.designRequestDetail(id), api.designProposals(id)]).then(async ([detail, plans]) => {
+      const current = trim(detail.data.maTourTao) ? (await api.currentDesignSchedule(id)).data : null;
+      if (active) {
+        setRequest(current ? {...detail.data,trangThai:current.trangThai,lyDo:current.lyDo,nguonLyDo:current.nguonLyDo} : detail.data);
+        setProposals(itemsOf(plans)); setSchedule(current);
+      }
     }).catch((err) => { if (active) setLoadError(api.errorMessage(err, 'Không tải được chi tiết và đề xuất.')); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -133,12 +139,23 @@ function DesignRequestDetail({ id }) {
     setChoosing(proposalId); setError(''); setOk('');
     try {
       await api.chooseProposal(id, proposalId);
-      setOk('Đã chọn đề xuất. Vui lòng thỏa thuận với Sale; bạn có thể đặt tour sau khi được duyệt.');
+      setOk('Đã chọn đề xuất. Sale sẽ sửa lịch và gửi bạn xác nhận trước khi Admin duyệt.');
       setLoading(true); setRefresh((value) => value + 1);
     } catch (err) {
       setError(api.errorMessage(err, 'Không chọn được đề xuất.'));
       if (err.response?.status === 409) { setLoading(true); setRefresh((value) => value + 1); }
     } finally { setChoosing(''); }
+  };
+  const respond = async (lyDo) => {
+    if (choosing || loading || request?.trangThai!=='ChoKhachXacNhan') return;
+    if (lyDo===null && !window.confirm('Bạn đồng ý với lịch trình và giá hiện tại?')) return;
+    setChoosing(lyDo===null?'agree':'revise');setError('');setOk('');
+    try {
+      if(lyDo===null)await api.agreeDesignSchedule(id);else await api.requestDesignRevision(id,lyDo);
+      setOk(lyDo===null?'Đã đồng ý lịch. Yêu cầu đang chờ Admin duyệt.':'Đã gửi yêu cầu chỉnh lại cho Admin/Sale.');
+      setLoading(true);setRefresh(x=>x+1);
+    } catch(err) { setError(api.errorMessage(err));if(err.response?.status===409){setLoading(true);setRefresh(x=>x+1);} }
+    finally {setChoosing('');}
   };
   const canChoose = trim(request?.trangThai) === 'Moi' && !trim(request?.maTourTao);
 
@@ -146,7 +163,7 @@ function DesignRequestDetail({ id }) {
     <section className="page-section" style={{ overflowWrap: 'anywhere' }}>
       <Link className="text-button" to="/tu-thiet-ke">← Yêu cầu của tôi</Link>
       <div className="page-heading"><div><span className="stamp">Hành trình may đo</span><h1>Chi tiết <em>yêu cầu</em></h1><p>Mã yêu cầu: <b>{id}</b></p></div>
-        <button className="outline-button" disabled={loading || Boolean(choosing)} onClick={() => { setError(''); setRefresh((value) => value + 1); }}>Tải lại đề xuất</button>
+        <button className="outline-button" disabled={loading || Boolean(choosing)} onClick={() => { setError(''); setRefresh((value) => value + 1); }}>Tải lại lịch và đề xuất</button>
       </div>
       {ok && <div className="success-message" role="status">{ok}</div>}
       {error && <div className="form-error" role="alert">{error}</div>}
@@ -162,12 +179,13 @@ function DesignRequestDetail({ id }) {
             <dt>Sở thích / ghi chú</dt><dd>{request.soThichGhiChu || 'Không có'}</dd>
             {trim(request.maTourTao) && <><dt>Tour đã tạo</dt><dd>{trim(request.maTourTao)}</dd></>}
           </dl>
-          {request.lyDoTuChoiBoiSale && <p className="notice">Lý do cần chỉnh sửa: {request.lyDoTuChoiBoiSale}</p>}
+          {request.lyDo && <p className="notice">{request.nguonLyDo==='KhachHang'?'Bạn đã gửi yêu cầu chỉnh: ':'Lý do Admin cần chỉnh / từ chối: '}{request.lyDo}</p>}
           {trim(request.trangThai) === 'DaDuyet' && trim(request.maTourTao) && <>
             <p>Tour đã được duyệt. Xem lịch trình, giá và lịch khởi hành cuối cùng trước khi đặt.</p>
             <Link className="primary-button" to={`/tour/${encodeURIComponent(trim(request.maTourTao))}`}>Đặt tour này</Link>
           </>}
         </article>
+        {schedule&&<CurrentDesignSchedule schedule={schedule} busy={Boolean(choosing)} onRespond={respond}/>}
         <h2>Đề xuất lịch trình ban đầu</h2>
         <p>Sale có thể điều chỉnh theo thỏa thuận. Chọn đề xuất chưa phải là đặt tour hay thanh toán.</p>
         {!proposals.length && <div className="empty-state">Hệ thống chưa ghép được điểm phù hợp — Sale sẽ xử lý.</div>}

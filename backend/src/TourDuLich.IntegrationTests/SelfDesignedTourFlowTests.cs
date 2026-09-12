@@ -10,7 +10,7 @@ using Xunit;
 
 namespace TourDuLich.IntegrationTests;
 
-public sealed class SelfDesignedTourFlowTests : ApiTestBase
+public sealed class SelfDesignedTourFlowTests : IsolatedApiTestBase
 {
     [Fact]
     public async Task Customer_CannotGenerateRejectOrEditSchedule()
@@ -74,6 +74,14 @@ public sealed class SelfDesignedTourFlowTests : ApiTestBase
         UseToken(sale);
         Assert.Equal(HttpStatusCode.Conflict, (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/duyet", null)).StatusCode);
         (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/gui-duyet", null)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Conflict, (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/duyet", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await Client.PutAsJsonAsync($"/api/YeuCauThietKe/{maYeuCau}/tu-choi-boi-sale", new { lyDoTuChoi = "Chưa đồng ý" })).StatusCode);
+        UseToken(customer);
+        var awaiting = await Client.GetFromJsonAsync<JsonElement>($"/api/YeuCauThietKe/{maYeuCau}/lich-hien-tai");
+        Assert.Equal("ChoKhachXacNhan", awaiting.GetProperty("trangThai").GetString());
+        Assert.True(awaiting.GetProperty("lichTrinh").GetArrayLength() > 0);
+        (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/dong-y-lich", null)).EnsureSuccessStatusCode();
+        UseToken(sale);
         var rejected = await Client.PutAsJsonAsync($"/api/YeuCauThietKe/{maYeuCau}/tu-choi-boi-sale", new { lyDoTuChoi = "Cần bổ sung dịch vụ phù hợp hơn." });
         rejected.EnsureSuccessStatusCode();
 
@@ -85,7 +93,24 @@ public sealed class SelfDesignedTourFlowTests : ApiTestBase
             }
         });
         edit.EnsureSuccessStatusCode();
+        var keptReason = await edit.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Admin", keptReason.GetProperty("nguonLyDo").GetString());
         (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/gui-duyet", null)).EnsureSuccessStatusCode();
+        UseToken(customer);
+        var current = await Client.GetFromJsonAsync<JsonElement>($"/api/YeuCauThietKe/{maYeuCau}/lich-hien-tai");
+        Assert.Equal("Lịch trình đã chỉnh sửa", current.GetProperty("lichTrinh")[0].GetProperty("mota").GetString());
+        Assert.Equal(JsonValueKind.Null, current.GetProperty("lyDo").ValueKind);
+        var revision = await Client.PutAsJsonAsync($"/api/YeuCauThietKe/{maYeuCau}/yeu-cau-chinh-sua", new { lyDo = "  Thêm thời gian nghỉ  " });
+        revision.EnsureSuccessStatusCode();
+        var revised = await revision.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("CanChinhSua", revised.GetProperty("trangThai").GetString());
+        Assert.Equal("KhachHang", revised.GetProperty("nguonLyDo").GetString());
+        Assert.Equal("Thêm thời gian nghỉ", revised.GetProperty("lyDo").GetString());
+        UseToken(sale);
+        (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/gui-duyet", null)).EnsureSuccessStatusCode();
+        UseToken(customer);
+        (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/dong-y-lich", null)).EnsureSuccessStatusCode();
+        UseToken(sale);
         (await Client.PutAsync($"/api/YeuCauThietKe/{maYeuCau}/duyet", null)).EnsureSuccessStatusCode();
 
         var tour = await Client.GetFromJsonAsync<JsonElement>($"/api/Tour/{maTour}");

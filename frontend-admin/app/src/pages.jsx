@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from './api';
+import DepartureGuests from './DepartureGuests';
 import { useAuth } from './context';
 import { Notice } from './components';
 export { DesignRequests } from './DesignRequests';
@@ -464,7 +465,9 @@ export function TourAdminPage() {
   const setTourField = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
   const setScheduleField = (key) => (event) => setScheduleForm((current) => ({ ...current, [key]: event.target.value }));
   const currentState = String(v(detail, 'trangThai', 'TrangThai') ?? '').trim();
-  const scheduleLocked = selected && !['Nhap', 'HoatDong'].includes(currentState);
+  const privateScheduleLocked = selected && String(v(detail, 'loaiTour', 'LoaiTour')).trim() === 'TuThietKe' &&
+    !(['DangThietKe', 'CanChinhSua'].includes(detail?.trangThaiYeuCau) && currentState === 'Nhap');
+  const scheduleLocked = selected && (privateScheduleLocked || !['Nhap', 'HoatDong'].includes(currentState));
 
   return (
     <div className="tour-admin" style={{ minWidth: 0, overflowWrap: 'anywhere' }} onInvalidCapture={() => {
@@ -531,7 +534,7 @@ export function TourAdminPage() {
       <section className="panel" id="tour-form" style={{ marginBottom: 24 }}>
         <h2>{selected ? 'Chi tiết / sửa tour ' + selected : 'Thêm tour'}</h2>
         <form onSubmit={save} aria-label="Thông tin tour">
-          <fieldset disabled={busy} style={fieldset}>
+          <fieldset disabled={busy || privateScheduleLocked} style={fieldset}>
             <div style={grid}>
               <label style={field}>Mã tour<input style={control} maxLength={20} required readOnly={!!selected}
                 value={form.MaTour} onChange={setTourField('MaTour')} /></label>
@@ -546,7 +549,7 @@ export function TourAdminPage() {
               <label style={field}>Số hướng dẫn viên<input style={control} type="number" min="0" max="2147483647" step="1"
                 value={form.SlhuongDanVien} onChange={setTourField('SlhuongDanVien')} /></label>
               <label style={field}>Loại tour<input style={control} readOnly required value={form.LoaiTour} /></label>
-              <label style={field}>Trạng thái tour<select aria-label="Trạng thái tour" style={control} required value={form.TrangThai} onChange={setTourField('TrangThai')}>
+              <label style={field}>Trạng thái tour<select aria-label="Trạng thái tour" style={control} required value={form.TrangThai} disabled={form.LoaiTour==='TuThietKe'} onChange={setTourField('TrangThai')}>
                 {!Object.hasOwn(stateNames, form.TrangThai) && <option value={form.TrangThai}>{form.TrangThai || 'Chọn trạng thái'}</option>}
                 {Object.entries(stateNames).map(([key, name]) => <option key={key} value={key}>{name} ({key})</option>)}
               </select></label>
@@ -555,17 +558,18 @@ export function TourAdminPage() {
               <label style={{ ...field, gridColumn: '1 / -1' }}>Điều khoản<textarea aria-label="Điều khoản" style={control} rows={3}
                 value={form.DieuKhoan} onChange={setTourField('DieuKhoan')} /></label>
             </div>
-            <p className="muted">Tour mới thuộc loại Chuan. Khi sửa, mã và loại tour được giữ nguyên; hãy lưu thông tin trước khi thao tác lịch trình/ảnh hoặc tải lại.</p>
+            <p className="muted">{selected ? 'Tour đang sửa thuộc loại ' + form.LoaiTour + '.' : 'Tour mới thuộc loại Chuan.'} Khi sửa, mã và loại tour được giữ nguyên; hãy lưu thông tin trước khi thao tác lịch trình/ảnh hoặc tải lại.</p>
             <button type="submit">{selected ? 'Lưu thay đổi' : 'Thêm tour'}</button>
           </fieldset>
         </form>
       </section>
 
       {selected && <>
+        <DepartureGuests key={selected} tourId={selected} defaultCapacity={detail?.slkhach??Number(form.Slkhach)} disabled={busy}/>
         <section className="panel" style={{ marginBottom: 24 }}>
           <h2>Lịch trình tour {selected}</h2>
           <p className="muted">Chỉ sửa lịch trình khi tour Nhap/HoatDong và chưa có hợp đồng DaKy. Thêm/xóa dòng sẽ tính lại giá tour theo tổng thành tiền. Điểm không gắn sản phẩm đối tác có đơn giá 0 theo API hiện tại.</p>
-          {scheduleLocked && <p className="notice error">Tour {currentState === 'An' ? 'đang ẩn (An)' : 'không ở trạng thái Nhap/HoatDong'}, không thể thay đổi lịch trình.</p>}
+          {scheduleLocked && <p className="notice error">{privateScheduleLocked ? 'Lịch tự thiết kế đã gửi khách/đang duyệt hoặc đã duyệt. Cần đi qua yêu cầu chỉnh sửa.' : `Tour ${currentState === 'An' ? 'đang ẩn (An)' : 'không ở trạng thái Nhap/HoatDong'}, không thể thay đổi lịch trình.`}</p>}
           {schedule === null ? <p>Chưa tải được lịch trình. Hãy bấm Tải lại dữ liệu.</p> : <>
             <div className="table" aria-label="Lịch trình tour">
               {schedule.map((line) => (

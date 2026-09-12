@@ -6,7 +6,7 @@ const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
 const dateText = (value) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
 const itemsOf = (response) => Array.isArray(response.data) ? response.data : response.data?.items || [];
-const labels = { Moi: 'Mới gửi', Huy: 'Đã hủy', DangThietKe: 'Đang thiết kế', CanChinhSua: 'Cần chỉnh sửa', ChoDuyet: 'Chờ duyệt', DaDuyet: 'Đã duyệt' };
+const labels = { Moi: 'Mới gửi', Huy: 'Đã hủy', DangThietKe: 'Đang thiết kế', CanChinhSua: 'Cần chỉnh sửa', ChoKhachXacNhan: 'Chờ khách xác nhận', ChoDuyet: 'Chờ duyệt', DaDuyet: 'Đã duyệt' };
 const statusLabel = (value) => labels[trim(value)] || trim(value) || '—';
 const toRow = (item = {}) => ({ ngayThu: item.ngayThu ?? 1, thuTuTrongNgay: item.thuTuTrongNgay ?? 1, maDthamQuan: trim(item.maDthamQuan), maSanPham: trim(item.maSanPham), soLuong: item.soLuong ?? 1, mota: item.mota || '' });
 
@@ -28,8 +28,9 @@ export function DesignRequests() {
   const [lyDo, setLyDo] = useState('');
   const selected = items.find((item) => item.maYeuCau === selectedId);
   const tourId = trim(selected?.maTourTao);
-  const state = trim(selected?.trangThai);
+  const state = trim(schedule?.trangThai ?? selected?.trangThai);
   const blocked = Boolean(busy || loading || loadingDetails || listError || detailError);
+  const revision = schedule || selected;
   const canGenerate = !blocked && !editing && state === 'Moi';
   const canEdit = !blocked && Boolean(tourId) && ['DangThietKe', 'CanChinhSua'].includes(state);
   const canSubmit = canEdit && !editing;
@@ -52,7 +53,7 @@ export function DesignRequests() {
     setPlans([]); setSchedule(null); setRows([]); setDetailError('');
     setLoadingDetails(Boolean(selectedId));
     if (selectedId) {
-      Promise.all([api.proposals(selectedId), tourId ? api.designSchedule(tourId) : Promise.resolve(null)]).then(([proposals, current]) => {
+      Promise.all([api.proposals(selectedId), tourId ? api.currentDesignSchedule(selectedId) : Promise.resolve(null)]).then(([proposals, current]) => {
         if (!active) return;
         setPlans(itemsOf(proposals)); setSchedule(current?.data ?? null);
         setRows((current?.data?.lichTrinh || []).map(toRow));
@@ -80,7 +81,7 @@ export function DesignRequests() {
         const result = await api.editDesignSchedule(selectedId, payload);
         setEditing(false); setOk(`Đã lưu lịch trình. Giá tour hiện tại: ${money(result.data.giaTour)}.`);
       } else if (action === 'submit') {
-        await api.submitDesignForApproval(selectedId); setOk(`Đã gửi duyệt yêu cầu ${selectedId}.`);
+        await api.submitDesignForApproval(selectedId); setOk(`Đã gửi lịch hiện tại cho khách xác nhận: ${selectedId}.`);
       } else if (action === 'approve') {
         await api.approve(selectedId); setOk(`Đã duyệt yêu cầu ${selectedId}. Khách có thể mở tour để đặt.`);
       } else if (action === 'reject') {
@@ -116,8 +117,8 @@ export function DesignRequests() {
   return (
     <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
       <header className="panel-head"><h1>Yêu cầu thiết kế</h1><button disabled={Boolean(busy) || loading || loadingDetails || editing} onClick={() => { setError(''); reload(); }}>Tải lại danh sách và đề xuất</button></header>
-      <p>Khách gửi → hệ thống sinh đề xuất → khách chọn → Sale sửa nếu cần → gửi duyệt → duyệt → khách đặt/trả.</p>
-      <p className="notice">Thỏa thuận với khách ngoài hệ thống rồi mới duyệt.</p>
+      <p>Khách gửi → chọn đề xuất → Sale sửa và lưu → gửi khách xác nhận → khách đồng ý → Admin duyệt → khách đặt.</p>
+      <p className="notice">Chỉ được duyệt sau khi khách bấm Đồng ý lịch này. Khi khách yêu cầu chỉnh lại, sửa và gửi khách xác nhận lần nữa.</p>
       <Notice error={listError} /><Notice error={error} />{ok && <div className="notice ok" role="status">{ok}</div>}
       {loading ? <p role="status">Đang tải yêu cầu…</p> : !listError && <div className="table">
         {items.map((item) => <button key={item.maYeuCau} className={`row booking-row${selectedId === item.maYeuCau ? ' on' : ''}`} aria-pressed={selectedId === item.maYeuCau} disabled={Boolean(busy) || editing} onClick={() => { if (selectedId !== item.maYeuCau) select(item); }}>
@@ -130,7 +131,8 @@ export function DesignRequests() {
         <header className="panel-head"><h2>Yêu cầu {selected.maYeuCau}</h2><span className="badge">{statusLabel(state)}</span></header>
         <p>Khách hàng: {selected.maUser} · Ngày gửi: {dateText(selected.ngayGui)}</p>
         {tourId && <p>Tour đã tạo: <b>{tourId}</b></p>}
-        {selected.lyDoTuChoiBoiSale && <p className="notice">Lý do cần chỉnh sửa: {selected.lyDoTuChoiBoiSale}</p>}
+        {revision?.lyDo && <p className="notice">{revision.nguonLyDo==='KhachHang'?'Khách đã gửi yêu cầu chỉnh: ':'Lý do Admin cần chỉnh / từ chối: '}{revision.lyDo}</p>}
+        {state==='ChoKhachXacNhan'&&<p className="notice">Đang chờ khách xác nhận lịch đã lưu. Không thể gửi lại hoặc duyệt lúc này.</p>}
         {state === 'Moi' && <p>Sinh lại sẽ thay thế các phương án chưa được khách chọn. Chỉ thực hiện khi cần xử lý lại.</p>}
         <div className="inline">
           {actionButton('generate', plans.length ? 'Sinh lại đề xuất' : 'Sinh đề xuất', canGenerate)}

@@ -147,6 +147,78 @@ public sealed class SelfDesignedTourControllerTests
         Assert.Equal(new[] { "Admin", "KhachHang", "Sale" }, attribute!.Roles!.Split(',').OrderBy(value => value));
     }
 
+
+    [Fact]
+    public async Task TwoStageApproval_RequiresCustomerConsent_AndClearsReasonsOnlyAtSubmitOrApprove()
+    {
+        using var context = new MemoryContext();
+        var request = ReviewRequest();
+        request.TrangThai = Key("DangThietKe");
+        request.MaTourTaoNavigation!.TrangThai = Key("Nhap");
+        request.LyDoTuChoiBoiSale = "Lý do cũ";
+        context.Requests.Add(request);
+        context.Rows.Add(new LichTrinh { MaLichTrinh = Key("LT1"), MaTour = Key("TD1"), NgayThu = 1, ThuTuTrongNgay = 1, SoLuong = 1, Mota = "Lịch đã lưu khác đề xuất" });
+        var controller = Controller(context);
+        Assert.IsType<OkObjectResult>(await controller.SubmitForApproval("YC1"));
+        Assert.Equal(Key("ChoKhachXacNhan"), request.TrangThai);
+        Assert.Null(request.LyDoTuChoiBoiSale);
+        Assert.IsType<ConflictObjectResult>(await controller.Approve("YC1"));
+        Assert.IsType<ConflictObjectResult>(await controller.RejectBySale("YC1", new() { LyDoTuChoi = "Chưa được" }, default));
+        Assert.IsType<ConflictObjectResult>(await controller.SubmitForApproval("YC1"));
+        var saved = System.Text.Json.JsonSerializer.SerializeToElement(
+            Assert.IsType<OkObjectResult>(await controller.GetCurrentSchedule("YC1", default)).Value);
+        Assert.Equal("Lịch đã lưu khác đề xuất", saved.GetProperty("lichTrinh")[0].GetProperty("mota").GetString());
+        Assert.IsType<BadRequestObjectResult>(await controller.RequestScheduleRevision("YC1", new() { LyDo = "  " }, default));
+        Assert.IsType<OkObjectResult>(await controller.RequestScheduleRevision("YC1", new() { LyDo = "  Thêm thời gian nghỉ  " }, default));
+        Assert.Equal(Key("CanChinhSua"), request.TrangThai);
+        Assert.Equal(Key("Nhap"), request.MaTourTaoNavigation.TrangThai);
+        Assert.Equal("[KhachHang] Thêm thời gian nghỉ", request.LyDoTuChoiBoiSale);
+        Assert.IsType<ConflictObjectResult>(await controller.AgreeToSchedule("YC1", default));
+
+        Assert.IsType<OkObjectResult>(await controller.EditSchedule("YC1", new SuaLichTrinhDto
+        { ChiTiets = [new() { NgayThu = 1, ThuTuTrongNgay = 1, MaDthamQuan = "DT1", SoLuong = 1, Mota = "Lịch sửa theo khách" }] }, default));
+        Assert.Equal("[KhachHang] Thêm thời gian nghỉ", request.LyDoTuChoiBoiSale);
+        Assert.IsType<OkObjectResult>(await controller.SubmitForApproval("YC1"));
+        Assert.Null(request.LyDoTuChoiBoiSale);
+        Assert.IsType<OkObjectResult>(await controller.AgreeToSchedule("YC1", default));
+        Assert.Equal(Key("ChoDuyet"), request.TrangThai);
+        Assert.IsType<OkObjectResult>(await controller.RejectBySale("YC1", new() { LyDoTuChoi = "  Sửa giá  " }, default));
+        Assert.Equal("[Admin] Sửa giá", request.LyDoTuChoiBoiSale);
+        Assert.IsType<OkObjectResult>(await controller.SubmitForApproval("YC1"));
+        Assert.Null(request.LyDoTuChoiBoiSale);
+        Assert.IsType<OkObjectResult>(await controller.AgreeToSchedule("YC1", default));
+        Assert.IsType<OkObjectResult>(await controller.Approve("YC1"));
+        Assert.Equal(Key("DaDuyet"), request.TrangThai);
+        Assert.Null(request.LyDoTuChoiBoiSale);
+    }
+
+    [Theory]
+    [InlineData("ChoKhachXacNhan")]
+    [InlineData("ChoDuyet")]
+    public async Task WaitingSchedule_CannotBeOverwritten(string state)
+    {
+        using var context = new MemoryContext();
+        var request = ReviewRequest(); request.TrangThai = Key(state); context.Requests.Add(request);
+        Assert.IsType<ConflictObjectResult>(await Controller(context).EditSchedule("YC1",
+            new SuaLichTrinhDto { ChiTiets = [new() { NgayThu = 1, ThuTuTrongNgay = 1, MaDthamQuan = "DT1", SoLuong = 1 }] }, default));
+        Assert.Equal(0, context.Saves);
+    }
+
+    [Fact]
+    public async Task AnotherCustomer_CannotReadDraftOrRespond()
+    {
+        using var context = new MemoryContext();
+        var request = ReviewRequest(); request.MaUser = Key("OTHER"); request.TrangThai = Key("ChoKhachXacNhan");
+        context.Requests.Add(request);
+        var controller = Controller(context);
+        controller.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("MaUser", "USER1"), new Claim(ClaimTypes.Role, "KhachHang")], "test"));
+        Assert.IsType<NotFoundObjectResult>(await controller.GetCurrentSchedule("YC1", default));
+        Assert.IsType<NotFoundObjectResult>(await controller.AgreeToSchedule("YC1", default));
+        Assert.IsType<NotFoundObjectResult>(await controller.RequestScheduleRevision("YC1", new() { LyDo = "Khác" }, default));
+        Assert.Equal(0, context.Saves);
+    }
+
     private static string Key(string value) => FixedLengthHelper.PadTo20(value);
     private static YeuCauThietKe ReviewRequest() => new()
     {
@@ -180,12 +252,17 @@ public sealed class SelfDesignedTourControllerTests
     {
         public List<YeuCauThietKe> Requests { get; } = [];
         public List<LichKhoiHanh> Departures { get; } = [];
+        public List<LichTrinh> Rows { get; } = [];
         public int Saves { get; private set; }
         public MemoryContext() : base(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlServer("Server=unused;Database=unused;Integrated Security=true;Connect Timeout=1").Options)
         {
-            YeuCauThietKes = new MemorySet<YeuCauThietKe>(this, Requests);
-            LichKhoiHanhs = new MemorySet<LichKhoiHanh>(this, Departures);
+            Tours = new KeyQuerySet<Tour>(this, Requests.Where(r => r.MaTourTaoNavigation != null).Select(r => r.MaTourTaoNavigation!));
+            LichTrinhs = new KeyQuerySet<LichTrinh>(this, Rows);
+            DiemThamQuans = new KeyQuerySet<DiemThamQuan>(this, new List<DiemThamQuan> { new() { MaDthamQuan = Key("DT1") } });
+            SanPhamDoiTacs = new KeyQuerySet<SanPhamDoiTac>(this, new List<SanPhamDoiTac>());
+            YeuCauThietKes = new KeyQuerySet<YeuCauThietKe>(this, Requests);
+            LichKhoiHanhs = new KeyQuerySet<LichKhoiHanh>(this, Departures);
         }
         public override DatabaseFacade Database => new MemoryDatabase(this);
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

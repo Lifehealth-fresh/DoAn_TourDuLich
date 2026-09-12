@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using TourDuLich.API.DTOs;
+using TourDuLich.API.Services;
+using TourDuLich.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.Application.Helpers;
@@ -101,6 +103,8 @@ public class TourController : ControllerBase
              !await CanViewPrivateTourAsync(key)))
             return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
 
+        var requestState = await _context.YeuCauThietKes.AsNoTracking()
+            .Where(r => r.MaTourTao == key).Select(r => r.TrangThai).FirstOrDefaultAsync();
         var tour = new
         {
             maTour = FixedLengthHelper.TrimSafe(tourEntity.MaTour),
@@ -112,7 +116,8 @@ public class TourController : ControllerBase
             slkhach = tourEntity.Slkhach,
             slhuongDanVien = tourEntity.SlhuongDanVien,
             loaiTour = FixedLengthHelper.TrimSafe(tourEntity.LoaiTour),
-            trangThai = FixedLengthHelper.TrimSafe(tourEntity.TrangThai)
+            trangThai = FixedLengthHelper.TrimSafe(tourEntity.TrangThai),
+            trangThaiYeuCau = requestState?.Trim()
         };
 
         return Ok(tour);
@@ -132,19 +137,14 @@ public class TourController : ControllerBase
              !await CanViewPrivateTourAsync(key)))
             return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
 
-        var result = await _context.LichKhoiHanhs
-            .AsNoTracking()
-            .Where(x => x.MaTour == key && x.NgayKhoiHanh > DateTime.UtcNow)
-            .OrderBy(x => x.NgayKhoiHanh)
-            .Select(x => new
-            {
-                maKhoiHanh = FixedLengthHelper.TrimSafe(x.MaKhoiHanh),
-                maTour = FixedLengthHelper.TrimSafe(x.MaTour),
-                ngayKhoiHanh = x.NgayKhoiHanh,
-                ngayKetThuc = x.NgayKetThuc,
-                diaDiem = x.DiaDiem
-            })
-            .ToListAsync();
+        var query = _context.LichKhoiHanhs.AsNoTracking().Where(d => d.MaTour == key);
+        if (!User.IsInRole("Sale") && !User.IsInRole("Admin"))
+        {
+            var now = DateTime.UtcNow;
+            query = query.Where(d => d.NgayKhoiHanh > now);
+        }
+        var result = await DepartureAvailability.Select(query.OrderBy(d => d.NgayKhoiHanh)
+            .ThenBy(d => d.MaKhoiHanh)).ToListAsync();
 
         return Ok(result);
     }
@@ -230,10 +230,24 @@ public class TourController : ControllerBase
     public async Task<IActionResult> UpdateTour(string maTour, [FromBody] TourUpdateDto dto)
     {
         var key = FixedLengthHelper.PadTo20(maTour);
-        var existing = await _context.Tours.FindAsync(key);
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        var existing = await _context.Tours
+            .FromSqlRaw("SELECT * FROM dbo.Tour WITH (UPDLOCK, HOLDLOCK) WHERE MaTour = {0}", key).FirstOrDefaultAsync();
         if (existing == null)
             return NotFound();
 
+        if (dto.Slkhach < 0) return BadRequest(new { message = "Sức chứa không được âm." });
+        if (await DepartureAvailability.Select(_context.LichKhoiHanhs.Where(d => d.MaTour == key && d.SoCho == null))
+            .AnyAsync(d => d.DaDat > dto.Slkhach))
+            return Conflict(new { message = "Sức chứa mặc định không được nhỏ hơn số chỗ đang giữ của lịch." });
+
+        if (existing.LoaiTour.Trim() == "TuThietKe")
+        {
+            var state = await _context.YeuCauThietKes.Where(r => r.MaTourTao == key).Select(r => r.TrangThai).FirstOrDefaultAsync();
+            if (!YeuCauThietKeStateMachine.CanEditSchedule(state?.Trim(), existing.TrangThai?.Trim()) ||
+                dto.LoaiTour?.Trim() != "TuThietKe" || (dto.TrangThai != null && dto.TrangThai.Trim() != existing.TrangThai?.Trim()))
+                return Conflict(new { message = "Tour tự thiết kế chỉ sửa khi đang thiết kế/cần chỉnh sửa; trạng thái phải đi qua quy trình duyệt." });
+        }
         var daKy = FixedLengthHelper.PadTo20("DaKy");
         var hasSignedContract = await _context.HopDongs
             .AnyAsync(h => h.MaBookingNavigation.MaTour == key && h.TrangThai == daKy);
@@ -253,6 +267,7 @@ public class TourController : ControllerBase
         existing.TrangThai = dto.TrangThai is null ? existing.TrangThai : FixedLengthHelper.PadTo20(dto.TrangThai);
 
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
         return NoContent();
     }
 
@@ -302,7 +317,9 @@ public class TourController : ControllerBase
         var maUserDb = FixedLengthHelper.PadTo20(maUser);
         var maYeuCauDb = FixedLengthHelper.PadTo20(request.MaYeuCau);
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var requestData = await _context.YeuCauThietKes
+            .FromSqlRaw("SELECT * FROM dbo.YeuCauThietKe WITH (UPDLOCK, HOLDLOCK) WHERE MaYeuCau = {0}", maYeuCauDb)
             .Where(item =>
                 item.MaYeuCau == maYeuCauDb &&
                 item.MaUser == maUserDb)
@@ -362,8 +379,6 @@ public class TourController : ControllerBase
             tenTour = tenTour[..150];
         }
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync();
 
         var tour = new Tour
         {

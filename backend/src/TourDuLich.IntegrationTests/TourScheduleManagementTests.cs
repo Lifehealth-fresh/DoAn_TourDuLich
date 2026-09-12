@@ -120,6 +120,31 @@ public sealed class TourScheduleManagementTests
         Assert.Contains("TrangThai", sql);
     }
 
+
+    [Theory]
+    [InlineData("ChoKhachXacNhan", "ChoXacNhan")]
+    [InlineData("ChoDuyet", "ChoXacNhan")]
+    [InlineData("DaDuyet", "HoatDong")]
+    public async Task PrivateTour_CannotBypassCustomerConsent_ThroughDirectScheduleOrTourUpdate(string requestState, string tourState)
+    {
+        using var context = new MemoryContext(tourState);
+        context.Tour.LoaiTour = Key("TuThietKe");
+        context.Requests.Add(new YeuCauThietKe { MaYeuCau = Key("YC1"), MaUser = Key("USER1"),
+            MaTourTao = context.Tour.MaTour, TrangThai = Key(requestState) });
+        var controller = Controller(context, "Admin");
+        foreach (var action in new[] { "Create", "Update", "Delete" })
+        {
+            var result = Assert.IsType<BadRequestObjectResult>(await Invoke(controller, action));
+            Assert.Contains("không thể sửa", Message(result));
+        }
+        var tours = new TourController(context) { ControllerContext = controller.ControllerContext };
+        Assert.IsType<ConflictObjectResult>(await tours.UpdateTour("TOUR1", new TourUpdateDto
+        { TenTour = "Không được đổi", LoaiTour = "TuThietKe", TrangThai = tourState, Slkhach = 10, GiaTour = 999 }));
+        Assert.Equal(0, context.Saves);
+        Assert.Equal(1000, context.Tour.GiaTour);
+        Assert.Single(context.Rows);
+    }
+
     private static string Key(string value) => FixedLengthHelper.PadTo20(value);
     private static string Message(ObjectResult result) => JsonSerializer.SerializeToElement(result.Value).GetProperty("message").GetString()!;
     private static HopDong Contract(string tour, string state) => new()
@@ -147,6 +172,7 @@ public sealed class TourScheduleManagementTests
         public Tour Tour { get; }
         public List<LichTrinh> Rows { get; } = [];
         public List<HopDong> Contracts { get; } = [];
+        public List<YeuCauThietKe> Requests { get; } = [];
         public MemoryTransaction Transaction { get; } = new();
         public int Saves { get; private set; }
         public MemoryContext(string state) : base(new DbContextOptionsBuilder<AppDbContext>()
@@ -154,11 +180,12 @@ public sealed class TourScheduleManagementTests
         {
             Tour = new Tour { MaTour = Key("TOUR1"), TenTour = "Tour test", LoaiTour = Key("Chuan"), TrangThai = Key(state), GiaTour = 1000 };
             Rows.Add(new LichTrinh { MaLichTrinh = Key("LT1"), MaTour = Tour.MaTour, MaDthamQuan = Key("POINT1"), Mota = "Lịch trình gốc", ThanhTien = 1000 });
-            Tours = new MemorySet<Tour>([Tour]);
-            LichTrinhs = new MemorySet<LichTrinh>(Rows);
-            HopDongs = new MemorySet<HopDong>(Contracts);
-            DiemThamQuans = new MemorySet<DiemThamQuan>([]);
-            YeuCauThietKes = new MemorySet<YeuCauThietKe>([]);
+            Tours = new KeyQuerySet<Tour>(this, [Tour]);
+            LichTrinhs = new KeyQuerySet<LichTrinh>(this, Rows);
+            HopDongs = new KeyQuerySet<HopDong>(this, Contracts);
+            DiemThamQuans = new KeyQuerySet<DiemThamQuan>(this, []);
+            YeuCauThietKes = new KeyQuerySet<YeuCauThietKe>(this, Requests);
+            LichKhoiHanhs = new KeyQuerySet<LichKhoiHanh>(this, []);
         }
         public override DatabaseFacade Database => new MemoryDatabase(this, Transaction);
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) { Saves++; return Task.FromResult(1); }

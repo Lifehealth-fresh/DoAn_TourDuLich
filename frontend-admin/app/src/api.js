@@ -38,3 +38,9 @@ export const confirmRefund=id=>api.put(`/api/DatDichVu/${encodeURIComponent(id)}
 export const promotions=()=>api.get('/api/KhuyenMai'); export const reviews=id=>api.get(`/api/DanhGia/tour/${id}`);
 export const tourMedia=id=>api.get(`/api/AnhTour/theo-tour/${id}`); export const uploadTourMedia=(tourId,file,thuTu=0,isAvatar=false)=>{const data=new FormData();data.append('file',file);data.append('thuTu',String(thuTu));data.append('isAvatar',String(isAvatar));return api.post(`/api/AnhTour/theo-tour/${encodeURIComponent(tourId)}/upload`,data)}; export const replaceTourMedia=(mediaId,file,thuTu=0,isAvatar=false)=>{const data=new FormData();data.append('file',file);data.append('thuTu',String(thuTu));data.append('isAvatar',String(isAvatar));return api.put(`/api/AnhTour/${encodeURIComponent(mediaId)}/upload`,data)}; export const deleteMedia=id=>api.delete(`/api/AnhTour/${id}`);
 export default api;
+export const departures=id=>api.get('/api/Tour/'+encodeURIComponent(id)+'/lich-khoi-hanh');
+export const createDeparture=data=>api.post('/api/LichKhoiHanh',data);
+export const updateDeparture=(id,data)=>api.put('/api/LichKhoiHanh/'+encodeURIComponent(id),data);
+export const departureGuests=id=>api.get('/api/LichKhoiHanh/'+encodeURIComponent(id)+'/khach');
+export const guestProfile=id=>api.get('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach');
+export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');

@@ -140,7 +140,7 @@ public sealed class BookingPaymentControllerTests
         {
             MaBooking = Key("BK1"), MaUser = Key("USER1"), MaTour = Key("TOUR1"), ThanhTien = 100000,
             TrangThai = Key(state), ThanhToans = payments.ToList(),
-            MaTourNavigation = new Tour { TenTour = "Tour kiểm thử" }, MaUserNavigation = new NguoiSuDung { SoDienThoai = "0900000000" }
+            MaTourNavigation = new Tour { MaTour = Key("TOUR1"), TenTour = "Tour kiểm thử" }, MaUserNavigation = new NguoiSuDung { SoDienThoai = "0900000000" }
         });
         return context;
     }
@@ -164,7 +164,8 @@ public sealed class BookingPaymentControllerTests
         public MemoryContext() : base(new DbContextOptionsBuilder<AppDbContext>()
             .UseSqlServer("Server=unused;Database=unused;Integrated Security=true;Connect Timeout=1").Options)
         {
-            DatDichVus = new MemorySet<DatDichVu>(Bookings);
+            Tours = new KeyQuerySet<Tour>(this, Bookings.Select(b => b.MaTourNavigation));
+            DatDichVus = new KeyQuerySet<DatDichVu>(this, Bookings);
             ThanhToans = new MemorySet<ThanhToan>(Payments);
         }
         public override DatabaseFacade Database => new MemoryDatabase(this);

@@ -15,6 +15,8 @@ public partial class LichKhoiHanh
 
     public string? DiaDiem { get; set; }
 
+    public int? SoCho { get; set; }
+
     public virtual ICollection<DatDichVu> DatDichVus { get; set; } = new List<DatDichVu>();
 
     public virtual ICollection<LichDanTour> LichDanTours { get; set; } = new List<LichDanTour>();

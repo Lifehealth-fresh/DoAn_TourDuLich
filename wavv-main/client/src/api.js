@@ -84,3 +84,6 @@ export const updateDocument = (id, docId, data) => api.put(`/api/KhachHang/${enc
 export const deleteDocument = (id, docId) => api.delete(`/api/KhachHang/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}`);
 
 export default api;
+export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');
+export const agreeDesignSchedule=id=>api.put('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/dong-y-lich');
+export const requestDesignRevision=(id,lyDo)=>api.put('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/yeu-cau-chinh-sua',{lyDo});

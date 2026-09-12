@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
 using TourDuLich.Application.Helpers;
+using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
 
@@ -54,13 +55,13 @@ public class LichTrinhController : ControllerBase
             .ThenBy(item => item.ThuTuTrongNgay)
             .Select(item => new
             {
-                maLichTrinh = FixedLengthHelper.TrimSafe(item.MaLichTrinh),
-                maTour = FixedLengthHelper.TrimSafe(item.MaTour),
+                maLichTrinh = item.MaLichTrinh.Trim(),
+                maTour = item.MaTour.Trim(),
                 ngayThu = item.NgayThu,
                 thuTuTrongNgay = item.ThuTuTrongNgay,
-                maDthamQuan = FixedLengthHelper.TrimSafe(item.MaDthamQuan),
+                maDthamQuan = item.MaDthamQuan == null ? null : item.MaDthamQuan.Trim(),
                 tenDiaDanh = item.MaDthamQuanNavigation!.TenDiaDanh,
-                maSanPham = FixedLengthHelper.TrimSafe(item.MaSanPham),
+                maSanPham = item.MaSanPham == null ? null : item.MaSanPham.Trim(),
                 tenSanPham = item.MaSanPhamNavigation!.TenSanPham,
                 soLuong = item.SoLuong,
                 donGia = item.DonGia,
@@ -112,8 +113,10 @@ public class LichTrinhController : ControllerBase
             return Forbid();
         }
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var tour = await _context.Tours
-            .FirstOrDefaultAsync(item => item.MaTour == maTourDb);
+            .FromSqlRaw("SELECT * FROM dbo.Tour WITH (UPDLOCK, HOLDLOCK) WHERE MaTour = {0}", maTourDb)
+            .FirstOrDefaultAsync();
 
         if (tour is null)
         {
@@ -153,8 +156,6 @@ public class LichTrinhController : ControllerBase
 
         var maLichTrinhDb = await GenerateMaLichTrinhAsync();
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync();
 
         var lichTrinh = new LichTrinh
         {
@@ -221,7 +222,7 @@ public class LichTrinhController : ControllerBase
 
         var maLichTrinhDb = FixedLengthHelper.PadTo20(maLichTrinh);
 
-        var lichTrinh = await _context.LichTrinhs
+        var lichTrinh = await _context.LichTrinhs.AsNoTracking()
             .FirstOrDefaultAsync(item =>
                 item.MaLichTrinh == maLichTrinhDb);
 
@@ -240,9 +241,12 @@ public class LichTrinhController : ControllerBase
             return Forbid();
         }
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var tour = await _context.Tours
-            .FirstOrDefaultAsync(item =>
-                item.MaTour == lichTrinh.MaTour);
+            .FromSqlRaw("SELECT * FROM dbo.Tour WITH (UPDLOCK, HOLDLOCK) WHERE MaTour = {0}", lichTrinh.MaTour)
+            .FirstOrDefaultAsync();
+        lichTrinh = await _context.LichTrinhs.FirstOrDefaultAsync(item => item.MaLichTrinh == maLichTrinhDb);
+        if (lichTrinh is null) return NotFound();
 
         if (tour is null)
         {
@@ -280,8 +284,6 @@ public class LichTrinhController : ControllerBase
             });
         }
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync();
 
         lichTrinh.MaDthamQuan = maDthamQuanDb;
         lichTrinh.MaSanPham = productData?.MaSanPham;
@@ -318,7 +320,7 @@ public class LichTrinhController : ControllerBase
     {
         var maLichTrinhDb = FixedLengthHelper.PadTo20(maLichTrinh);
 
-        var lichTrinh = await _context.LichTrinhs
+        var lichTrinh = await _context.LichTrinhs.AsNoTracking()
             .FirstOrDefaultAsync(item =>
                 item.MaLichTrinh == maLichTrinhDb);
 
@@ -337,9 +339,12 @@ public class LichTrinhController : ControllerBase
             return Forbid();
         }
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var tour = await _context.Tours
-            .FirstOrDefaultAsync(item =>
-                item.MaTour == lichTrinh.MaTour);
+            .FromSqlRaw("SELECT * FROM dbo.Tour WITH (UPDLOCK, HOLDLOCK) WHERE MaTour = {0}", lichTrinh.MaTour)
+            .FirstOrDefaultAsync();
+        lichTrinh = await _context.LichTrinhs.FirstOrDefaultAsync(item => item.MaLichTrinh == maLichTrinhDb);
+        if (lichTrinh is null) return NotFound();
 
         if (tour is null)
         {
@@ -353,8 +358,6 @@ public class LichTrinhController : ControllerBase
         if (editError is not null)
             return BadRequest(new { message = editError });
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync();
 
         _context.LichTrinhs.Remove(lichTrinh);
 
@@ -375,6 +378,13 @@ public class LichTrinhController : ControllerBase
     private async Task<string?> GetScheduleEditErrorAsync(Tour tour)
     {
         var trangThai = FixedLengthHelper.TrimSafe(tour.TrangThai);
+        if (tour.LoaiTour.Trim() == "TuThietKe")
+        {
+            var state = await _context.YeuCauThietKes.Where(r => r.MaTourTao == tour.MaTour)
+                .Select(r => r.TrangThai).FirstOrDefaultAsync();
+            if (!YeuCauThietKeStateMachine.CanEditSchedule(state == null ? null : state.Trim(), trangThai))
+                return "Lịch tour tự thiết kế đã gửi khách/đang duyệt hoặc đã duyệt, không thể sửa. Cần đi qua yêu cầu chỉnh sửa.";
+        }
         if (trangThai == "An")
             return "Tour đang ẩn (An), không thể thay đổi lịch trình.";
         if (trangThai is not ("Nhap" or "HoatDong"))

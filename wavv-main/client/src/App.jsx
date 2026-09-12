@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import DepartureBooking from './DepartureBooking.jsx';
+import {bookingError} from './departureAvailability.mjs';
 import {
   BrowserRouter, Link, Navigate, Outlet, Route, Routes,
   useLocation, useNavigate, useParams, useSearchParams,
@@ -402,9 +404,6 @@ function TourDetail() {
   const [reviewData, setReviewData] = useState({});
   const [photos, setPhotos] = useState([]);
   const [activePhoto, setActivePhoto] = useState('');
-  const [date, setDate] = useState('');
-  const [adults, setAdults] = useState(1);
-  const [children, setChildren] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -417,12 +416,7 @@ function TourDetail() {
         const shots = itemsOf(p);
         const local = next.gallery || [next.image];
         setTour(next);
-        const now = Date.now();
-        const upcomingDates = itemsOf(d)
-          .filter((item) => new Date(item.ngayKhoiHanh).getTime() > now)
-          .sort((a, b) => new Date(a.ngayKhoiHanh).getTime() - new Date(b.ngayKhoiHanh).getTime());
-        setDates(upcomingDates);
-        setDate(String(upcomingDates[0]?.maKhoiHanh || ''));
+        setDates(itemsOf(d));
         setPlan(i.data?.lichTrinh || []);
         setPhotos(shots.length ? shots : local.map((url) => ({ url })));
         setActivePhoto(shots[0]?.url || shots[0]?.imageUrl || local[0]);
@@ -439,7 +433,10 @@ function TourDetail() {
   }
   if (!tour) return <section className="page-section">Đang tải tour...</section>;
 
-  const book = async () => {
+  const book = async (departure, adults, children) => {
+    if (busy) return;
+    const issue = bookingError(departure, adults, children);
+    if (issue) { setError(issue); return; }
     if (!token()) {
       navigate('/dang-nhap', { state: { from: `/tour/${id}` } });
       return;
@@ -448,7 +445,7 @@ function TourDetail() {
     try {
       const r = await api.createBooking({
         MaTour: id,
-        MaKhoiHanh: date,
+        MaKhoiHanh: departure.maKhoiHanh,
         SlnguoiLon: Number(adults),
         SltreEm: Number(children),
       });
@@ -462,6 +459,7 @@ function TourDetail() {
       navigate(`/booking/${bookingId}`, { state: { booking: { ...created, tenTour: tour.name } } });
     } catch (e) {
       setError(api.errorMessage(e));
+      try { setDates(itemsOf(await api.departures(id))); } catch { /* Retain the booking error. */ }
     } finally {
       setBusy(false);
     }
@@ -470,7 +468,6 @@ function TourDetail() {
   const list = reviewData.danhGias || [];
   const gallery = photos.length ? photos : [{ url: tour.image }];
   const days = groupDays(plan);
-  const people = +adults + +children;
 
   return (
     <section className="page-section detail-page">
@@ -536,30 +533,8 @@ function TourDetail() {
           {tour.terms && <p className="terms">{tour.terms}</p>}
         </div>
 
-        <aside className="booking-box sticky">
-          <p className="muted">Giá từ</p>
-          <h3 className="book-price">{money(tour.price)}<small>/ khách</small></h3>
-          {dates.length ? (
-            <label>Lịch khởi hành
-              <select value={date} onChange={(e) => setDate(e.target.value)}>
-                {dates.map((item) => (
-                  <option key={item.maKhoiHanh} value={item.maKhoiHanh}>
-                    {dateText(item.ngayKhoiHanh)} → {dateText(item.ngayKetThuc)} · {item.diaDiem || ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : <p className="muted">Chưa có lịch khởi hành.</p>}
-          <div className="people-fields">
-            <label>Người lớn<input type="number" min="1" value={adults} onChange={(e) => setAdults(e.target.value)} /></label>
-            <label>Trẻ em<input type="number" min="0" value={children} onChange={(e) => setChildren(e.target.value)} /></label>
-          </div>
-          <div className="total-row"><span>{people} khách</span><b>{money(tour.price * people)}</b></div>
-          <button disabled={!date || busy} className="primary-button full" onClick={book}>
-            {busy ? 'Đang giữ chỗ...' : 'Đặt tour này'}
-          </button>
-          <p className="muted">Có thể đặt cọc 30% sau khi giữ chỗ.</p>
-        </aside>
+        <DepartureBooking key={id} dates={dates} price={tour.price} busy={busy}
+          allowed={tour.loaiTour!=='TuThietKe'||tour.trangThaiYeuCau==='DaDuyet'} onBook={book}/>
       </div>
 
       <section className="reviews-section">

@@ -52,23 +52,7 @@ public class YeuCauThietKeController : ControllerBase
         var totalCount = await query.CountAsync();
         var requests = await query.OrderByDescending(item => item.NgayGui).ThenBy(item => item.MaYeuCau)
             .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(item => new
-            {
-                maYeuCau = FixedLengthHelper.TrimSafe(item.MaYeuCau),
-                diemDenMongMuon = item.DiemDenMongMuon,
-                ngayDuKienDi = item.NgayDuKienDi,
-                soNgay = item.SoNgay,
-                soNguoiLon = item.SoNguoiLon,
-                soTreEm = item.SoTreEm,
-                nganSachDuKien = item.NganSachDuKien,
-                soThichGhiChu = item.SoThichGhiChu,
-                maGoiYThamKhao = FixedLengthHelper.TrimSafe(item.MaGoiYthamKhao),
-                lyDoTuChoiGoiY = item.LyDoTuChoiGoiY,
-                lyDoTuChoiBoiSale = item.LyDoTuChoiBoiSale,
-                trangThai = FixedLengthHelper.TrimSafe(item.TrangThai),
-                ngayGui = item.NgayGui,
-                maTourTao = FixedLengthHelper.TrimSafe(item.MaTourTao)
-            })
+            .Select(DesignRequestView.Projection)
             .ToListAsync();
 
         return Ok(new { items = requests, page, pageSize, totalCount });
@@ -93,23 +77,7 @@ public class YeuCauThietKeController : ControllerBase
             .Where(item =>
                 item.MaYeuCau == maYeuCauDb &&
                 item.MaUser == maUserDb)
-            .Select(item => new
-            {
-                maYeuCau = FixedLengthHelper.TrimSafe(item.MaYeuCau),
-                diemDenMongMuon = item.DiemDenMongMuon,
-                ngayDuKienDi = item.NgayDuKienDi,
-                soNgay = item.SoNgay,
-                soNguoiLon = item.SoNguoiLon,
-                soTreEm = item.SoTreEm,
-                nganSachDuKien = item.NganSachDuKien,
-                soThichGhiChu = item.SoThichGhiChu,
-                maGoiYThamKhao = FixedLengthHelper.TrimSafe(item.MaGoiYthamKhao),
-                lyDoTuChoiGoiY = item.LyDoTuChoiGoiY,
-                lyDoTuChoiBoiSale = item.LyDoTuChoiBoiSale,
-                trangThai = FixedLengthHelper.TrimSafe(item.TrangThai),
-                ngayGui = item.NgayGui,
-                maTourTao = FixedLengthHelper.TrimSafe(item.MaTourTao)
-            })
+            .Select(DesignRequestView.Projection)
             .FirstOrDefaultAsync();
 
         if (request is null)
@@ -221,6 +189,7 @@ public class YeuCauThietKeController : ControllerBase
 
         return StatusCode(StatusCodes.Status201Created, new
         {
+            lyDo = (string?)null, nguonLyDo = (string?)null,
             maYeuCau = FixedLengthHelper.TrimSafe(yeuCau.MaYeuCau),
             diemDenMongMuon = yeuCau.DiemDenMongMuon,
             ngayDuKienDi = yeuCau.NgayDuKienDi,
@@ -250,7 +219,9 @@ public class YeuCauThietKeController : ControllerBase
         var maUserDb = FixedLengthHelper.PadTo20(maUser);
         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
 
+        await using var transaction = await _context.Database.BeginTransactionAsync();
         var yeuCau = await _context.YeuCauThietKes
+            .FromSqlRaw("SELECT * FROM dbo.YeuCauThietKe WITH (UPDLOCK, HOLDLOCK) WHERE MaYeuCau = {0}", maYeuCauDb)
             .FirstOrDefaultAsync(item =>
                 item.MaYeuCau == maYeuCauDb &&
                 item.MaUser == maUserDb);
@@ -276,9 +247,12 @@ public class YeuCauThietKeController : ControllerBase
         yeuCau.TrangThai = FixedLengthHelper.PadTo20("Huy");
 
         await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+        var reason = DesignRevisionReason.Read(yeuCau.LyDoTuChoiBoiSale);
 
         return Ok(new
         {
+            lyDo = reason.LyDo, nguonLyDo = reason.NguonLyDo,
             maYeuCau = FixedLengthHelper.TrimSafe(yeuCau.MaYeuCau),
             trangThai = FixedLengthHelper.TrimSafe(yeuCau.TrangThai)
         });
@@ -329,7 +303,9 @@ public class YeuCauThietKeController : ControllerBase
             return Unauthorized();
         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
         var maUserDb = FixedLengthHelper.PadTo20(maUser);
-        var request = await _context.YeuCauThietKes.FirstOrDefaultAsync(
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var request = await _context.YeuCauThietKes
+            .FromSqlRaw("SELECT * FROM dbo.YeuCauThietKe WITH (UPDLOCK, HOLDLOCK) WHERE MaYeuCau = {0}", maYeuCauDb).FirstOrDefaultAsync(
             item => item.MaYeuCau == maYeuCauDb && item.MaUser == maUserDb, cancellationToken);
         if (request is null)
             return NotFound(new { message = "Không tìm thấy yêu cầu thiết kế của bạn." });
@@ -346,7 +322,6 @@ public class YeuCauThietKeController : ControllerBase
             return NotFound(new { message = "Không tìm thấy phương án đề xuất còn hiệu lực." });
 
         var maTourDb = await GenerateTourIdAsync(cancellationToken);
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         var tour = new Tour
         {
             MaTour = maTourDb,
@@ -386,6 +361,7 @@ public class YeuCauThietKeController : ControllerBase
 
         return StatusCode(StatusCodes.Status201Created, new
         {
+            lyDo = (string?)null, nguonLyDo = (string?)null,
             maYeuCau = FixedLengthHelper.TrimSafe(request.MaYeuCau),
             maTour = FixedLengthHelper.TrimSafe(tour.MaTour),
             maDeXuat = FixedLengthHelper.TrimSafe(proposal.MaDeXuat),
@@ -402,9 +378,8 @@ public class YeuCauThietKeController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.LyDoTuChoi))
             return BadRequest(new { message = "Lý do từ chối không được để trống." });
         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
-        var data = await _context.YeuCauThietKes
-            .Include(item => item.MaTourTaoNavigation)
-            .FirstOrDefaultAsync(item => item.MaYeuCau == maYeuCauDb, cancellationToken);
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var data = await LockRequestTourAsync(FixedLengthHelper.PadTo20(maYeuCau), cancellationToken);
         if (data is null)
             return NotFound(new { message = "Không tìm thấy yêu cầu thiết kế." });
         if (data.MaTourTaoNavigation is null)
@@ -414,13 +389,12 @@ public class YeuCauThietKeController : ControllerBase
         if (!YeuCauThietKeStateMachine.CanReject(requestState, tourState))
             return Conflict(new { message = $"Không thể từ chối. {YeuCauThietKeStateMachine.Describe(requestState, tourState)}" });
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         data.MaTourTaoNavigation.TrangThai = FixedLengthHelper.PadTo20("Nhap");
         data.TrangThai = FixedLengthHelper.PadTo20("CanChinhSua");
-        data.LyDoTuChoiBoiSale = request.LyDoTuChoi.Trim();
+        data.LyDoTuChoiBoiSale = DesignRevisionReason.FromAdmin(request.LyDoTuChoi);
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Ok(new { maYeuCau = maYeuCau, trangThai = "CanChinhSua", lyDoTuChoiBoiSale = data.LyDoTuChoiBoiSale });
+        return Ok(new { maYeuCau = maYeuCau, trangThai = "CanChinhSua", lyDo = DesignRevisionReason.Read(data.LyDoTuChoiBoiSale).LyDo, nguonLyDo = "Admin" });
     }
 
     [HttpPut("{maYeuCau}/sua-lich-trinh")]
@@ -430,9 +404,8 @@ public class YeuCauThietKeController : ControllerBase
     {
         if (request.ChiTiets.Count == 0)
             return BadRequest(new { message = "Lịch trình phải có ít nhất một dòng." });
-        var data = await _context.YeuCauThietKes
-            .Include(item => item.MaTourTaoNavigation)
-            .FirstOrDefaultAsync(item => item.MaYeuCau == FixedLengthHelper.PadTo20(maYeuCau), cancellationToken);
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var data = await LockRequestTourAsync(FixedLengthHelper.PadTo20(maYeuCau), cancellationToken);
         if (data?.MaTourTaoNavigation is null)
             return NotFound(new { message = "Không tìm thấy tour tự thiết kế của yêu cầu." });
         var tour = data.MaTourTaoNavigation;
@@ -452,7 +425,6 @@ public class YeuCauThietKeController : ControllerBase
         if (request.ChiTiets.Any(item => item.SoLuong <= 0 || (string.IsNullOrWhiteSpace(item.MaDthamQuan) && string.IsNullOrWhiteSpace(item.MaSanPham))))
             return BadRequest(new { message = "Mỗi dòng phải có điểm/sản phẩm và số lượng lớn hơn 0." });
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         _context.LichTrinhs.RemoveRange(_context.LichTrinhs.Where(item => item.MaTour == tour.MaTour));
         var giaTour = 0;
         foreach (var item in request.ChiTiets)
@@ -478,11 +450,100 @@ public class YeuCauThietKeController : ControllerBase
             });
         }
         tour.GiaTour = giaTour;
-        data.LyDoTuChoiBoiSale = null;
         data.TrangThai = FixedLengthHelper.PadTo20("DangThietKe");
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Ok(new { maYeuCau = maYeuCau, maTour = FixedLengthHelper.TrimSafe(tour.MaTour), giaTour, soDong = request.ChiTiets.Count });
+        var reason = DesignRevisionReason.Read(data.LyDoTuChoiBoiSale);
+        return Ok(new { maYeuCau, maTour = tour.MaTour.Trim(), giaTour, soDong = request.ChiTiets.Count, lyDo = reason.LyDo, nguonLyDo = reason.NguonLyDo });
+    }
+
+
+    [HttpGet("{maYeuCau}/lich-hien-tai")]
+    [Authorize(Roles = "KhachHang,Sale,Admin")]
+    public async Task<ActionResult> GetCurrentSchedule(string maYeuCau, CancellationToken cancellationToken)
+    {
+        var request = await GetRequestForViewerAsync(maYeuCau, cancellationToken);
+        if (request?.MaTourTao is null) return NotFound(new { message = "Yêu cầu chưa có tour hoặc bạn không có quyền xem." });
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        // Shared lock protects the saved price/itinerary snapshot from concurrent staff edits.
+        var tour = await _context.Tours.FromSqlRaw(
+            "SELECT * FROM dbo.Tour WITH (HOLDLOCK) WHERE MaTour = {0}", request.MaTourTao).FirstOrDefaultAsync(cancellationToken);
+        if (tour is null) return NotFound(new { message = "Không tìm thấy tour." });
+        request = await _context.YeuCauThietKes.AsNoTracking()
+            .FirstAsync(r => r.MaYeuCau == request.MaYeuCau, cancellationToken);
+        var lines = await _context.LichTrinhs.AsNoTracking().Where(l => l.MaTour == tour.MaTour)
+            .OrderBy(l => l.NgayThu).ThenBy(l => l.ThuTuTrongNgay).ThenBy(l => l.MaLichTrinh)
+            .Select(l => new
+            {
+                maLichTrinh = l.MaLichTrinh.Trim(), ngayThu = l.NgayThu, thuTuTrongNgay = l.ThuTuTrongNgay,
+                maDthamQuan = l.MaDthamQuan == null ? null : l.MaDthamQuan.Trim(),
+                maSanPham = l.MaSanPham == null ? null : l.MaSanPham.Trim(),
+                tenDiaDanh = l.MaDthamQuanNavigation == null ? null : l.MaDthamQuanNavigation.TenDiaDanh,
+                tenSanPham = l.MaSanPhamNavigation == null ? null : l.MaSanPhamNavigation.TenSanPham,
+                soLuong = l.SoLuong, donGia = l.DonGia, thanhTien = l.ThanhTien, mota = l.Mota
+            }).ToListAsync(cancellationToken);
+        var reason = DesignRevisionReason.Read(request.LyDoTuChoiBoiSale);
+        await transaction.CommitAsync(cancellationToken);
+        return Ok(new { maYeuCau = request.MaYeuCau.Trim(), maTour = tour.MaTour.Trim(), tenTour = tour.TenTour,
+            giaTour = tour.GiaTour, tongGiaHienTai = tour.GiaTour, ngayDuKienDi = request.NgayDuKienDi,
+            trangThai = request.TrangThai?.Trim(), trangThaiTour = tour.TrangThai?.Trim(),
+            lyDo = reason.LyDo, nguonLyDo = reason.NguonLyDo, lichTrinh = lines });
+    }
+
+    [HttpPut("{maYeuCau}/dong-y-lich")]
+    [Authorize(Roles = "KhachHang")]
+    public Task<ActionResult> AgreeToSchedule(string maYeuCau, CancellationToken cancellationToken)
+        => CustomerRespond(maYeuCau, null, cancellationToken);
+
+    [HttpPut("{maYeuCau}/yeu-cau-chinh-sua")]
+    [Authorize(Roles = "KhachHang")]
+    public Task<ActionResult> RequestScheduleRevision(string maYeuCau, CustomerRevisionDto body, CancellationToken cancellationToken)
+        => string.IsNullOrWhiteSpace(body.LyDo)
+            ? Task.FromResult<ActionResult>(BadRequest(new { message = "Vui lòng nhập lý do yêu cầu chỉnh sửa." }))
+            : CustomerRespond(maYeuCau, body.LyDo, cancellationToken);
+
+    private async Task<ActionResult> CustomerRespond(string maYeuCau, string? reasonText, CancellationToken cancellationToken)
+    {
+        var user = GetCurrentMaUser();
+        if (user is null) return Unauthorized();
+        var key = FixedLengthHelper.PadTo20(maYeuCau);
+        var owner = FixedLengthHelper.PadTo20(user);
+        if (!await _context.YeuCauThietKes.AsNoTracking().AnyAsync(r => r.MaYeuCau == key && r.MaUser == owner, cancellationToken))
+            return NotFound(new { message = "Không tìm thấy yêu cầu của bạn." });
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var data = await LockRequestTourAsync(key, cancellationToken);
+        if (data?.MaTourTaoNavigation is null || data.MaUser != owner) return NotFound();
+        if (!YeuCauThietKeStateMachine.CanCustomerRespond(data.TrangThai?.Trim(), data.MaTourTaoNavigation.TrangThai?.Trim()))
+            return Conflict(new { message = "Chỉ phản hồi lịch đang chờ khách xác nhận. Hãy tải lại yêu cầu." });
+        if (reasonText is null)
+            data.TrangThai = FixedLengthHelper.PadTo20("ChoDuyet");
+        else
+        {
+            data.TrangThai = FixedLengthHelper.PadTo20("CanChinhSua");
+            data.MaTourTaoNavigation.TrangThai = FixedLengthHelper.PadTo20("Nhap");
+            data.LyDoTuChoiBoiSale = DesignRevisionReason.FromCustomer(reasonText);
+        }
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        var reason = DesignRevisionReason.Read(data.LyDoTuChoiBoiSale);
+        return Ok(new { maYeuCau = data.MaYeuCau.Trim(), trangThai = data.TrangThai.Trim(),
+            lyDo = reason.LyDo, nguonLyDo = reason.NguonLyDo });
+    }
+
+    // Call inside a transaction. Same lock order as booking and direct itinerary edits.
+    private async Task<YeuCauThietKe?> LockRequestTourAsync(string key, CancellationToken cancellationToken = default)
+    {
+        var tourId = await _context.YeuCauThietKes.AsNoTracking().Where(r => r.MaYeuCau == key)
+            .Select(r => r.MaTourTao).FirstOrDefaultAsync(cancellationToken);
+        Tour? tour = null;
+        if (tourId is not null)
+            tour = await _context.Tours.FromSqlRaw("SELECT * FROM dbo.Tour WITH (UPDLOCK, HOLDLOCK) WHERE MaTour = {0}", tourId)
+                .FirstOrDefaultAsync(cancellationToken);
+        var data = await _context.YeuCauThietKes
+            .FromSqlRaw("SELECT * FROM dbo.YeuCauThietKe WITH (UPDLOCK, HOLDLOCK) WHERE MaYeuCau = {0}", key)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (data is not null) data.MaTourTaoNavigation = tour;
+        return data;
     }
 
     private async Task<YeuCauThietKe?> GetRequestForViewerAsync(string maYeuCau, CancellationToken cancellationToken)
@@ -547,19 +608,7 @@ public class YeuCauThietKeController : ControllerBase
         var requests = await _context.YeuCauThietKes
             .AsNoTracking()
             .OrderByDescending(item => item.NgayGui)
-            .Select(item => new
-            {
-                maYeuCau = FixedLengthHelper.TrimSafe(item.MaYeuCau),
-                maUser = FixedLengthHelper.TrimSafe(item.MaUser),
-                diemDenMongMuon = item.DiemDenMongMuon,
-                ngayDuKienDi = item.NgayDuKienDi,
-                soNgay = item.SoNgay,
-                nganSachDuKien = item.NganSachDuKien,
-                trangThai = FixedLengthHelper.TrimSafe(item.TrangThai),
-                lyDoTuChoiBoiSale = item.LyDoTuChoiBoiSale,
-                maTourTao = FixedLengthHelper.TrimSafe(item.MaTourTao),
-                ngayGui = item.NgayGui
-            })
+            .Select(DesignRequestView.Projection)
             .ToListAsync(cancellationToken);
         return Ok(requests);
     }
@@ -571,14 +620,9 @@ public class YeuCauThietKeController : ControllerBase
     {
         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
 
-        var requestData = await _context.YeuCauThietKes
-            .Where(item => item.MaYeuCau == maYeuCauDb)
-            .Select(item => new
-            {
-                Request = item,
-                Tour = item.MaTourTaoNavigation
-            })
-            .FirstOrDefaultAsync();
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        var locked = await LockRequestTourAsync(maYeuCauDb);
+        var requestData = locked is null ? null : new { Request = locked, Tour = locked.MaTourTaoNavigation };
 
         if (requestData is null)
         {
@@ -612,20 +656,20 @@ public class YeuCauThietKeController : ControllerBase
             });
         }
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync();
 
         requestData.Tour.TrangThai =
             FixedLengthHelper.PadTo20("ChoXacNhan");
 
         requestData.Request.TrangThai =
-            FixedLengthHelper.PadTo20("ChoDuyet");
+            FixedLengthHelper.PadTo20("ChoKhachXacNhan");
 
+        requestData.Request.LyDoTuChoiBoiSale = null;
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
 
         return Ok(new
         {
+            lyDo = (string?)null, nguonLyDo = (string?)null,
             maYeuCau = FixedLengthHelper.TrimSafe(requestData.Request.MaYeuCau),
             maTour = FixedLengthHelper.TrimSafe(requestData.Tour.MaTour),
             trangThaiYeuCau = FixedLengthHelper.TrimSafe(
@@ -642,14 +686,9 @@ public class YeuCauThietKeController : ControllerBase
     {
         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
 
-        var requestData = await _context.YeuCauThietKes
-            .Where(item => item.MaYeuCau == maYeuCauDb)
-            .Select(item => new
-            {
-                Request = item,
-                Tour = item.MaTourTaoNavigation
-            })
-            .FirstOrDefaultAsync();
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        var locked = await LockRequestTourAsync(maYeuCauDb);
+        var requestData = locked is null ? null : new { Request = locked, Tour = locked.MaTourTaoNavigation };
 
         if (requestData is null)
         {
@@ -672,8 +711,6 @@ public class YeuCauThietKeController : ControllerBase
         if (!YeuCauThietKeStateMachine.CanApprove(requestState, tourState))
             return Conflict(new { message = $"Không thể duyệt. {YeuCauThietKeStateMachine.Describe(requestState, tourState)}" });
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync();
 
         if (FixedLengthHelper.TrimSafe(requestData.Tour.LoaiTour) == "TuThietKe")
         {
@@ -706,11 +743,13 @@ public class YeuCauThietKeController : ControllerBase
         requestData.Request.TrangThai =
             FixedLengthHelper.PadTo20("DaDuyet");
 
+        requestData.Request.LyDoTuChoiBoiSale = null;
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
 
         return Ok(new
         {
+            lyDo = (string?)null, nguonLyDo = (string?)null,
             maYeuCau = FixedLengthHelper.TrimSafe(requestData.Request.MaYeuCau),
             maTour = FixedLengthHelper.TrimSafe(requestData.Tour.MaTour),
             trangThaiYeuCau = FixedLengthHelper.TrimSafe(

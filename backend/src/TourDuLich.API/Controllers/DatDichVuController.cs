@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
+using TourDuLich.API.Services;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
@@ -189,6 +190,31 @@ public class DatDichVuController : ControllerBase
         return Ok(booking);
     }
 
+    [HttpGet("{maBooking}/ho-so-khach")]
+    [Authorize(Roles = "Sale,Admin")]
+    public async Task<ActionResult> GetGuestProfile(string maBooking)
+    {
+        var key = FixedLengthHelper.PadTo20(maBooking);
+        var booking = await _context.DatDichVus.AsNoTracking().Where(b => b.MaBooking == key)
+            .Select(b => new { b.MaBooking, b.MaUser, b.MaKhachHang }).FirstOrDefaultAsync();
+        if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
+        var profile = await _context.KhachHangs.AsNoTracking().Include(k => k.GiayTos)
+            .Where(k => booking.MaKhachHang != null ? k.MaKhachHang == booking.MaKhachHang : k.MaUser == booking.MaUser)
+            .OrderBy(k => k.MaKhachHang).FirstOrDefaultAsync();
+        return Ok(new
+        {
+            maBooking = booking.MaBooking.Trim(), maKhachHang = profile?.MaKhachHang.Trim(),
+            ho = profile?.Ho.Trim(), ten = profile?.Ten.Trim(),
+            soDienThoai = profile?.SoDienThoai.Trim(), email = profile?.Email?.Trim(),
+            ngaySinh = profile?.NgaySinh, quocTich = profile?.QuocTich?.Trim(),
+            giayTo = (profile?.GiayTos ?? []).Select(g => new
+            {
+                loaiGiayTo = g.LoaiGiayTo.Trim(), soTrenGiayTo = g.SoTrenGiayTo.Trim(),
+                ngayCap = g.NgayCap, ngayHetHan = g.NgayHetHan, noiCap = g.NoiCap.Trim()
+            }).ToArray()
+        });
+    }
+
     [HttpPost]
     [Authorize(Roles = "KhachHang")]
     public async Task<ActionResult> CreateBooking(DatDichVuCreateDto request)
@@ -208,7 +234,8 @@ public class DatDichVuController : ControllerBase
 
         if (request.SlnguoiLon < 0 ||
             request.SltreEm < 0 ||
-            request.SlnguoiLon + request.SltreEm <= 0)
+            (long)request.SlnguoiLon + request.SltreEm <= 0 ||
+            (long)request.SlnguoiLon + request.SltreEm > int.MaxValue)
         {
             return BadRequest(new
             {
@@ -219,41 +246,6 @@ public class DatDichVuController : ControllerBase
         var maUserDb = FixedLengthHelper.PadTo20(maUser);
         var maTourDb = FixedLengthHelper.PadTo20(request.MaTour);
         var maKhoiHanhDb = FixedLengthHelper.PadTo20(request.MaKhoiHanh);
-
-        var tour = await _context.Tours
-            .FirstOrDefaultAsync(item => item.MaTour == maTourDb);
-
-        if (tour is null)
-        {
-            return BadRequest(new { message = "Tour không tồn tại." });
-        }
-
-        var lichKhoiHanh = await _context.LichKhoiHanhs
-            .FirstOrDefaultAsync(item => item.MaKhoiHanh == maKhoiHanhDb);
-
-        if (lichKhoiHanh is null)
-        {
-            return BadRequest(new { message = "Lịch khởi hành không tồn tại." });
-        }
-
-        if (lichKhoiHanh.MaTour != maTourDb)
-        {
-            return BadRequest(new { message = "Lịch khởi hành không thuộc tour này." });
-        }
-
-        if (FixedLengthHelper.TrimSafe(tour.TrangThai) != "HoatDong")
-        {
-            return BadRequest(new { message = "Tour hiện không mở bán." });
-        }
-
-        if (!lichKhoiHanh.NgayKhoiHanh.HasValue ||
-            lichKhoiHanh.NgayKhoiHanh.Value <= DateTime.UtcNow)
-        {
-            return BadRequest(new
-            {
-                message = "Lịch khởi hành đã qua, không thể đặt."
-            });
-        }
 
         KhachHang? khachHang;
         if (!string.IsNullOrWhiteSpace(request.MaKhachHang))
@@ -283,13 +275,11 @@ public class DatDichVuController : ControllerBase
         }
 
         var tongSoKhach = request.SlnguoiLon + request.SltreEm;
-        var trangThaiDaHuy = FixedLengthHelper.PadTo20("DaHuy");
 
         await using var transaction =
             await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
-        // Khóa dòng Tour để 2 request song song không cùng đọc Slkhach cũ rồi cùng INSERT vượt chỗ.
-        // UPDLOCK + HOLDLOCK giữ khóa tới khi transaction commit (Serializable).
+        // Lock Tour for the fallback capacity and price, then the departure.
         var tourLocked = await _context.Tours
             .FromSqlRaw("SELECT * FROM [Tour] WITH (UPDLOCK, HOLDLOCK) WHERE [MaTour] = {0}", maTourDb)
             .FirstOrDefaultAsync();
@@ -299,17 +289,27 @@ public class DatDichVuController : ControllerBase
             return BadRequest(new { message = "Tour không tồn tại." });
         }
 
-        // Dùng tourLocked.Slkhach thay vì tour.Slkhach để đảm bảo đọc trong cùng lock
-        var slkhachLocked = tourLocked.Slkhach;
+        var departure = await _context.LichKhoiHanhs
+            .FromSqlRaw("SELECT * FROM dbo.LichKhoiHanh WITH (UPDLOCK, HOLDLOCK) WHERE MaKhoiHanh = {0}", maKhoiHanhDb)
+            .FirstOrDefaultAsync();
+        if (departure is null || departure.MaTour != maTourDb)
+            return BadRequest(new { message = "Lịch khởi hành không tồn tại hoặc không thuộc tour này." });
+        if (!departure.NgayKhoiHanh.HasValue || departure.NgayKhoiHanh.Value <= DateTime.UtcNow)
+            return BadRequest(new { message = "Lịch khởi hành đã qua, không thể đặt." });
+        if (tourLocked.TrangThai?.Trim() != "HoatDong")
+            return BadRequest(new { message = "Tour hiện không mở bán." });
+        if (tourLocked.LoaiTour.Trim() == "TuThietKe")
+        {
+            var approved = FixedLengthHelper.PadTo20("DaDuyet");
+            if (!await _context.YeuCauThietKes.AnyAsync(r => r.MaTourTao == maTourDb && r.MaUser == maUserDb && r.TrangThai == approved))
+                return BadRequest(new { message = "Chỉ chủ yêu cầu tự thiết kế đã được duyệt mới được đặt tour này." });
+        }
+        var capacity = departure.SoCho ?? tourLocked.Slkhach;
+        var tongSoKhachDaDat = await DepartureAvailability.HeldBookings(_context.DatDichVus)
+            .Where(b => b.MaKhoiHanh == maKhoiHanhDb)
+            .SumAsync(b => (long?)(b.SlnguoiLon ?? 0) + (b.SltreEm ?? 0)) ?? 0L;
 
-        var tongSoKhachDaDat = await _context.DatDichVus
-            .Where(item =>
-                item.MaKhoiHanh == maKhoiHanhDb &&
-                item.TrangThai != trangThaiDaHuy)
-            .SumAsync(item =>
-                (int?)((item.SlnguoiLon ?? 0) + (item.SltreEm ?? 0))) ?? 0;
-
-        if (tongSoKhachDaDat + tongSoKhach > slkhachLocked)
+        if (tongSoKhachDaDat + tongSoKhach > capacity)
         {
             await transaction.RollbackAsync();
             return BadRequest(new
@@ -425,8 +425,8 @@ public class DatDichVuController : ControllerBase
             return BadRequest(new { message = "Trạng thái không được để trống." });
         }
 
-        var booking = await _context.DatDichVus
-            .FirstOrDefaultAsync(item => item.MaBooking == maBookingDb);
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        var booking = await LockBookingForSeatTransitionAsync(maBookingDb);
 
         if (booking is null)
         {
@@ -469,8 +469,6 @@ public class DatDichVuController : ControllerBase
         if (trangThaiMoi == "DaHuy" && tongDaTra > 0)
             return BadRequest(new { message = "Khách đã thanh toán. Chờ khách gửi hủy rồi bấm Xác nhận hoàn tiền." });
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync();
 
         booking.TrangThai = FixedLengthHelper.PadTo20(trangThaiMoi);
         await _context.SaveChangesAsync();
@@ -507,12 +505,10 @@ public class DatDichVuController : ControllerBase
         var maUserDb = FixedLengthHelper.PadTo20(maUser);
         var maBookingDb = FixedLengthHelper.PadTo20(maBooking);
 
-        var booking = await _context.DatDichVus
-            .FirstOrDefaultAsync(item =>
-                item.MaBooking == maBookingDb &&
-                item.MaUser == maUserDb);
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        var booking = await LockBookingForSeatTransitionAsync(maBookingDb);
 
-        if (booking is null)
+        if (booking is null || booking.MaUser != maUserDb)
         {
             return NotFound(new { message = "Không tìm thấy booking của bạn." });
         }
@@ -530,8 +526,6 @@ public class DatDichVuController : ControllerBase
             });
         }
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync();
 
         var lichKhoiHanh = booking.MaKhoiHanh is null
             ? null
@@ -584,8 +578,8 @@ public class DatDichVuController : ControllerBase
     public async Task<ActionResult> ConfirmRefund(string maBooking)
     {
         var maBookingDb = FixedLengthHelper.PadTo20(maBooking);
-        var booking = await _context.DatDichVus
-            .FirstOrDefaultAsync(item => item.MaBooking == maBookingDb);
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        var booking = await LockBookingForSeatTransitionAsync(maBookingDb);
         if (booking is null)
             return NotFound(new { message = "Không tìm thấy booking." });
 
@@ -600,7 +594,6 @@ public class DatDichVuController : ControllerBase
                 (payment.TrangThai == daXacNhan || payment.TrangThai == thanhCong))
             .SumAsync(payment => (long?)payment.SoTien) ?? 0L;
 
-        await using var transaction = await _context.Database.BeginTransactionAsync();
         booking.TrangThai = FixedLengthHelper.PadTo20("DaHuy");
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -612,6 +605,20 @@ public class DatDichVuController : ControllerBase
             soTienHoan = tongDaTra,
             soTienPhatHuy = booking.SoTienPhatHuy
         });
+    }
+
+
+    // Serialize seat-release/status writers with CreateBooking. A stale Sale update must
+    // not revive a cancelled booking after its seats have already been sold again.
+    private async Task<DatDichVu?> LockBookingForSeatTransitionAsync(string key)
+    {
+        var tourKey = await _context.DatDichVus.AsNoTracking().Where(b => b.MaBooking == key)
+            .Select(b => b.MaTour).FirstOrDefaultAsync();
+        if (tourKey is null) return null;
+        await _context.Tours.FromSqlRaw(
+            "SELECT * FROM dbo.Tour WITH (UPDLOCK, HOLDLOCK) WHERE MaTour = {0}", tourKey).FirstOrDefaultAsync();
+        return await _context.DatDichVus.FromSqlRaw(
+            "SELECT * FROM dbo.DatDichVu WITH (UPDLOCK, HOLDLOCK) WHERE MaBooking = {0}", key).FirstOrDefaultAsync();
     }
 
     private string? GetCurrentMaUser()

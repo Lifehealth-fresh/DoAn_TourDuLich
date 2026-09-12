@@ -10,6 +10,7 @@ public static class YeuCauThietKeStateMachine
     public const string Huy = "Huy";
     public const string DangThietKe = "DangThietKe";
     public const string CanChinhSua = "CanChinhSua";
+    public const string ChoKhachXacNhan = "ChoKhachXacNhan";
     public const string ChoDuyet = "ChoDuyet";
     public const string DaDuyet = "DaDuyet";
     public const string Nhap = "Nhap";
@@ -24,6 +25,8 @@ public static class YeuCauThietKeStateMachine
         => tourState == Nhap && (requestState == DangThietKe || requestState == CanChinhSua);
     public static bool CanSubmitForApproval(string? requestState, string? tourState)
         => tourState == Nhap && (requestState == DangThietKe || requestState == CanChinhSua);
+    public static bool CanCustomerRespond(string? requestState, string? tourState)
+        => requestState == ChoKhachXacNhan && tourState == ChoXacNhan;
     public static bool CanReject(string? requestState, string? tourState)
         => requestState == ChoDuyet && tourState == ChoXacNhan;
     public static bool CanApprove(string? requestState, string? tourState)
