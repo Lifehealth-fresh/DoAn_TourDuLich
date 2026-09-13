@@ -10,4 +10,7 @@ public class KhuyenMaiCreateDto
     public int GiamGia { get; set; }
     public bool CoCongDon { get; set; }
     public string? MaNhomKm { get; set; }
+    public string TrangThai { get; set; } = "HoatDong";
+    public DieuKienKmCreateDto? DieuKien { get; set; }
+    public List<string>? MaTours { get; set; }
 }

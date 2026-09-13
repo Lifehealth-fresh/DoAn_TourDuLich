@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import DepartureBooking from './DepartureBooking.jsx';
+import TourReviewForm from './TourReviewForm.jsx';
 import {bookingError} from './departureAvailability.mjs';
 import {
   BrowserRouter, Link, Navigate, Outlet, Route, Routes,
@@ -552,6 +553,8 @@ function TourDetail() {
             ))}
           </div>
         ) : <p className="muted">Chưa có đánh giá cho tour này.</p>}
+        {token() && <TourReviewForm key={id} tourId={id} ownReview={reviewData.danhGiaCuaToi}
+          onSaved={async () => setReviewData((await api.reviews(id)).data || {})} />}
       </section>
 
       {related.length > 0 && (
@@ -804,6 +807,11 @@ function BookingDetailPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(!location.state?.booking);
   const [paymentMethod, setPaymentMethod] = useState('VNPay');
+  const [promotionCode, setPromotionCode] = useState('');
+  const [promotionBusy, setPromotionBusy] = useState(false);
+  const [promotionError, setPromotionError] = useState('');
+  const [promotionMessage, setPromotionMessage] = useState('');
+  const [balanceReady, setBalanceReady] = useState(false);
   const returnParams = new URLSearchParams(location.search);
   const gatewayReturnStatus = returnParams.get('status') ||
     (returnParams.get('paid') === '1' ? 'success' : '');
@@ -815,6 +823,7 @@ function BookingDetailPage() {
       return;
     }
     setLoading(!item);
+    setBalanceReady(false);
     setError('');
     try {
       const bookingRes = await api.bookingDetail(id);
@@ -822,6 +831,7 @@ function BookingDetailPage() {
       try {
         const sumRes = await api.paymentSummary(id);
         setSummary(sumRes.data || {});
+        setBalanceReady(true);
       } catch (sumError) {
         setSummary({});
         setError(api.errorMessage(sumError, 'Không tải được số dư thanh toán.'));
@@ -831,13 +841,33 @@ function BookingDetailPage() {
         navigate('/dang-nhap', { replace: true, state: { from: `/booking/${id}` } });
         return;
       }
-      if (!item) setError(api.errorMessage(e, 'Không tìm thấy vé này. Hãy đăng nhập đúng tài khoản đã đặt.'));
+      setError(api.errorMessage(e, !item ? 'Không tìm thấy vé này. Hãy đăng nhập đúng tài khoản đã đặt.'
+        : 'Chưa tải lại được số tiền vé. Hãy tải lại trước khi thanh toán.'));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { load(); }, [id, location.search]);
+
+  const applyCode = async (event) => {
+    event.preventDefault();
+    if (promotionBusy) return;
+    const code = promotionCode.trim();
+    if (!code) { setPromotionError('Hãy nhập mã ưu đãi.'); return; }
+    setPromotionBusy(true); setPromotionError(''); setPromotionMessage('');
+    try {
+      const response = await api.applyPromotion({ maBooking: id, maCode: code });
+      const data = response.data;
+      setItem((current) => ({ ...current, tongGiamGia: data.tongGiamGia ?? data.tongGiamGiaMoi,
+        thanhTien: data.thanhTien ?? data.thanhTienMoi }));
+      setSummary({});
+      setPromotionMessage(`Đã áp dụng mã ${code}, giảm ${money(data.soTienGiam)}.`);
+      setPromotionCode('');
+      await load();
+    } catch (e) { setPromotionError(api.errorMessage(e, 'Không thể áp dụng mã ưu đãi.')); }
+    finally { setPromotionBusy(false); }
+  };
 
   const pay = async (kind, amount) => {
     setError('');
@@ -892,10 +922,10 @@ function BookingDetailPage() {
         <div className="empty-state">
           <h2>Chưa xem được vé</h2>
           {error && <div className="form-error">{error}</div>}
-          {trim(item.trangThai) === 'ChoHoanTien' && (
+          {trim(item?.trangThai) === 'ChoHoanTien' && (
             <div className="success-message">Đã gửi yêu cầu hủy. Sale sẽ xác nhận hoàn tiền.</div>
           )}
-          {trim(item.trangThai) === 'DaHuy' && (
+          {trim(item?.trangThai) === 'DaHuy' && (
             <div className="success-message">Booking đã hủy.</div>
           )}
           <p>Đăng nhập đúng tài khoản khách đã đặt chỗ, rồi mở lại trang này.</p>
@@ -908,9 +938,11 @@ function BookingDetailPage() {
     );
   }
 
-  const remain = Number(summary.conLai ?? item.thanhTien ?? item.tongTien ?? 0);
-  const total = Number(summary.tongTien ?? item.thanhTien ?? item.tongTien ?? 0);
-  const paid = Number(summary.daThanhToan ?? 0);
+  const total = Number(item.thanhTien ?? summary.tongTien ?? item.tongTien ?? 0);
+  const paid = Number(summary.daThanhToan ?? item.tongDaThanhToan ?? 0);
+  const remain = Math.max(0, total - paid);
+  const discount = Number(item.tongGiamGia ?? 0);
+  const promotionAllowed = !['DaHuy', 'ChoHoanTien', 'HoanThanh'].includes(trim(item.trangThai));
   const deposit = remain > 0 ? Math.max(1, Math.min(Math.round(total * 0.3), remain)) : 0;
 
   return (
@@ -946,10 +978,25 @@ function BookingDetailPage() {
           {gatewayReturnStatus === 'invalid' && (
             <div className="form-error">Không xác minh được chữ ký trả về từ cổng thanh toán.</div>
           )}
-          <div className="total-row"><span>Tổng tiền</span><b>{money(total)}</b></div>
+          <div className="total-row"><span>Tổng tiền</span><b>{money(item.tongTien ?? total + discount)}</b></div>
+          <div className="total-row"><span>Giảm giá</span><b>{money(discount)}</b></div>
+          <div className="total-row"><span>Thành tiền</span><b>{money(total)}</b></div>
           <div className="total-row"><span>Đã thanh toán</span><b>{money(paid)}</b></div>
           <div className="total-row remain"><span>Còn lại</span><b>{money(remain)}</b></div>
-          {remain > 0 && (
+          {!balanceReady && <button type="button" className="outline-button full" disabled={loading || promotionBusy} onClick={load}>Tải lại số tiền</button>}
+          {promotionError && <div className="form-error" role="alert">{promotionError}</div>}
+          {promotionMessage && <div className="success-message" role="status">{promotionMessage}</div>}
+          {promotionAllowed && <form onSubmit={applyCode} aria-label="Áp mã ưu đãi" style={{ margin: '16px 0' }}>
+            <label style={{ display: 'grid', gap: 8 }}>Mã ưu đãi
+              <input value={promotionCode} maxLength={10} disabled={promotionBusy || loading} placeholder="Nhập mã ưu đãi"
+                onChange={(event) => setPromotionCode(event.target.value)} style={{ minWidth: 0, width: '100%' }} />
+            </label>
+            <button className="outline-button full" style={{ marginTop: 8 }} disabled={promotionBusy || loading}>
+              {promotionBusy ? 'Đang áp dụng…' : 'Áp dụng'}
+            </button>
+            <p className="muted">Áp mã trước khi tạo yêu cầu thanh toán. Cọc 30% tính trên thành tiền sau giảm.</p>
+          </form>}
+          {remain > 0 && promotionAllowed && (
             <div className="pay-actions">
               <label>
                 Phương thức thanh toán
@@ -960,10 +1007,10 @@ function BookingDetailPage() {
                   <option value="TienMat">Tiền mặt</option>
                 </select>
               </label>
-              <button className="primary-button full" onClick={() => pay('DatCoc', deposit)}>
+              <button className="primary-button full" disabled={promotionBusy || loading || !balanceReady} onClick={() => pay('DatCoc', deposit)}>
                 Đặt cọc 30% · {money(deposit)}
               </button>
-              <button className="outline-button full" onClick={() => pay('ThanhToanDu', remain)}>
+              <button className="outline-button full" disabled={promotionBusy || loading || !balanceReady} onClick={() => pay('ThanhToanDu', remain)}>
                 Thanh toán hết
               </button>
             </div>
@@ -1385,6 +1432,15 @@ function PromotionsPage() {
     api.promotions().then((r) => setItems(itemsOf(r))).catch((e) => setError(api.errorMessage(e)));
   }, []);
 
+  const copyCode = async (code) => {
+    setError(''); setCopied('');
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(trim(code));
+      setCopied(trim(code));
+    } catch { setError('Không sao chép tự động được. Bạn hãy chọn mã và sao chép thủ công.'); }
+  };
+
   return (
     <section className="page-section">
       <div className="page-heading">
@@ -1394,14 +1450,21 @@ function PromotionsPage() {
         </div>
       </div>
       {error && <div className="form-error">{error}</div>}
-      {copied && <div className="success-message">Đã sao chép mã {copied}</div>}
+      {copied && <div className="success-message">Đã sao chép mã {copied}. Dán mã khi xem vé.</div>}
+      <p className="muted">Sao chép mã rồi dán mã khi xem vé, trước khi thanh toán.</p>
       <div className="promo-grid">
         {items.map((item, n) => (
           <div className={n % 2 ? 'promo-card' : 'promo-card alt'} key={item.maKm}>
             <span>{item.maCode}</span>
             <h2>{item.tenKm}</h2>
             <p>Giảm {item.giamGia}{item.donVi === '%' ? '%' : ' đ'} · đến {dateText(item.ngayKt)}</p>
-            <button className="outline-button" onClick={() => { navigator.clipboard?.writeText(item.maCode); setCopied(item.maCode); }}>
+            {(item.dieuKien || []).map((condition, index) => <p key={condition.maDk || index}>
+              {condition.donToiThieu != null && `Đơn tối thiểu ${money(condition.donToiThieu)}. `}
+              {condition.lanDatDau && 'Chỉ cho lần đặt đầu. '}
+              {condition.soLuong != null && `Giới hạn ${condition.soLuong} lượt sử dụng.`}
+            </p>)}
+            <p>{item.maTours?.length ? `Tour áp dụng: ${item.maTours.join(', ')}` : 'Áp dụng mọi tour.'}</p>
+            <button className="outline-button" onClick={() => copyCode(item.maCode)}>
               Sao chép mã
             </button>
           </div>

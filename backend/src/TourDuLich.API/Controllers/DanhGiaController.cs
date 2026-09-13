@@ -67,9 +67,23 @@ public class DanhGiaController : ControllerBase
             })
             .ToListAsync();
 
+        // Return only the viewer's review separately, including when it is outside this page.
+        var maUser = GetCurrentMaUser();
+        var maUserDb = string.IsNullOrWhiteSpace(maUser) ? null : FixedLengthHelper.PadTo20(maUser);
+        var danhGiaCuaToi = maUserDb is null ? null : await query
+            .Where(item => item.MaUser == maUserDb)
+            .Select(item => new
+            {
+                maDanhGiaTour = FixedLengthHelper.TrimSafe(item.MaDanhGiaTour),
+                saoDanhGia = item.SaoDanhGia,
+                nhanXet = item.NhanXet,
+                thoiGian = item.ThoiGian
+            }).FirstOrDefaultAsync();
+
         return Ok(new
         {
             maTour = FixedLengthHelper.TrimSafe(maTourDb),
+            danhGiaCuaToi,
             diemTrungBinh,
             tongDanhGia,
             page,

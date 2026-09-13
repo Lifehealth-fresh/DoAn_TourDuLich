@@ -43,6 +43,8 @@ export const departures = (id) => api.get(`/api/Tour/${encodeURIComponent(id)}/l
 export const itinerary = (id) => api.get(`/api/LichTrinh/tour/${encodeURIComponent(id)}`);
 export const tourPhotos = (id) => api.get(`/api/Tour/${encodeURIComponent(id)}/anh`);
 export const reviews = (id) => api.get(`/api/DanhGia/tour/${encodeURIComponent(id)}`);
+export const createTourReview = (data) => api.post('/api/DanhGia/tour', data);
+export const updateTourReview = (id, data) => api.put(`/api/DanhGia/tour/${encodeURIComponent(id)}`, data);
 export const savedTours = () => api.get('/api/DanhSachYeuThich/cua-toi');
 export const saveTour = (data) => api.post('/api/DanhSachYeuThich', data);
 export const removeSavedTour = (id) => api.delete(`/api/DanhSachYeuThich/${encodeURIComponent(id)}`);
@@ -53,7 +55,7 @@ export const designRequestDetail = (id) => api.get(`/api/YeuCauThietKe/${encodeU
 export const createDesignRequest = (data) => api.post('/api/YeuCauThietKe', data);
 export const designProposals = (id) => api.get(`/api/YeuCauThietKe/${encodeURIComponent(id)}/de-xuat`);
 export const chooseProposal = (requestId, proposalId) => api.put(`/api/YeuCauThietKe/${encodeURIComponent(requestId)}/chon-de-xuat/${encodeURIComponent(proposalId)}`);
-export const bookings = () => api.get('/api/DatDichVu/cua-toi');
+export const bookings = (params) => api.get('/api/DatDichVu/cua-toi', { params });
 export const bookingDetail = (id) => api.get(`/api/DatDichVu/${encodeURIComponent(id)}`);
 export const createBooking = (data) => api.post('/api/DatDichVu', data);
 export const cancelBooking = (id) => api.put(`/api/DatDichVu/${encodeURIComponent(id)}/huy`);
@@ -75,6 +77,7 @@ export const createGatewayPayment = (data, config = {}) => api.post('/api/ThanhT
 });
 export const bookingContract = (id) => api.get(`/api/HopDong/theo-booking/${encodeURIComponent(id)}`);
 export const promotions = () => api.get('/api/KhuyenMai');
+export const applyPromotion = (data) => api.post('/api/KhuyenMai/ap-dung', data);
 export const logBehavior = (data) => api.post('/api/HanhViKhachHang', data);
 export const profile = () => api.get('/api/KhachHang');
 export const createProfile = (data) => api.post('/api/KhachHang', data);

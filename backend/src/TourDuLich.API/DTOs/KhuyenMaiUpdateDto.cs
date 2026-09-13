@@ -11,4 +11,6 @@ public class KhuyenMaiUpdateDto
     public bool? CoCongDon { get; set; }
     public string? MaNhomKm { get; set; }
     public string? TrangThai { get; set; }
+    public DieuKienKmCreateDto? DieuKien { get; set; }
+    public List<string>? MaTours { get; set; }
 }
