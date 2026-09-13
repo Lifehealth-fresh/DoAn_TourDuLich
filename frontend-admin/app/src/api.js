@@ -23,6 +23,17 @@ export const tourSchedule=id=>api.get(`/api/LichTrinh/tour/${encodeURIComponent(
 export const createTourSchedule=data=>api.post('/api/LichTrinh',data);
 export const deleteTourSchedule=id=>api.delete(`/api/LichTrinh/${encodeURIComponent(id)}`);
 export const sightseeingPlaces=()=>api.get('/api/DiemThamQuan');
+export const createSightseeing=data=>api.post('/api/DiemThamQuan',data);
+export const updateSightseeing=(id,data)=>api.put(`/api/DiemThamQuan/${encodeURIComponent(id)}`,data);
+export const deleteSightseeing=id=>api.delete(`/api/DiemThamQuan/${encodeURIComponent(id)}`);
+export const regions=()=>api.get('/api/KhuVuc');
+export const partners=(params)=>api.get('/api/DoiTac',{params});
+export const createPartner=data=>api.post('/api/DoiTac',data);
+export const updatePartner=(id,data)=>api.put(`/api/DoiTac/${encodeURIComponent(id)}`,data);
+export const deletePartner=id=>api.delete(`/api/DoiTac/${encodeURIComponent(id)}`);
+export const partnerProducts=(params)=>api.get('/api/SanPhamDoiTac',{params});
+export const createPartnerProduct=data=>api.post('/api/SanPhamDoiTac',data);
+export const deletePartnerProduct=id=>api.delete(`/api/SanPhamDoiTac/${encodeURIComponent(id)}`);
 export const designRequests=()=>api.get('/api/YeuCauThietKe/danh-sach');
 export const proposals=id=>api.get(`/api/YeuCauThietKe/${encodeURIComponent(id)}/de-xuat`);
 export const generate=id=>api.post(`/api/YeuCauThietKe/${encodeURIComponent(id)}/sinh-de-xuat`);

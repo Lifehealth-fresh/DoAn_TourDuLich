@@ -6,6 +6,7 @@ const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
 const dateText = (value) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
 const itemsOf = (response) => Array.isArray(response.data) ? response.data : response.data?.items || [];
+const rowsOf = itemsOf;
 const labels = { Moi: 'Mới gửi', Huy: 'Đã hủy', DangThietKe: 'Đang thiết kế', CanChinhSua: 'Cần chỉnh sửa', ChoKhachXacNhan: 'Chờ khách xác nhận', ChoDuyet: 'Chờ duyệt', DaDuyet: 'Đã duyệt' };
 const statusLabel = (value) => labels[trim(value)] || trim(value) || '—';
 const toRow = (item = {}) => ({ ngayThu: item.ngayThu ?? 1, thuTuTrongNgay: item.thuTuTrongNgay ?? 1, maDthamQuan: trim(item.maDthamQuan), maSanPham: trim(item.maSanPham), soLuong: item.soLuong ?? 1, mota: item.mota || '' });
@@ -26,6 +27,8 @@ export function DesignRequests() {
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
   const [lyDo, setLyDo] = useState('');
+  const [places, setPlaces] = useState([]);
+  const [products, setProducts] = useState([]);
   const selected = items.find((item) => item.maYeuCau === selectedId);
   const tourId = trim(selected?.maTourTao);
   const state = trim(schedule?.trangThai ?? selected?.trangThai);
@@ -35,6 +38,11 @@ export function DesignRequests() {
   const canEdit = !blocked && Boolean(tourId) && ['DangThietKe', 'CanChinhSua'].includes(state);
   const canSubmit = canEdit && !editing;
   const canApprove = !blocked && !editing && Boolean(tourId) && state === 'ChoDuyet';
+
+  useEffect(() => {
+    api.sightseeingPlaces().then((response) => setPlaces(rowsOf(response))).catch(() => {});
+    api.partnerProducts().then((response) => setProducts(rowsOf(response))).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -110,6 +118,22 @@ export function DesignRequests() {
     if (new Set(chiTiets.map((row) => `${row.ngayThu}-${row.thuTuTrongNgay}`)).size !== chiTiets.length) {
       setError('Không được trùng thứ tự trong cùng một ngày.'); return;
     }
+    const byDay = {};
+    chiTiets.forEach((row) => { (byDay[row.ngayThu] ||= []).push(row); });
+    const missingHotel = Object.values(byDay).some((dayRows) => {
+      const last = [...dayRows].sort((a, b) => a.thuTuTrongNgay - b.thuTuTrongNgay).at(-1);
+      const product = products.find((item) => item.maSanPham === last.maSanPham);
+      return !product || product.loaiDoiTac !== 'LuuTru';
+    });
+    if (missingHotel) { setError('Mỗi ngày phải kết thúc bằng khách sạn.'); return; }
+    const regionMismatch = Object.entries(byDay).some(([day, dayRows]) => {
+      const ids = dayRows.map((row) => row.maDthamQuan).filter(Boolean);
+      const region = places.find((place) => ids.includes(place.maDthamQuan))?.maKhuVuc;
+      const last = [...dayRows].sort((a, b) => a.thuTuTrongNgay - b.thuTuTrongNgay).at(-1);
+      const product = products.find((item) => item.maSanPham === last.maSanPham);
+      return region && product?.maKhuVuc && product.maKhuVuc !== region;
+    });
+    if (regionMismatch) { setError('Khách sạn phải cùng khu vực với điểm tham quan trong ngày.'); return; }
     act('save', { chiTiets });
   };
   const actionButton = (action, caption, allowed) => <button disabled={!allowed} style={{ opacity: allowed ? 1 : 0.5 }} onClick={() => act(action)}>{busy === action ? 'Đang xử lý…' : caption}</button>;
@@ -151,14 +175,31 @@ export function DesignRequests() {
             <header className="panel-head"><h2>Lịch trình hiện tại</h2>{!editing && canEdit && <button onClick={() => { setEditing(true); setError(''); setOk(''); }}>Sửa lịch trình</button>}</header>
             <p>Giá lịch trình đã lưu: <b>{money(schedule.tongGiaHienTai)}</b>. Máy chủ tính lại giá từ sản phẩm và số lượng khi lưu.</p>
             {editing ? <form onSubmit={save}>
-              <p>Nhập mã điểm tham quan hoặc mã sản phẩm có trong hệ thống. Lưu thay đổi hoặc hủy chỉnh sửa trước khi gửi duyệt.</p>
+              <p>Chọn điểm tham quan hoặc sản phẩm (khách sạn = loại lưu trú). Mỗi ngày dòng cuối phải là khách sạn, giá tính theo 1 đêm.</p>
               <div className="table">{rows.map((row, index) => <fieldset className="panel" key={index} disabled={Boolean(busy)}>
                 <legend>Dòng {index + 1}</legend>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
                   <label>Ngày thứ<input style={{ width: '100%' }} type="number" required min="1" max={Math.min(30, Math.max(1, selected.soNgay || 1))} step="1" value={row.ngayThu} onChange={(event) => changeRow(index, 'ngayThu', event.target.value)} /></label>
                   <label>Thứ tự trong ngày<input style={{ width: '100%' }} type="number" required min="1" max="2147483647" step="1" value={row.thuTuTrongNgay} onChange={(event) => changeRow(index, 'thuTuTrongNgay', event.target.value)} /></label>
-                  <label>Mã điểm tham quan<input style={{ width: '100%' }} maxLength={20} value={row.maDthamQuan} onChange={(event) => changeRow(index, 'maDthamQuan', event.target.value)} /></label>
-                  <label>Mã sản phẩm<input style={{ width: '100%' }} maxLength={20} value={row.maSanPham} onChange={(event) => changeRow(index, 'maSanPham', event.target.value)} /></label>
+                  <label>Điểm tham quan<select style={{ width: '100%' }} value={row.maDthamQuan} onChange={(event) => changeRow(index, 'maDthamQuan', event.target.value)}>
+                    <option value="">— không chọn điểm —</option>
+                    {places.map((place) => <option key={place.maDthamQuan} value={place.maDthamQuan}>{place.tenDiaDanh} ({place.tenKhuVuc || place.maKhuVuc || '—'})</option>)}
+                  </select></label>
+                  <label>Sản phẩm / khách sạn<select style={{ width: '100%' }} value={row.maSanPham} onChange={(event) => {
+                    const product = products.find((item) => item.maSanPham === event.target.value);
+                    changeRow(index, 'maSanPham', event.target.value);
+                    if (product?.loaiDoiTac === 'LuuTru') changeRow(index, 'soLuong', 1);
+                  }}>
+                    <option value="">— không chọn sản phẩm —</option>
+                    {products.filter((item) => {
+                      if (item.loaiDoiTac !== 'LuuTru') return true;
+                      const ids = rows.filter((line) => Number(line.ngayThu) === Number(row.ngayThu) && line.maDthamQuan).map((line) => line.maDthamQuan);
+                      const region = places.find((place) => ids.includes(place.maDthamQuan))?.maKhuVuc;
+                      return !region || item.maKhuVuc === region;
+                    }).map((item) => <option key={item.maSanPham} value={item.maSanPham}>
+                      {item.loaiDoiTac === 'LuuTru' ? 'KS' : 'SP'} · {item.tenDoiTac} · {item.tenSanPham} · {Number(item.giaNiemYet || 0).toLocaleString('vi-VN')}đ{item.loaiDoiTac === 'LuuTru' ? '/đêm' : ''}
+                    </option>)}
+                  </select></label>
                   <label>Số lượng<input style={{ width: '100%' }} type="number" required min="1" max="2147483647" step="1" value={row.soLuong} onChange={(event) => changeRow(index, 'soLuong', event.target.value)} /></label>
                   <div><label htmlFor={`design-description-${index}`}>Mô tả</label><textarea id={`design-description-${index}`} style={{ width: '100%' }} rows={2} value={row.mota} onChange={(event) => changeRow(index, 'mota', event.target.value)} /></div>
                 </div>
@@ -166,12 +207,25 @@ export function DesignRequests() {
               </fieldset>)}</div>
               <div className="inline">
                 <button type="button" disabled={Boolean(busy)} onClick={() => setRows((current) => [...current, toRow({ ngayThu: current.at(-1)?.ngayThu || 1, thuTuTrongNgay: Number(current.at(-1)?.thuTuTrongNgay || 0) + 1 })])}>Thêm dòng</button>
+                <button type="button" disabled={Boolean(busy)} onClick={() => {
+                  setRows((current) => {
+                    const day = Number(current.at(-1)?.ngayThu || 1);
+                    const ids = current.filter((row) => Number(row.ngayThu) === day && row.maDthamQuan).map((row) => row.maDthamQuan);
+                    const region = places.find((place) => ids.includes(place.maDthamQuan))?.maKhuVuc;
+                    const hotels = products.filter((item) => item.loaiDoiTac === 'LuuTru' && (!region || item.maKhuVuc === region));
+                    if (!hotels.length) { setError(region ? 'Chưa có khách sạn cùng khu vực với điểm trong ngày. Thêm ở mục Đối tác.' : 'Chưa có khách sạn đối tác. Hãy thêm ở mục Đối tác.'); return current; }
+                    const hotel = hotels[0];
+                    const order = Math.max(0, ...current.filter((row) => Number(row.ngayThu) === day).map((row) => Number(row.thuTuTrongNgay || 0))) + 1;
+                    setError('');
+                    return [...current, toRow({ ngayThu: day, thuTuTrongNgay: order, maSanPham: hotel.maSanPham, soLuong: 1, mota: `Nghỉ đêm: ${hotel.tenDoiTac} · ${hotel.tenSanPham}` })];
+                  });
+                }}>Thêm khách sạn cuối ngày</button>
                 <button disabled={!canEdit}>{busy === 'save' ? 'Đang lưu…' : 'Lưu lịch trình'}</button>
                 <button type="button" disabled={Boolean(busy)} onClick={() => { setEditing(false); setRows((schedule.lichTrinh || []).map(toRow)); setError(''); }}>Hủy chỉnh sửa</button>
               </div>
             </form> : <ol>{(schedule.lichTrinh || []).map((detail) => <li key={detail.maLichTrinh}>
-              <b>Ngày {detail.ngayThu} · Mục {detail.thuTuTrongNgay}: {detail.mota || detail.tenDiaDanh || detail.tenSanPham}</b>
-              <p>{detail.maDthamQuan || '—'} · {detail.maSanPham || 'Không kèm sản phẩm'} · SL {detail.soLuong} — {money(detail.thanhTien)}</p>
+              <b>Ngày {detail.ngayThu} · Mục {detail.thuTuTrongNgay}: {detail.laKhachSan ? `KS · ${detail.tenDoiTac || ''} · ${detail.tenSanPham}` : (detail.mota || detail.tenDiaDanh || detail.tenSanPham)}</b>
+              <p>{detail.laKhachSan ? `${money(detail.donGia || detail.thanhTien)} / đêm` : `${detail.maDthamQuan || '—'} · ${detail.maSanPham || 'Không kèm sản phẩm'} · SL ${detail.soLuong}`} — {money(detail.thanhTien)}</p>
             </li>)}</ol>}
           </section>}
           <h2>Đề xuất ban đầu</h2><div className="table">

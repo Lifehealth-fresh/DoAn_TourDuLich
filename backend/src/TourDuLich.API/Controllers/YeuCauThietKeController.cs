@@ -273,8 +273,15 @@ public class YeuCauThietKeController : ControllerBase
 
         var proposals = await _deXuatService.GenerateAsync(request, cancellationToken);
         if (proposals.Count == 0)
-            return BadRequest(new { message = "Không tìm thấy điểm tham quan phù hợp để sinh đề xuất." });
-        return Ok(proposals.Select(ToProposalResponse));
+            return BadRequest(new { message = "Không tìm thấy điểm tham quan cùng khu vực hoặc chưa có khách sạn (LuuTru) gắn khu vực đó." });
+        var saved = await _context.LichTrinhDeXuats.AsNoTracking()
+            .Where(item => item.MaYeuCau == request.MaYeuCau)
+            .Include(item => item.ChiTiets).ThenInclude(detail => detail.MaSanPhamNavigation)
+                .ThenInclude(product => product!.MaDoiTacNavigation)
+            .Include(item => item.ChiTiets).ThenInclude(detail => detail.MaDthamQuanNavigation)
+            .OrderBy(item => item.ThuTuPhuongAn)
+            .ToListAsync(cancellationToken);
+        return Ok(saved.Select(ToProposalResponse));
     }
 
     [HttpGet("{maYeuCau}/de-xuat")]
@@ -288,6 +295,10 @@ public class YeuCauThietKeController : ControllerBase
         var proposals = await _context.LichTrinhDeXuats.AsNoTracking()
             .Where(item => item.MaYeuCau == request.MaYeuCau)
             .Include(item => item.ChiTiets)
+                .ThenInclude(detail => detail.MaSanPhamNavigation)
+                    .ThenInclude(product => product!.MaDoiTacNavigation)
+            .Include(item => item.ChiTiets)
+                .ThenInclude(detail => detail.MaDthamQuanNavigation)
             .OrderBy(item => item.ThuTuPhuongAn)
             .ToListAsync(cancellationToken);
         return Ok(proposals.Select(ToProposalResponse));
@@ -419,11 +430,27 @@ public class YeuCauThietKeController : ControllerBase
         var productIds = request.ChiTiets.Where(item => !string.IsNullOrWhiteSpace(item.MaSanPham))
             .Select(item => FixedLengthHelper.PadTo20(item.MaSanPham)).Distinct().ToList();
         var points = await _context.DiemThamQuans.Where(item => pointIds.Contains(item.MaDthamQuan)).ToDictionaryAsync(item => item.MaDthamQuan, cancellationToken);
-        var products = await _context.SanPhamDoiTacs.Where(item => productIds.Contains(item.MaSanPham)).ToDictionaryAsync(item => item.MaSanPham, cancellationToken);
+        var products = await _context.SanPhamDoiTacs.Include(item => item.MaDoiTacNavigation)
+            .Where(item => productIds.Contains(item.MaSanPham)).ToDictionaryAsync(item => item.MaSanPham, cancellationToken);
         if (points.Count != pointIds.Count || products.Count != productIds.Count)
             return BadRequest(new { message = "Điểm tham quan hoặc sản phẩm trong lịch trình không tồn tại." });
         if (request.ChiTiets.Any(item => item.SoLuong <= 0 || (string.IsNullOrWhiteSpace(item.MaDthamQuan) && string.IsNullOrWhiteSpace(item.MaSanPham))))
             return BadRequest(new { message = "Mỗi dòng phải có điểm/sản phẩm và số lượng lớn hơn 0." });
+        var hotelError = HotelStayRules.MissingHotelMessage(request.ChiTiets.Select(item =>
+        {
+            var product = string.IsNullOrWhiteSpace(item.MaSanPham) ? null : products.GetValueOrDefault(FixedLengthHelper.PadTo20(item.MaSanPham));
+            return (item.NgayThu, item.ThuTuTrongNgay, product);
+        }));
+        if (hotelError is not null)
+            return BadRequest(new { message = hotelError });
+        var regionError = HotelStayRules.RegionMismatchMessage(request.ChiTiets.Select(item =>
+        {
+            var product = string.IsNullOrWhiteSpace(item.MaSanPham) ? null : products.GetValueOrDefault(FixedLengthHelper.PadTo20(item.MaSanPham));
+            var point = string.IsNullOrWhiteSpace(item.MaDthamQuan) ? null : points.GetValueOrDefault(FixedLengthHelper.PadTo20(item.MaDthamQuan));
+            return (item.NgayThu, point?.MaKhuVuc, product);
+        }));
+        if (regionError is not null)
+            return BadRequest(new { message = regionError });
 
         _context.LichTrinhs.RemoveRange(_context.LichTrinhs.Where(item => item.MaTour == tour.MaTour));
         var giaTour = 0;
@@ -480,6 +507,11 @@ public class YeuCauThietKeController : ControllerBase
                 maSanPham = l.MaSanPham == null ? null : l.MaSanPham.Trim(),
                 tenDiaDanh = l.MaDthamQuanNavigation == null ? null : l.MaDthamQuanNavigation.TenDiaDanh,
                 tenSanPham = l.MaSanPhamNavigation == null ? null : l.MaSanPhamNavigation.TenSanPham,
+                tenDoiTac = l.MaSanPhamNavigation == null ? null : l.MaSanPhamNavigation.MaDoiTacNavigation.TenDoiTac,
+                loaiDoiTac = l.MaSanPhamNavigation == null ? null : l.MaSanPhamNavigation.MaDoiTacNavigation.LoaiDoiTac.Trim(),
+                donViTinh = l.MaSanPhamNavigation == null ? null : l.MaSanPhamNavigation.DonViTinh,
+                laKhachSan = l.MaSanPhamNavigation != null &&
+                    l.MaSanPhamNavigation.MaDoiTacNavigation.LoaiDoiTac == FixedLengthHelper.PadTo20(HotelStayRules.LoaiLuuTru),
                 soLuong = l.SoLuong, donGia = l.DonGia, thanhTien = l.ThanhTien, mota = l.Mota
             }).ToListAsync(cancellationToken);
         var reason = DesignRevisionReason.Read(request.LyDoTuChoiBoiSale);
@@ -588,7 +620,13 @@ public class YeuCauThietKeController : ControllerBase
             ngayThu = detail.NgayThu,
             thuTuTrongNgay = detail.ThuTuTrongNgay,
             maDthamQuan = FixedLengthHelper.TrimSafe(detail.MaDthamQuan),
+            tenDiaDanh = detail.MaDthamQuanNavigation == null ? null : detail.MaDthamQuanNavigation.TenDiaDanh,
             maSanPham = FixedLengthHelper.TrimSafe(detail.MaSanPham),
+            tenSanPham = detail.MaSanPhamNavigation == null ? null : detail.MaSanPhamNavigation.TenSanPham,
+            tenDoiTac = detail.MaSanPhamNavigation == null ? null : detail.MaSanPhamNavigation.MaDoiTacNavigation.TenDoiTac,
+            loaiDoiTac = detail.MaSanPhamNavigation == null ? null : FixedLengthHelper.TrimSafe(detail.MaSanPhamNavigation.MaDoiTacNavigation.LoaiDoiTac),
+            donViTinh = detail.MaSanPhamNavigation == null ? null : detail.MaSanPhamNavigation.DonViTinh,
+            laKhachSan = HotelStayRules.IsHotelProduct(detail.MaSanPhamNavigation),
             soLuong = detail.SoLuong,
             donGia = detail.DonGia,
             thanhTien = detail.ThanhTien,
@@ -655,6 +693,21 @@ public class YeuCauThietKeController : ControllerBase
                 message = "Tour phải có ít nhất một dòng lịch trình trước khi gửi duyệt."
             });
         }
+
+        var schedule = await _context.LichTrinhs
+            .Include(item => item.MaSanPhamNavigation)
+                .ThenInclude(product => product!.MaDoiTacNavigation)
+            .Include(item => item.MaDthamQuanNavigation)
+            .Where(item => item.MaTour == requestData.Tour.MaTour)
+            .ToListAsync();
+        var hotelError = HotelStayRules.MissingHotelMessage(schedule.Select(item =>
+            (item.NgayThu ?? 0, item.ThuTuTrongNgay ?? 0, item.MaSanPhamNavigation)));
+        if (hotelError is not null)
+            return BadRequest(new { message = hotelError });
+        var regionError = HotelStayRules.RegionMismatchMessage(schedule.Select(item =>
+            (item.NgayThu ?? 0, item.MaDthamQuanNavigation?.MaKhuVuc, item.MaSanPhamNavigation)));
+        if (regionError is not null)
+            return BadRequest(new { message = regionError });
 
 
         requestData.Tour.TrangThai =

@@ -2,9 +2,9 @@
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
 using TourDuLich.Application.Helpers;
+using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
-
 using Microsoft.AspNetCore.Authorization;
 
 namespace TourDuLich.API.Controllers;
@@ -117,13 +117,12 @@ public class DoiTacController : ControllerBase
     [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> CreateDoiTac(DoiTacCreateDto request)
     {
-        if (string.IsNullOrWhiteSpace(request.MaDoiTac) ||
-            string.IsNullOrWhiteSpace(request.TenDoiTac) ||
+        if (string.IsNullOrWhiteSpace(request.TenDoiTac) ||
             string.IsNullOrWhiteSpace(request.LoaiDoiTac))
         {
             return BadRequest(new
             {
-                message = "Mã đối tác, tên đối tác và loại đối tác không được để trống."
+                message = "Tên đối tác và loại đối tác không được để trống."
             });
         }
 
@@ -137,7 +136,14 @@ public class DoiTacController : ControllerBase
             });
         }
 
-        var maDoiTacDb = FixedLengthHelper.PadTo20(request.MaDoiTac);
+        if (HotelStayRules.IsHotelPartner(loaiDoiTac) && string.IsNullOrWhiteSpace(request.MaKhuVuc))
+        {
+            return BadRequest(new { message = "Khách sạn phải gắn khu vực." });
+        }
+
+        var maDoiTacDb = string.IsNullOrWhiteSpace(request.MaDoiTac)
+            ? await GenerateMaDoiTacAsync()
+            : FixedLengthHelper.PadTo20(request.MaDoiTac);
 
         if (await _context.DoiTacs.AnyAsync(item => item.MaDoiTac == maDoiTacDb))
         {
@@ -232,6 +238,11 @@ public class DoiTacController : ControllerBase
             });
         }
 
+        if (HotelStayRules.IsHotelPartner(loaiDoiTac) && string.IsNullOrWhiteSpace(request.MaKhuVuc))
+        {
+            return BadRequest(new { message = "Khách sạn phải gắn khu vực." });
+        }
+
         string? maKhuVucDb = null;
 
         if (!string.IsNullOrWhiteSpace(request.MaKhuVuc))
@@ -295,5 +306,13 @@ public class DoiTacController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private async Task<string> GenerateMaDoiTacAsync()
+    {
+        string key;
+        do { key = FixedLengthHelper.PadTo20($"DT{Guid.NewGuid():N}"[..20].ToUpperInvariant()); }
+        while (await _context.DoiTacs.AnyAsync(item => item.MaDoiTac == key));
+        return key;
     }
 }

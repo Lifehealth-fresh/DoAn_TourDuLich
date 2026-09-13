@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
 using TourDuLich.Application.Helpers;
+using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
 
@@ -24,7 +25,9 @@ public class SanPhamDoiTacController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult> GetProducts(
         [FromQuery] string? maDoiTac = null,
-        [FromQuery] string? maDthamQuan = null)
+        [FromQuery] string? maDthamQuan = null,
+        [FromQuery] string? maKhuVuc = null,
+        [FromQuery] string? loaiDoiTac = null)
     {
         var query = _context.SanPhamDoiTacs
             .AsNoTracking()
@@ -42,19 +45,36 @@ public class SanPhamDoiTacController : ControllerBase
             query = query.Where(item => item.MaDthamQuan == maDthamQuanDb);
         }
 
+        if (!string.IsNullOrWhiteSpace(maKhuVuc))
+        {
+            var maKhuVucDb = FixedLengthHelper.PadTo20(maKhuVuc);
+            query = query.Where(item => item.MaDoiTacNavigation.MaKhuVuc == maKhuVucDb);
+        }
+
+        if (!string.IsNullOrWhiteSpace(loaiDoiTac))
+        {
+            var loaiDb = FixedLengthHelper.PadTo20(loaiDoiTac);
+            query = query.Where(item => item.MaDoiTacNavigation.LoaiDoiTac == loaiDb);
+        }
+
         var result = await query
             .Select(item => new
             {
                 maSanPham = FixedLengthHelper.TrimSafe(item.MaSanPham),
                 maDoiTac = FixedLengthHelper.TrimSafe(item.MaDoiTac),
                 tenDoiTac = item.MaDoiTacNavigation.TenDoiTac,
+                loaiDoiTac = FixedLengthHelper.TrimSafe(item.MaDoiTacNavigation.LoaiDoiTac),
+                maKhuVuc = FixedLengthHelper.TrimSafe(item.MaDoiTacNavigation.MaKhuVuc),
+                tenKhuVuc = item.MaDoiTacNavigation.MaKhuVucNavigation != null
+                    ? item.MaDoiTacNavigation.MaKhuVucNavigation.TenKhuVuc : null,
                 tenSanPham = item.TenSanPham,
                 donViTinh = item.DonViTinh,
                 giaNiemYet = item.GiaNiemYet,
                 maDthamQuan = FixedLengthHelper.TrimSafe(item.MaDthamQuan),
                 tenDiaDanh = item.MaDthamQuanNavigation!.TenDiaDanh,
                 mota = item.Mota,
-                trangThai = FixedLengthHelper.TrimSafe(item.TrangThai)
+                trangThai = FixedLengthHelper.TrimSafe(item.TrangThai),
+                laKhachSan = item.MaDoiTacNavigation.LoaiDoiTac == FixedLengthHelper.PadTo20(HotelStayRules.LoaiLuuTru)
             })
             .ToListAsync();
 
@@ -101,13 +121,12 @@ public class SanPhamDoiTacController : ControllerBase
     public async Task<ActionResult> CreateProduct(
         SanPhamDoiTacCreateDto request)
     {
-        if (string.IsNullOrWhiteSpace(request.MaSanPham) ||
-            string.IsNullOrWhiteSpace(request.MaDoiTac) ||
+        if (string.IsNullOrWhiteSpace(request.MaDoiTac) ||
             string.IsNullOrWhiteSpace(request.TenSanPham))
         {
             return BadRequest(new
             {
-                message = "Mã sản phẩm, mã đối tác và tên sản phẩm không được để trống."
+                message = "Mã đối tác và tên sản phẩm không được để trống."
             });
         }
 
@@ -119,7 +138,9 @@ public class SanPhamDoiTacController : ControllerBase
             });
         }
 
-        var maSanPhamDb = FixedLengthHelper.PadTo20(request.MaSanPham);
+        var maSanPhamDb = string.IsNullOrWhiteSpace(request.MaSanPham)
+            ? await GenerateMaSanPhamAsync()
+            : FixedLengthHelper.PadTo20(request.MaSanPham);
         var maDoiTacDb = FixedLengthHelper.PadTo20(request.MaDoiTac);
 
         if (await _context.SanPhamDoiTacs
@@ -128,14 +149,16 @@ public class SanPhamDoiTacController : ControllerBase
             return Conflict(new { message = "Mã sản phẩm đã tồn tại." });
         }
 
-        if (!await _context.DoiTacs
-            .AnyAsync(item => item.MaDoiTac == maDoiTacDb))
+        var partner = await _context.DoiTacs.AsNoTracking()
+            .FirstOrDefaultAsync(item => item.MaDoiTac == maDoiTacDb);
+        if (partner is null)
         {
-            return BadRequest(new
-            {
-                message = "Đối tác không tồn tại."
-            });
+            return BadRequest(new { message = "Đối tác không tồn tại." });
         }
+
+        var donViTinh = request.DonViTinh?.Trim();
+        if (HotelStayRules.IsHotelPartner(partner.LoaiDoiTac))
+            donViTinh = "dem";
 
         string? maDthamQuanDb = null;
 
@@ -158,7 +181,7 @@ public class SanPhamDoiTacController : ControllerBase
             MaSanPham = maSanPhamDb,
             MaDoiTac = maDoiTacDb,
             TenSanPham = request.TenSanPham.Trim(),
-            DonViTinh = request.DonViTinh?.Trim(),
+            DonViTinh = donViTinh,
             GiaNiemYet = request.GiaNiemYet,
             MaDthamQuan = maDthamQuanDb,
             Mota = request.Mota?.Trim(),
@@ -299,5 +322,13 @@ public class SanPhamDoiTacController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private async Task<string> GenerateMaSanPhamAsync()
+    {
+        string key;
+        do { key = FixedLengthHelper.PadTo20($"SP{Guid.NewGuid():N}"[..20].ToUpperInvariant()); }
+        while (await _context.SanPhamDoiTacs.AnyAsync(item => item.MaSanPham == key));
+        return key;
     }
 }

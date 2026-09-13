@@ -8,8 +8,9 @@ export default function CurrentDesignSchedule({schedule,busy,onRespond}) {
     <p>Giá tour hiện tại: <b>{money(schedule.giaTour)}</b></p>
     <p>Đây là lịch trình Admin/Sale đã lưu, không phải đề xuất ban đầu.</p>
     <ol>{(schedule.lichTrinh||[]).map(l=><li key={l.maLichTrinh}>
-      <b>Ngày {l.ngayThu} · Mục {l.thuTuTrongNgay}: {l.tenDiaDanh||l.tenSanPham||'Hoạt động'}</b>
-      <p>{l.mota}</p><p>{l.tenSanPham||'Không kèm sản phẩm'} · SL {l.soLuong} × {money(l.donGia)} = {money(l.thanhTien)}</p>
+      <b>Ngày {l.ngayThu} · Mục {l.thuTuTrongNgay}: {l.laKhachSan ? `Khách sạn · ${l.tenDoiTac||''} · ${l.tenSanPham}` : (l.tenDiaDanh||l.tenSanPham||'Hoạt động')}</b>
+      <p>{l.mota}</p>
+      <p>{l.laKhachSan ? `${money(l.donGia)} / đêm` : (l.tenSanPham||'Không kèm sản phẩm')} · SL {l.soLuong} × {money(l.donGia)} = {money(l.thanhTien)}</p>
     </li>)}</ol>
     {canRespond&&<>
       <button disabled={busy||!schedule.lichTrinh?.length} className="primary-button" onClick={()=>onRespond(null)}>Đồng ý lịch này</button>

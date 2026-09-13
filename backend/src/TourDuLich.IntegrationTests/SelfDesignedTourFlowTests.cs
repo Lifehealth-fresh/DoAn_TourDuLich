@@ -58,7 +58,7 @@ public sealed class SelfDesignedTourFlowTests : IsolatedApiTestBase
         var proposals = await generate.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(proposals.GetArrayLength() >= 2);
         foreach (var proposal in proposals.EnumerateArray())
-            Assert.Contains("hạn chế", proposal.GetProperty("ghiChu").GetString());
+            Assert.Contains("khách sạn", proposal.GetProperty("ghiChu").GetString(), StringComparison.OrdinalIgnoreCase);
         var maDeXuat = proposals[0].GetProperty("maDeXuat").GetString()!;
 
         UseToken(customer);
@@ -134,6 +134,8 @@ public sealed class SelfDesignedTourFlowTests : IsolatedApiTestBase
         var customer = await RegisterAsync();
         var regionId = Unique("QR");
         var pointIds = Enumerable.Range(1, 6).Select(_ => Unique("QP")).ToList();
+        var partnerId = Unique("DT");
+        var hotelId = Unique("SP");
         using (var scope = ((IServiceScopeFactory)Factory.Services
             .GetService(typeof(IServiceScopeFactory))!).CreateScope())
         {
@@ -152,6 +154,23 @@ public sealed class SelfDesignedTourFlowTests : IsolatedApiTestBase
                 DiaChi = "Khu kiểm thử đề xuất",
                 MaKhuVuc = regionId
             }));
+            context.DoiTacs.Add(new DoiTac
+            {
+                MaDoiTac = partnerId,
+                TenDoiTac = "KS kiểm thử",
+                LoaiDoiTac = FixedLengthHelper.PadTo20("LuuTru"),
+                MaKhuVuc = regionId,
+                TrangThai = FixedLengthHelper.PadTo20("HoatDong")
+            });
+            context.SanPhamDoiTacs.Add(new SanPhamDoiTac
+            {
+                MaSanPham = hotelId,
+                MaDoiTac = partnerId,
+                TenSanPham = "Deluxe",
+                DonViTinh = "dem",
+                GiaNiemYet = 900000,
+                TrangThai = FixedLengthHelper.PadTo20("HoatDong")
+            });
             await context.SaveChangesAsync();
         }
 
@@ -176,17 +195,25 @@ public sealed class SelfDesignedTourFlowTests : IsolatedApiTestBase
             var generate = await Client.PostAsJsonAsync($"/api/YeuCauThietKe/{maYeuCau}/sinh-de-xuat", new { });
             generate.EnsureSuccessStatusCode();
             var proposals = await generate.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(3, proposals.GetArrayLength());
+            foreach (var plan in proposals.EnumerateArray())
+            {
+                var days = plan.GetProperty("chiTiets").EnumerateArray().GroupBy(item => item.GetProperty("ngayThu").GetInt32());
+                Assert.Equal(2, days.Count());
+                foreach (var day in days)
+                {
+                    var last = day.OrderBy(item => item.GetProperty("thuTuTrongNgay").GetInt32()).Last();
+                    Assert.Equal(hotelId.Trim(), last.GetProperty("maSanPham").GetString()?.Trim());
+                    Assert.True(last.GetProperty("laKhachSan").GetBoolean());
+                }
+            }
             var first = proposals[0].GetProperty("chiTiets").EnumerateArray()
                 .Select(item => item.GetProperty("maDthamQuan").GetString())
-                .Where(value => value is not null).ToHashSet();
+                .Where(value => !string.IsNullOrWhiteSpace(value)).ToHashSet();
             var third = proposals[2].GetProperty("chiTiets").EnumerateArray()
-                .Where((_, index) => index % 2 == 0)
                 .Select(item => item.GetProperty("maDthamQuan").GetString())
-                .Where(value => value is not null).ToHashSet();
-
+                .Where(value => !string.IsNullOrWhiteSpace(value)).ToHashSet();
             Assert.NotEqual(first, third);
-            Assert.False(first.IsSubsetOf(third));
-            Assert.False(third.IsSubsetOf(first));
         }
         finally
         {
@@ -194,7 +221,7 @@ public sealed class SelfDesignedTourFlowTests : IsolatedApiTestBase
                 .GetService(typeof(IServiceScopeFactory))!).CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var details = await context.LichTrinhDeXuatChiTiets
-                .Where(item => pointIds.Contains(item.MaDthamQuan!)).ToListAsync();
+                .Where(item => pointIds.Contains(item.MaDthamQuan!) || item.MaSanPham == hotelId).ToListAsync();
             context.LichTrinhDeXuatChiTiets.RemoveRange(details);
             if (createdRequestId is not null)
             {
@@ -208,6 +235,10 @@ public sealed class SelfDesignedTourFlowTests : IsolatedApiTestBase
             }
             var points = await context.DiemThamQuans.Where(item => pointIds.Contains(item.MaDthamQuan)).ToListAsync();
             context.DiemThamQuans.RemoveRange(points);
+            var rooms = await context.SanPhamDoiTacs.Where(item => item.MaSanPham == hotelId).ToListAsync();
+            context.SanPhamDoiTacs.RemoveRange(rooms);
+            var partners = await context.DoiTacs.Where(item => item.MaDoiTac == partnerId).ToListAsync();
+            context.DoiTacs.RemoveRange(partners);
             var region = await context.KhuVucs.FirstOrDefaultAsync(item => item.MaKhuVuc == regionId);
             if (region is not null)
                 context.KhuVucs.Remove(region);

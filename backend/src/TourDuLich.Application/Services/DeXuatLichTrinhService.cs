@@ -15,50 +15,34 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
         YeuCauThietKe request, CancellationToken cancellationToken = default)
     {
         var destination = request.DiemDenMongMuon?.Trim() ?? string.Empty;
-        var directPoints = await _context.DiemThamQuans
-            .Include(item => item.MaKhuVucNavigation)
-            .Where(item => destination == string.Empty ||
-                (item.TenDiaDanh != null && item.TenDiaDanh.Contains(destination)) ||
-                (item.DiaChi != null && item.DiaChi.Contains(destination)) ||
-                (item.MaKhuVucNavigation != null && item.MaKhuVucNavigation.TenKhuVuc != null &&
-                 item.MaKhuVucNavigation.TenKhuVuc.Contains(destination)))
-            .OrderBy(item => item.MaDthamQuan)
-            .ToListAsync(cancellationToken);
-
-        var matchedRegionIds = directPoints
-            .Where(item => item.MaKhuVuc != null)
-            .Select(item => item.MaKhuVuc!)
-            .Distinct()
-            .ToList();
-        var directPointIds = directPoints.Select(item => item.MaDthamQuan).ToList();
-
-        var matchedPoints = await _context.DiemThamQuans
-            .Where(item => directPointIds.Contains(item.MaDthamQuan) ||
-                           (item.MaKhuVuc != null && matchedRegionIds.Contains(item.MaKhuVuc)))
-            .OrderBy(item => item.MaDthamQuan)
-            .ToListAsync(cancellationToken);
-
-        if (matchedPoints.Count == 0)
-        {
-            matchedPoints = await _context.DiemThamQuans
-                .OrderBy(item => item.MaDthamQuan)
-                .ToListAsync(cancellationToken);
-        }
-
-        if (matchedPoints.Count == 0)
+        var region = await ResolveRegionAsync(destination, cancellationToken);
+        if (region is null)
             return [];
 
-        var products = await _context.SanPhamDoiTacs
+        var points = await _context.DiemThamQuans.AsNoTracking()
+            .Where(item => item.MaKhuVuc == region.MaKhuVuc)
+            .OrderBy(item => item.MaDthamQuan)
+            .ToListAsync(cancellationToken);
+        if (points.Count == 0)
+            return [];
+
+        var active = FixedLengthHelper.PadTo20("HoatDong");
+        var luuTru = FixedLengthHelper.PadTo20(HotelStayRules.LoaiLuuTru);
+        var hotels = await _context.SanPhamDoiTacs
             .Include(item => item.MaDoiTacNavigation)
-            .Where(item => item.TrangThai == null || item.TrangThai == FixedLengthHelper.PadTo20("HoatDong"))
+            .Where(item =>
+                item.MaDoiTacNavigation.LoaiDoiTac == luuTru &&
+                item.MaDoiTacNavigation.MaKhuVuc == region.MaKhuVuc &&
+                (item.TrangThai == null || item.TrangThai == active) &&
+                (item.MaDoiTacNavigation.TrangThai == null || item.MaDoiTacNavigation.TrangThai == active))
             .OrderBy(item => item.GiaNiemYet)
             .ToListAsync(cancellationToken);
+        if (hotels.Count == 0)
+            return [];
 
         var days = Math.Clamp(request.SoNgay ?? 1, 1, 30);
-        var budget = request.NganSachDuKien;
         var plans = new List<LichTrinhDeXuat>();
 
-        // Heuristic tạm thời: chọn điểm/sản phẩm theo mức giá, không phải ML và độc lập với ai-service.
         for (var planNumber = 1; planNumber <= 3; planNumber++)
         {
             var plan = new LichTrinhDeXuat
@@ -72,49 +56,48 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
                     2 => "Phương án cân bằng",
                     _ => "Phương án cao cấp"
                 },
-                GhiChu = matchedPoints.Count < days * 3
-                    ? "Số điểm tham quan phù hợp với khu vực này còn hạn chế, một số điểm có thể lặp lại giữa các phương án."
-                    : "Đề xuất heuristic theo điểm tham quan, sản phẩm và ngân sách; chưa sử dụng ML.",
+                GhiChu = $"Đề xuất cùng khu vực {region.TenKhuVuc}. Mỗi ngày kết thúc bằng khách sạn (giá 1 đêm).",
                 TrangThai = FixedLengthHelper.PadTo20("DeXuat"),
                 NgayTao = DateTime.UtcNow
             };
 
-            var selectedPoints = SelectPointsForPlan(matchedPoints, days, planNumber);
-            for (var index = 0; index < selectedPoints.Count; index++)
+            var hotel = SelectHotel(hotels, planNumber);
+            var selectedPoints = SelectPointsForPlan(points, days, planNumber);
+            for (var day = 1; day <= days; day++)
             {
-                var selection = selectedPoints[index];
-                var point = selection.Point;
-                var pointProducts = products
-                    .Where(item => item.MaDthamQuan == point.MaDthamQuan ||
-                        (item.MaDoiTacNavigation.MaKhuVuc != null &&
-                         item.MaDoiTacNavigation.MaKhuVuc == point.MaKhuVuc))
-                    .ToList();
-                var product = SelectProduct(pointProducts, planNumber);
+                var dayPoints = selectedPoints.Where(item => item.NgayThu == day).ToList();
+                var order = 1;
+                foreach (var selection in dayPoints)
+                {
+                    var point = selection.Point;
+                    plan.ChiTiets.Add(new LichTrinhDeXuatChiTiet
+                    {
+                        MaChiTiet = await GenerateDetailIdAsync(cancellationToken),
+                        MaDeXuat = plan.MaDeXuat,
+                        NgayThu = day,
+                        ThuTuTrongNgay = order++,
+                        MaDthamQuan = point.MaDthamQuan,
+                        MaSanPham = null,
+                        SoLuong = 1,
+                        DonGia = 0,
+                        ThanhTien = 0,
+                        Mota = point.TenDiaDanh
+                    });
+                }
+
                 plan.ChiTiets.Add(new LichTrinhDeXuatChiTiet
                 {
                     MaChiTiet = await GenerateDetailIdAsync(cancellationToken),
                     MaDeXuat = plan.MaDeXuat,
-                    NgayThu = selection.NgayThu,
-                    ThuTuTrongNgay = selection.ThuTuTrongNgay,
-                    MaDthamQuan = point.MaDthamQuan,
-                    MaSanPham = product?.MaSanPham,
+                    NgayThu = day,
+                    ThuTuTrongNgay = order,
+                    MaDthamQuan = null,
+                    MaSanPham = hotel.MaSanPham,
                     SoLuong = 1,
-                    DonGia = product?.GiaNiemYet ?? 0,
-                    ThanhTien = TuThietKeTourPricing.CalculateLine(product?.GiaNiemYet ?? 0, 1),
-                    Mota = point.TenDiaDanh
+                    DonGia = hotel.GiaNiemYet,
+                    ThanhTien = TuThietKeTourPricing.CalculateLine(hotel.GiaNiemYet, 1),
+                    Mota = HotelStayRules.HotelCaption(hotel)
                 });
-            }
-
-            if (budget.HasValue && TuThietKeTourPricing.CalculateTotal(plan.ChiTiets.Select(item => item.ThanhTien)) > budget.Value)
-            {
-                foreach (var detail in plan.ChiTiets.OrderByDescending(item => item.ThanhTien))
-                {
-                    detail.MaSanPham = null;
-                    detail.DonGia = 0;
-                    detail.ThanhTien = 0;
-                    if (TuThietKeTourPricing.CalculateTotal(plan.ChiTiets.Select(item => item.ThanhTien)) <= budget.Value)
-                        break;
-                }
             }
 
             plan.TongTienDuKien = TuThietKeTourPricing.CalculateTotal(plan.ChiTiets.Select(item => item.ThanhTien));
@@ -132,46 +115,65 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
         return plans;
     }
 
+    private async Task<KhuVuc?> ResolveRegionAsync(string destination, CancellationToken cancellationToken)
+    {
+        if (destination.Length > 0)
+        {
+            var named = await _context.KhuVucs.AsNoTracking()
+                .Where(item => item.TenKhuVuc != null && item.TenKhuVuc.Contains(destination))
+                .OrderBy(item => item.MaKhuVuc)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (named is not null)
+                return named;
+
+            var fromPoint = await _context.DiemThamQuans.AsNoTracking()
+                .Include(item => item.MaKhuVucNavigation)
+                .Where(item =>
+                    (item.TenDiaDanh != null && item.TenDiaDanh.Contains(destination)) ||
+                    (item.DiaChi != null && item.DiaChi.Contains(destination)))
+                .Select(item => item.MaKhuVucNavigation)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (fromPoint is not null)
+                return fromPoint;
+        }
+
+        return await _context.KhuVucs.AsNoTracking()
+            .Where(item => _context.DiemThamQuans.Any(point => point.MaKhuVuc == item.MaKhuVuc) &&
+                           _context.DoiTacs.Any(partner =>
+                               partner.MaKhuVuc == item.MaKhuVuc &&
+                               partner.LoaiDoiTac == FixedLengthHelper.PadTo20(HotelStayRules.LoaiLuuTru)))
+            .OrderBy(item => item.MaKhuVuc)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     private static List<PointSelection> SelectPointsForPlan(
         IReadOnlyList<DiemThamQuan> points, int days, int planNumber)
     {
         if (points.Count == 0)
             return [];
 
-        var targetCount = planNumber == 3 && points.Count >= days * 2 ? days * 2 : days;
-        var ownGroup = points.Where((_, index) => index % 3 == planNumber - 1).ToList();
-        var selected = ownGroup.Take(targetCount).ToList();
-
-        // Bổ sung điểm chưa dùng trước khi cho phép lặp lại trong cùng phương án.
-        foreach (var point in points)
+        var perDay = planNumber == 3 && points.Count >= days * 2 ? 2 : 1;
+        var selected = new List<PointSelection>();
+        for (var day = 1; day <= days; day++)
         {
-            if (selected.Count >= targetCount)
-                break;
-            if (!selected.Contains(point))
-                selected.Add(point);
+            for (var slot = 1; slot <= perDay; slot++)
+            {
+                var index = ((day - 1) * perDay + (slot - 1) + (planNumber - 1)) % points.Count;
+                selected.Add(new PointSelection(points[index], day, slot));
+            }
         }
-
-        for (var index = 0; selected.Count < targetCount; index++)
-            selected.Add(points[index % points.Count]);
-
-        var dense = planNumber == 3 && targetCount == days * 2;
-        return selected.Select((point, index) => new PointSelection(
-            point,
-            dense ? index / 2 + 1 : index + 1,
-            dense ? index % 2 + 1 : 1)).ToList();
+        return selected;
     }
 
-    private static SanPhamDoiTac? SelectProduct(IReadOnlyList<SanPhamDoiTac> products, int planNumber)
+    private static SanPhamDoiTac SelectHotel(IReadOnlyList<SanPhamDoiTac> hotels, int planNumber)
     {
-        if (products.Count == 0)
-            return null;
         var index = planNumber switch
         {
             1 => 0,
-            2 => products.Count / 2,
-            _ => products.Count - 1
+            2 => hotels.Count / 2,
+            _ => hotels.Count - 1
         };
-        return products[index];
+        return hotels[index];
     }
 
     private sealed record PointSelection(DiemThamQuan Point, int NgayThu, int ThuTuTrongNgay);

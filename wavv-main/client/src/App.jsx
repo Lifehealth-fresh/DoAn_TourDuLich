@@ -643,7 +643,7 @@ function RecommendationPage() {
       ));
       setItems(detailed);
     } catch (e) {
-      setError(api.errorMessage(e, 'Dịch vụ gợi ý tạm thời chưa sẵn sàng.'));
+      setError(api.errorMessage(e, 'Chưa đủ dữ liệu gợi ý.'));
     } finally {
       setBusy(false);
     }
@@ -667,7 +667,7 @@ function RecommendationPage() {
         <button className="primary-button" onClick={() => load(true)}>{busy ? 'Đang tải...' : 'Làm mới gợi ý'}</button>
       </div>
       {error && <div className="form-error">{error}</div>}
-      {items.length ? <TourGrid items={items} /> : !busy && <div className="empty-state"><h2>Chưa có gợi ý.</h2><p>Xem vài tour rồi bấm làm mới — AI sẽ bắt đầu hiểu bạn.</p></div>}
+      {items.length ? <TourGrid items={items} /> : !busy && <div className="empty-state"><h2>Chưa đủ dữ liệu gợi ý.</h2><p>Xem vài tour rồi bấm làm mới. Hệ thống xếp tour theo lượt xem và đánh giá, không cần máy chủ gợi ý riêng.</p></div>}
     </section>
   );
 }

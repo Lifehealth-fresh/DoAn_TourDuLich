@@ -36,6 +36,7 @@ public class DiemThamQuanController : ControllerBase
                 tenDiaDanh = x.TenDiaDanh,
                 diaChi = x.DiaChi,
                 maKhuVuc = FixedLengthHelper.TrimSafe(x.MaKhuVuc),
+                tenKhuVuc = x.MaKhuVucNavigation != null ? x.MaKhuVucNavigation.TenKhuVuc : null,
                 kinhDo = x.KinhDo,
                 viDo = x.ViDo,
                 mota = x.Mota
@@ -61,6 +62,7 @@ public class DiemThamQuanController : ControllerBase
                 tenDiaDanh = x.TenDiaDanh,
                 diaChi = x.DiaChi,
                 maKhuVuc = FixedLengthHelper.TrimSafe(x.MaKhuVuc),
+                tenKhuVuc = x.MaKhuVucNavigation != null ? x.MaKhuVucNavigation.TenKhuVuc : null,
                 kinhDo = x.KinhDo,
                 viDo = x.ViDo,
                 mota = x.Mota
@@ -78,7 +80,9 @@ public class DiemThamQuanController : ControllerBase
     [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> CreateDiemThamQuan([FromBody] DiemThamQuanCreateDto dto)
     {
-        var maDthamQuan = FixedLengthHelper.PadTo20(dto.MaDthamQuan);
+        var maDthamQuan = string.IsNullOrWhiteSpace(dto.MaDthamQuan)
+            ? await GenerateMaDiemAsync()
+            : FixedLengthHelper.PadTo20(dto.MaDthamQuan);
 
         if (await _context.DiemThamQuans.AnyAsync(x => x.MaDthamQuan == maDthamQuan))
             return Conflict(new { message = "MaDthamQuan đã tồn tại." });
@@ -156,5 +160,13 @@ public class DiemThamQuanController : ControllerBase
         _context.DiemThamQuans.Remove(existing);
         await _context.SaveChangesAsync();
         return NoContent();
+    }
+
+    private async Task<string> GenerateMaDiemAsync()
+    {
+        string key;
+        do { key = FixedLengthHelper.PadTo20($"DD{Guid.NewGuid():N}"[..20].ToUpperInvariant()); }
+        while (await _context.DiemThamQuans.AnyAsync(item => item.MaDthamQuan == key));
+        return key;
     }
 }

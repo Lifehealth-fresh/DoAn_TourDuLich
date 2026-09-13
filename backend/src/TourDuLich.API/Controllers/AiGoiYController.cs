@@ -58,11 +58,12 @@ public class AiGoiYController : ControllerBase
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
         {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
-            {
-                message = "AI Recommendation Service hiện không khả dụng. Vui lòng thử lại sau."
-            });
+            _logger.LogWarning(ex, "AI service unavailable; using in-process ranking for {MaUser}.", maUserDb);
+            recommendations = await RankToursFallbackAsync(maUserDb, request.SoLuong, cancellationToken);
         }
+
+        if (recommendations.Count == 0)
+            recommendations = await RankToursFallbackAsync(maUserDb, request.SoLuong, cancellationToken);
 
         var now = DateTime.UtcNow;
         var saved = new List<AigoiY>();
@@ -125,6 +126,48 @@ public class AiGoiYController : ControllerBase
             _logger.LogError(exception, "Không thể đọc gợi ý AI cho user {MaUser}.", maUserDb);
             return Ok(new { items = Array.Empty<object>(), page, pageSize = Math.Clamp(pageSize, 1, 100), totalCount = 0 });
         }
+    }
+
+    private async Task<IReadOnlyList<AiRecommendationResult>> RankToursFallbackAsync(
+        string maUserDb, int soLuong, CancellationToken cancellationToken)
+    {
+        var chuan = FixedLengthHelper.PadTo20("Chuan");
+        var hoatDong = FixedLengthHelper.PadTo20("HoatDong");
+        var take = Math.Clamp(soLuong, 1, 50);
+        var views = await _context.HanhViKhachHangs.AsNoTracking()
+            .Where(item => item.MaUser == maUserDb && item.MaTour != null)
+            .GroupBy(item => item.MaTour!)
+            .Select(group => new { MaTour = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+        var ratings = await _context.DanhGiaTours.AsNoTracking()
+            .Where(item => item.MaTour != null)
+            .GroupBy(item => item.MaTour!)
+            .Select(group => new { MaTour = group.Key, Avg = group.Average(item => (double)(item.SaoDanhGia ?? 0)) })
+            .ToListAsync(cancellationToken);
+        var viewMap = views.ToDictionary(item => item.MaTour, item => item.Count, StringComparer.OrdinalIgnoreCase);
+        var ratingMap = ratings.ToDictionary(item => item.MaTour, item => item.Avg, StringComparer.OrdinalIgnoreCase);
+
+        var tours = await _context.Tours.AsNoTracking()
+            .Where(item => item.LoaiTour == chuan && (item.TrangThai == null || item.TrangThai == hoatDong))
+            .Select(item => new { item.MaTour, item.TenTour })
+            .ToListAsync(cancellationToken);
+
+        return tours.Select(tour =>
+        {
+            viewMap.TryGetValue(tour.MaTour, out var viewCount);
+            ratingMap.TryGetValue(tour.MaTour, out var avg);
+            var score = Math.Clamp(0.5 * Math.Min(1, viewCount / 5.0) + 0.3 * (avg / 5.0) + 0.2, 0, 1);
+            var reason = viewCount > 0
+                ? $"Gợi ý vì bạn đã xem tour {tour.TenTour}."
+                : avg >= 4
+                    ? $"Tour {tour.TenTour} được khách đánh giá cao."
+                    : $"Tour {tour.TenTour} đang mở bán, phù hợp để khám phá.";
+            return new AiRecommendationResult(tour.MaTour.Trim(), score, reason);
+        })
+        .OrderByDescending(item => item.DiemPhuHop)
+        .ThenBy(item => item.MaTour)
+        .Take(take)
+        .ToList();
     }
 
     private async Task<string> GenerateIdAsync(CancellationToken cancellationToken)

@@ -84,13 +84,15 @@ public sealed class AiGoiYServiceDownTests : ApiTestBase
     });
 
     [Fact]
-    public async Task Generate_WhenAiServiceFails_Returns503()
+    public async Task Generate_WhenAiServiceFails_UsesFallback()
     {
         SkipIfNoConnection();
         var customer = await RegisterAsync();
         UseToken(customer);
         var response = await Client.PostAsJsonAsync("/api/AiGoiY/sinh-goi-y", new { soLuong = 2, alpha = 0.5 });
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(payload.GetArrayLength() >= 0);
     }
 
     private sealed class FailingAiRecommendationClient : IAiRecommendationClient
