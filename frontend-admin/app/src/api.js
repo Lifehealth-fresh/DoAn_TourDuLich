@@ -52,6 +52,7 @@ export const createPromotion=data=>api.post('/api/KhuyenMai',data);
 export const updatePromotion=(id,data)=>api.put(`/api/KhuyenMai/${encodeURIComponent(id)}`,data);
 export const deletePromotion=id=>api.delete(`/api/KhuyenMai/${encodeURIComponent(id)}`);
 export const tourMedia=id=>api.get(`/api/AnhTour/theo-tour/${id}`); export const uploadTourMedia=(tourId,file,thuTu=0,isAvatar=false)=>{const data=new FormData();data.append('file',file);data.append('thuTu',String(thuTu));data.append('isAvatar',String(isAvatar));return api.post(`/api/AnhTour/theo-tour/${encodeURIComponent(tourId)}/upload`,data)}; export const replaceTourMedia=(mediaId,file,thuTu=0,isAvatar=false)=>{const data=new FormData();data.append('file',file);data.append('thuTu',String(thuTu));data.append('isAvatar',String(isAvatar));return api.put(`/api/AnhTour/${encodeURIComponent(mediaId)}/upload`,data)}; export const deleteMedia=id=>api.delete(`/api/AnhTour/${id}`);
+export const setTourCover=id=>api.put(`/api/AnhTour/${encodeURIComponent(id)}/dai-dien`);
 export default api;
 export const departures=id=>api.get('/api/Tour/'+encodeURIComponent(id)+'/lich-khoi-hanh');
 export const createDeparture=data=>api.post('/api/LichKhoiHanh',data);

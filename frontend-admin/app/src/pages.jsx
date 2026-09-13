@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as api from './api';
 import DepartureGuests from './DepartureGuests';
 import { useAuth } from './context';
-import { Notice } from './components';
+import { ExpandRecord, Notice } from './components';
 export { DesignRequests } from './DesignRequests';
 
 const v = (o, ...ks) => ks.map((k) => o?.[k]).find((x) => x !== undefined && x !== null);
@@ -212,54 +212,53 @@ export function BookingManagement() {
         </select>
       </form>
 
-      {item && (
-        <div className="panel">
-          <h3>{item.maBooking} · {item.tenTour}</h3>
-          <p>{item.hoTen || 'Khách'} · {item.soDienThoai || '—'} · đặt ngày {dateText(item.ngayDat)}</p>
-          <p>{item.slnguoiLon || 0} người lớn, {item.sltreEm || 0} trẻ em</p>
-          <div className="inline" aria-label="Số tiền booking" style={{ gap: 16 }}>
-            <div className="notice"><span>Thành tiền</span><br /><strong>{money(total)}</strong></div>
-            <div className="notice ok"><span>Đã thanh toán</span><br /><strong>{money(paid)}</strong></div>
-            <div className={`notice ${remaining > 0 ? 'error' : 'ok'}`}><span>Còn lại</span><br /><strong>{money(remaining)}</strong></div>
-          </div>
-          <button type="button" disabled={busy} onClick={() => openBooking(item.maBooking)}>Tải lại số tiền</button>
-          <p>Trạng thái: <em className={`badge ${String(item.trangThai || '').trim()}`}>{label(item.trangThai)}</em></p>
-          {paymentBlock && <p id="booking-payment-block" className="notice" role="status">{paymentBlock}</p>}
-          <div className="inline">
-            {next.map((s) => {
-              const cancelLocked = s === 'DaHuy' && paid > 0;
-              const paymentLocked = (s === 'DaXacNhan' && paid <= 0) || (s === 'DaThanhToan' && remaining > 0) || cancelLocked;
-              const disabled = busy || paymentLocked;
-              return <button key={s} className={s === 'DaHuy' ? 'danger' : undefined} disabled={disabled}
-                style={{ opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
-                title={cancelLocked ? 'Khách đã thanh toán. Chờ yêu cầu hủy rồi xác nhận hoàn tiền.' : undefined}
-                aria-describedby={paymentLocked ? 'booking-payment-block' : undefined} onClick={() => change(s)}>
-                {label(s)}
-              </button>;
-            })}
-            {state === 'ChoHoanTien' && (
-              <button type="button" disabled={busy} onClick={refund}>Xác nhận hoàn tiền</button>
-            )}
-            {!next.length && state !== 'ChoHoanTien' && <span className="muted">Không còn bước tiếp theo.</span>}
-          </div>
-        </div>
-      )}
-
       <div className="table">
         {items.map((x) => (
-          <button
-            type="button"
-            className={`row booking-row ${item?.maBooking === x.maBooking ? 'on' : ''}`}
-            key={x.maBooking}
-            disabled={busy}
-            onClick={() => openBooking(x.maBooking)}
-          >
-            <b>{x.maBooking}</b>
-            <span>{x.tenTour || x.maTour}</span>
-            <span>{x.hoTen || x.soDienThoai || '—'}</span>
-            <span>{money(x.thanhTien)}</span>
-            <em className={`badge ${String(x.trangThai || '').trim()}`}>{label(x.trangThai)}</em>
-          </button>
+          <ExpandRecord key={x.maBooking} open={item?.maBooking === x.maBooking} summary={
+            <button
+              type="button"
+              className={`row booking-row ${item?.maBooking === x.maBooking ? 'on' : ''}`}
+              disabled={busy}
+              onClick={() => item?.maBooking === x.maBooking ? (setItem(null), setId('')) : openBooking(x.maBooking)}
+            >
+              <b>{x.maBooking}</b>
+              <span>{x.tenTour || x.maTour}</span>
+              <span>{x.hoTen || x.soDienThoai || '—'}</span>
+              <span>{money(x.thanhTien)}</span>
+              <em className={`badge ${String(x.trangThai || '').trim()}`}>{label(x.trangThai)}</em>
+            </button>
+          }>
+            {item?.maBooking === x.maBooking && <>
+              <h3>{item.maBooking} · {item.tenTour}</h3>
+              <p>{item.hoTen || 'Khách'} · {item.soDienThoai || '—'} · đặt ngày {dateText(item.ngayDat)}</p>
+              <p>{item.slnguoiLon || 0} người lớn, {item.sltreEm || 0} trẻ em</p>
+              <div className="inline" aria-label="Số tiền booking" style={{ gap: 16 }}>
+                <div className="notice"><span>Thành tiền</span><br /><strong>{money(total)}</strong></div>
+                <div className="notice ok"><span>Đã thanh toán</span><br /><strong>{money(paid)}</strong></div>
+                <div className={`notice ${remaining > 0 ? 'error' : 'ok'}`}><span>Còn lại</span><br /><strong>{money(remaining)}</strong></div>
+              </div>
+              <button type="button" disabled={busy} onClick={() => openBooking(item.maBooking)}>Tải lại số tiền</button>
+              <p>Trạng thái: <em className={`badge ${String(item.trangThai || '').trim()}`}>{label(item.trangThai)}</em></p>
+              {paymentBlock && <p id="booking-payment-block" className="notice" role="status">{paymentBlock}</p>}
+              <div className="inline">
+                {next.map((s) => {
+                  const cancelLocked = s === 'DaHuy' && paid > 0;
+                  const paymentLocked = (s === 'DaXacNhan' && paid <= 0) || (s === 'DaThanhToan' && remaining > 0) || cancelLocked;
+                  const disabled = busy || paymentLocked;
+                  return <button key={s} className={s === 'DaHuy' ? 'danger' : undefined} disabled={disabled}
+                    style={{ opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+                    title={cancelLocked ? 'Khách đã thanh toán. Chờ yêu cầu hủy rồi xác nhận hoàn tiền.' : undefined}
+                    aria-describedby={paymentLocked ? 'booking-payment-block' : undefined} onClick={() => change(s)}>
+                    {label(s)}
+                  </button>;
+                })}
+                {state === 'ChoHoanTien' && (
+                  <button type="button" disabled={busy} onClick={refund}>Xác nhận hoàn tiền</button>
+                )}
+                {!next.length && state !== 'ChoHoanTien' && <span className="muted">Không còn bước tiếp theo.</span>}
+              </div>
+            </>}
+          </ExpandRecord>
         ))}
         {!items.length && !error && <p className="muted">Chưa có booking nào.</p>}
       </div>
@@ -279,6 +278,7 @@ export function TourAdminPage() {
   const [total, setTotal] = useState(0);
   const [listType, setListType] = useState('Chuan');
   const [selected, setSelected] = useState('');
+  const [creating, setCreating] = useState(false);
   const [detail, setDetail] = useState(null);
   const [schedule, setSchedule] = useState(null);
   const [places, setPlaces] = useState([]);
@@ -313,6 +313,7 @@ export function TourAdminPage() {
     if (results[0].status === 'rejected') throw results[0].reason;
     const data = results[0].value.data;
     setSelected(id);
+    setCreating(false);
     setDetail(data);
     setForm(toForm(data));
     setSchedule(results[1].status === 'fulfilled' ? results[1].value.data.lichTrinh ?? [] : null);
@@ -360,6 +361,7 @@ export function TourAdminPage() {
   const newTour = () => {
     if (busy) return;
     setSelected('');
+    setCreating(true);
     setDetail(null);
     setSchedule(null);
     setMedia(null);
@@ -369,7 +371,7 @@ export function TourAdminPage() {
     setFileKey((key) => key + 1);
     setE('');
     setMessage('');
-    document.getElementById('tour-form')?.scrollIntoView({ block: 'start' });
+    document.getElementById('tour-create')?.scrollIntoView({ block: 'nearest' });
   };
   const save = (event) => {
     event.preventDefault();
@@ -394,6 +396,7 @@ export function TourAdminPage() {
         const response = await api.createTour({ MaTour: form.MaTour.trim(), ...data });
         id = v(response.data, 'maTour', 'MaTour') || form.MaTour.trim();
         setSelected(id);
+        setCreating(false);
         setDetail({ ...response.data, trangThai: data.TrangThai });
         setForm({ ...form, MaTour: id });
         setMessage('Đã thêm tour ' + id + '.');
@@ -409,7 +412,7 @@ export function TourAdminPage() {
       setMessage(response.data?.message || 'Đã xóa tour ' + id + '.');
       if (response.status === 200) await loadDetails(id);
       else if (selected === id) {
-        setSelected(''); setDetail(null); setForm(emptyTour()); setSchedule(null); setMedia(null);
+        setSelected(''); setCreating(false); setDetail(null); setForm(emptyTour()); setSchedule(null); setMedia(null);
         setScheduleForm(emptySchedule()); setMediaForm(emptyMedia()); setFileKey((key) => key + 1);
       }
       await loadList();
@@ -496,52 +499,18 @@ export function TourAdminPage() {
           </select>
         </label>
       </div>
-      <div className="table" aria-label="Danh sách tour">
-        {items.map((item) => {
-          const id = v(item, 'maTour', 'MaTour');
-          const state = String(v(item, 'trangThai', 'TrangThai') || '').trim();
-          return (
-            <div className={'row' + (selected === id ? ' on' : '')} key={id}
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', cursor: busy ? 'wait' : 'pointer',
-                outline: selected === id ? '3px solid var(--gold)' : undefined }}
-              onClick={() => !busy && selectTour(id)}>
-              <button type="button" disabled={busy} aria-label={'Chọn tour ' + id}
-                onClick={(event) => { event.stopPropagation(); selectTour(id); }}>{id}</button>
-              <span>{v(item, 'tenTour', 'TenTour')}</span>
-              <span>Giá: {money(v(item, 'giaTour', 'GiaTour'))}</span>
-              <span>Số khách: {v(item, 'slkhach', 'Slkhach') ?? '—'}</span>
-              <span className="badge">{stateNames[state] || state}</span>
-              <div className="inline" style={{ margin: 0 }}>
-                <button type="button" disabled={busy} onClick={(event) => {
-                  event.stopPropagation();
-                  run(async () => { await loadDetails(id); document.getElementById('tour-form')?.scrollIntoView({ block: 'start' }); },
-                    'Không tải được đầy đủ thông tin để sửa tour.');
-                }}>Sửa</button>
-                <button type="button" className="danger" disabled={busy}
-                  onClick={(event) => { event.stopPropagation(); remove(id); }}>Xóa</button>
-              </div>
-            </div>
-          );
-        })}
-        {!items.length && !busy && <p>Không có tour trong danh sách này.</p>}
-      </div>
-      <div className="inline" style={{ marginTop: 18 }}>
-        <button type="button" disabled={busy || page <= 1} onClick={() => run(() => loadList(page - 1), 'Không tải được tour.')}>Trang trước</button>
-        <span>Trang {page} / {Math.max(1, Math.ceil(total / 50))} · {total} tour</span>
-        <button type="button" disabled={busy || page * 50 >= total} onClick={() => run(() => loadList(page + 1), 'Không tải được tour.')}>Trang sau</button>
-      </div>
-
-      <section className="panel" id="tour-form" style={{ marginBottom: 24 }}>
-        <h2>{selected ? 'Chi tiết / sửa tour ' + selected : 'Thêm tour'}</h2>
+      {creating && <div id="tour-create" className="create-slot record open"><div className="record-body">
+      <section className="panel" id="tour-create-form" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }}>
+        <h2>Thêm tour</h2>
         <form onSubmit={save} aria-label="Thông tin tour">
-          <fieldset disabled={busy || privateScheduleLocked} style={fieldset}>
+          <fieldset disabled={busy} style={fieldset}>
             <div style={grid}>
-              <label style={field}>Mã tour<input style={control} maxLength={20} required readOnly={!!selected}
+              <label style={field}>Mã tour<input style={control} maxLength={20} required
                 value={form.MaTour} onChange={setTourField('MaTour')} /></label>
               <label style={field}>Tên tour<input style={control} maxLength={150} required
                 value={form.TenTour} onChange={setTourField('TenTour')} /></label>
               <label style={field}>Số ngày (ThoiGian)<input style={control} type="number" min="1" max="2147483647" step="1"
-                required={!selected} value={form.ThoiGian} onChange={setTourField('ThoiGian')} /></label>
+                required value={form.ThoiGian} onChange={setTourField('ThoiGian')} /></label>
               <label style={field}>Giá tour (đ)<input style={control} type="number" min="0" max="2147483647" step="1" required
                 value={form.GiaTour} onChange={setTourField('GiaTour')} /></label>
               <label style={field}>Số khách<input style={control} type="number" min="1" max="2147483647" step="1" required
@@ -549,8 +518,7 @@ export function TourAdminPage() {
               <label style={field}>Số hướng dẫn viên<input style={control} type="number" min="0" max="2147483647" step="1"
                 value={form.SlhuongDanVien} onChange={setTourField('SlhuongDanVien')} /></label>
               <label style={field}>Loại tour<input style={control} readOnly required value={form.LoaiTour} /></label>
-              <label style={field}>Trạng thái tour<select aria-label="Trạng thái tour" style={control} required value={form.TrangThai} disabled={form.LoaiTour==='TuThietKe'} onChange={setTourField('TrangThai')}>
-                {!Object.hasOwn(stateNames, form.TrangThai) && <option value={form.TrangThai}>{form.TrangThai || 'Chọn trạng thái'}</option>}
+              <label style={field}>Trạng thái tour<select aria-label="Trạng thái tour" style={control} required value={form.TrangThai} onChange={setTourField('TrangThai')}>
                 {Object.entries(stateNames).map(([key, name]) => <option key={key} value={key}>{name} ({key})</option>)}
               </select></label>
               <label style={{ ...field, gridColumn: '1 / -1' }}>Mô tả tour<textarea aria-label="Mô tả tour" style={control} rows={3}
@@ -558,13 +526,75 @@ export function TourAdminPage() {
               <label style={{ ...field, gridColumn: '1 / -1' }}>Điều khoản<textarea aria-label="Điều khoản" style={control} rows={3}
                 value={form.DieuKhoan} onChange={setTourField('DieuKhoan')} /></label>
             </div>
-            <p className="muted">{selected ? 'Tour đang sửa thuộc loại ' + form.LoaiTour + '.' : 'Tour mới thuộc loại Chuan.'} Khi sửa, mã và loại tour được giữ nguyên; hãy lưu thông tin trước khi thao tác lịch trình/ảnh hoặc tải lại.</p>
-            <button type="submit">{selected ? 'Lưu thay đổi' : 'Thêm tour'}</button>
+            <p className="muted">Tour mới thuộc loại Chuan.</p>
+            <button type="submit">Thêm tour</button>
           </fieldset>
         </form>
       </section>
-
-      {selected && <>
+      </div></div>}
+      <div className="table" aria-label="Danh sách tour">
+        {items.map((item) => {
+          const id = v(item, 'maTour', 'MaTour');
+          const state = String(v(item, 'trangThai', 'TrangThai') || '').trim();
+          const open = selected === id && !creating;
+          return (
+            <ExpandRecord key={id} open={open} summary={
+              <div className={'row' + (open ? ' on' : '')}
+                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', cursor: busy ? 'wait' : 'pointer' }}
+                onClick={() => {
+                  if (busy) return;
+                  if (open) { setSelected(''); setCreating(false); }
+                  else selectTour(id);
+                }}>
+                <button type="button" disabled={busy} aria-label={'Chọn tour ' + id}
+                  onClick={(event) => { event.stopPropagation(); open ? (setSelected(''), setCreating(false)) : selectTour(id); }}>{id}</button>
+                <span>{v(item, 'tenTour', 'TenTour')}</span>
+                <span>Giá: {money(v(item, 'giaTour', 'GiaTour'))}</span>
+                <span>Số khách: {v(item, 'slkhach', 'Slkhach') ?? '—'}</span>
+                <span className="badge">{stateNames[state] || state}</span>
+                <div className="inline" style={{ margin: 0 }}>
+                  <button type="button" disabled={busy} onClick={(event) => {
+                    event.stopPropagation();
+                    selectTour(id);
+                  }}>Sửa</button>
+                  <button type="button" className="danger" disabled={busy}
+                    onClick={(event) => { event.stopPropagation(); remove(id); }}>Xóa</button>
+                </div>
+              </div>
+            }>
+              {open && <>
+                <section className="panel" id="tour-form" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }}>
+                  <h2>Chi tiết / sửa tour {selected}</h2>
+                  <form onSubmit={save} aria-label="Thông tin tour">
+                    <fieldset disabled={busy || privateScheduleLocked} style={fieldset}>
+                      <div style={grid}>
+                        <label style={field}>Mã tour<input style={control} maxLength={20} required readOnly
+                          value={form.MaTour} onChange={setTourField('MaTour')} /></label>
+                        <label style={field}>Tên tour<input style={control} maxLength={150} required
+                          value={form.TenTour} onChange={setTourField('TenTour')} /></label>
+                        <label style={field}>Số ngày (ThoiGian)<input style={control} type="number" min="1" max="2147483647" step="1"
+                          required value={form.ThoiGian} onChange={setTourField('ThoiGian')} /></label>
+                        <label style={field}>Giá tour (đ)<input style={control} type="number" min="0" max="2147483647" step="1" required
+                          value={form.GiaTour} onChange={setTourField('GiaTour')} /></label>
+                        <label style={field}>Số khách<input style={control} type="number" min="1" max="2147483647" step="1" required
+                          value={form.Slkhach} onChange={setTourField('Slkhach')} /></label>
+                        <label style={field}>Số hướng dẫn viên<input style={control} type="number" min="0" max="2147483647" step="1"
+                          value={form.SlhuongDanVien} onChange={setTourField('SlhuongDanVien')} /></label>
+                        <label style={field}>Loại tour<input style={control} readOnly required value={form.LoaiTour} /></label>
+                        <label style={field}>Trạng thái tour<select aria-label="Trạng thái tour" style={control} required value={form.TrangThai} disabled={form.LoaiTour==='TuThietKe'} onChange={setTourField('TrangThai')}>
+                          {!Object.hasOwn(stateNames, form.TrangThai) && <option value={form.TrangThai}>{form.TrangThai || 'Chọn trạng thái'}</option>}
+                          {Object.entries(stateNames).map(([key, name]) => <option key={key} value={key}>{name} ({key})</option>)}
+                        </select></label>
+                        <label style={{ ...field, gridColumn: '1 / -1' }}>Mô tả tour<textarea aria-label="Mô tả tour" style={control} rows={3}
+                          value={form.Mota} onChange={setTourField('Mota')} /></label>
+                        <label style={{ ...field, gridColumn: '1 / -1' }}>Điều khoản<textarea aria-label="Điều khoản" style={control} rows={3}
+                          value={form.DieuKhoan} onChange={setTourField('DieuKhoan')} /></label>
+                      </div>
+                      <p className="muted">Tour đang sửa thuộc loại {form.LoaiTour}. Khi sửa, mã và loại tour được giữ nguyên; hãy lưu thông tin trước khi thao tác lịch trình/ảnh hoặc tải lại.</p>
+                      <button type="submit">Lưu thay đổi</button>
+                    </fieldset>
+                  </form>
+                </section>
         <DepartureGuests key={selected} tourId={selected} defaultCapacity={detail?.slkhach??Number(form.Slkhach)} disabled={busy}/>
         <section className="panel" style={{ marginBottom: 24 }}>
           <h2>Lịch trình tour {selected}</h2>
@@ -634,12 +664,29 @@ export function TourAdminPage() {
                 <a href={item.url} target="_blank" rel="noreferrer">Xem media</a>
                 <button type="button" className="danger" disabled={busy} aria-label={'Xóa ảnh ' + item.maAnhTour}
                   onClick={() => removeMedia(item.maAnhTour)}>Xóa ảnh/video</button>
+                {item.loaiMedia !== 'Video' && <button type="button" disabled={busy || item.isAvatar}
+                  onClick={() => run(async () => {
+                    await api.setTourCover(item.maAnhTour);
+                    setMessage('Đã đặt ảnh đại diện. Trang chủ khách dùng ảnh này.');
+                    await loadDetails(selected);
+                    await loadList();
+                  }, 'Không đặt được ảnh đại diện.')}>Đặt làm đại diện</button>}
               </div>
             </div>)}
             {!media.length && <p>Chưa có ảnh/video.</p>}
           </div>}
         </section>
-      </>}
+              </>}
+            </ExpandRecord>
+          );
+        })}
+        {!items.length && !busy && <p>Không có tour trong danh sách này.</p>}
+      </div>
+      <div className="inline" style={{ marginTop: 18 }}>
+        <button type="button" disabled={busy || page <= 1} onClick={() => run(() => loadList(page - 1), 'Không tải được tour.')}>Trang trước</button>
+        <span>Trang {page} / {Math.max(1, Math.ceil(total / 50))} · {total} tour</span>
+        <button type="button" disabled={busy || page * 50 >= total} onClick={() => run(() => loadList(page + 1), 'Không tải được tour.')}>Trang sau</button>
+      </div>
     </div>
   );
 }

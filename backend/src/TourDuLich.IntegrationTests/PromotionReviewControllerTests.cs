@@ -272,12 +272,13 @@ public sealed class PromotionReviewControllerTests
     }
 
     [Fact]
-    public async Task Promotion_UsedCodeIsDeactivated_NotDeleted()
+    public async Task Promotion_UsedCodeCannotBeDeleted()
     {
         using var db = new MemoryContext();
         db.Discounts.Add(new DatDichVuKhuyenMai { MaBooking = Key("OTHER"), MaKhuyenMai = db.Promotion.MaKm });
-        Assert.IsType<OkObjectResult>(await Promotions(db, "Sale").Delete("KM1"));
-        Assert.Equal(Key("NgungHoatDong"), db.Promotion.TrangThai); Assert.Single(db.Discounts); Assert.Single(db.Promos);
+        Assert.IsType<ConflictObjectResult>(await Promotions(db, "Sale").Delete("KM1"));
+        Assert.Equal(Key("HoatDong"), db.Promotion.TrangThai);
+        Assert.Single(db.Promos);
     }
 
     [Fact]

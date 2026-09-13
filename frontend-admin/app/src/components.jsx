@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Link, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from './context';
 
@@ -27,3 +28,16 @@ export function Layout() {
 }
 
 export const Notice = ({ error }) => (error ? <div className="notice error">{error}</div> : null);
+
+export function ExpandRecord({ open, summary, children }) {
+  const body = useRef(null);
+  useEffect(() => {
+    if (open) body.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [open]);
+  return (
+    <article className={'record' + (open ? ' open' : '')}>
+      <div className="record-head">{summary}</div>
+      {open ? <div className="record-body" ref={body}>{children}</div> : null}
+    </article>
+  );
+}

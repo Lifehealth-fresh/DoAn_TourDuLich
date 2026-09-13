@@ -151,10 +151,11 @@ public class KhuyenMaiController : ControllerBase
         if (entity is null) return NotFound(new { message = $"Không tìm thấy khuyến mãi '{maKm}'." });
         if (await _context.DatDichVuKhuyenMais.AnyAsync(item => item.MaKhuyenMai == key))
         {
-            entity.TrangThai = FixedLengthHelper.PadTo20("NgungHoatDong");
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return Ok(new { message = "Khuyến mãi đã được sử dụng — đã chuyển sang trạng thái NgungHoatDong." });
+            await transaction.RollbackAsync();
+            return Conflict(new
+            {
+                message = "Không xóa được vì đã có vé dùng mã này. Hãy sửa trạng thái thành Ngừng hoạt động."
+            });
         }
         _context.DieuKienKms.RemoveRange(await _context.DieuKienKms.Where(item => item.MaKhuyenMai == key).ToListAsync());
         _context.KmTours.RemoveRange(await _context.KmTours.Where(item => item.MaKhuyenMai == key).ToListAsync());

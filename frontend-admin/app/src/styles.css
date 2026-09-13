@@ -90,3 +90,21 @@ button {
   .row { grid-template-columns: 1fr; }
   .stats { grid-template-columns: 1fr 1fr; }
 }
+
+.record { width: 100%; display: grid; gap: 0; }
+.record-head .row, .record-head.row { margin: 0; }
+.record-head { cursor: pointer; }
+.record-body {
+  background: #fffdf8;
+  border: 2px solid var(--ink);
+  border-top: 0;
+  padding: 16px 18px 20px;
+  max-height: min(72vh, 920px);
+  overflow: auto;
+  box-shadow: 5px 5px 0 rgba(28, 54, 88, 0.12);
+}
+.record.open .record-head .row,
+.record.open .booking-row { outline: 3px solid var(--gold); }
+.create-slot { margin: 12px 0 18px; }
+.create-slot .record-body { border-top: 2px solid var(--ink); }
+

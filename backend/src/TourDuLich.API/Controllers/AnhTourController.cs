@@ -80,6 +80,14 @@ public class AnhTourController : ControllerBase
         {
             return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
         }
+        if (request.IsAvatar == true)
+        {
+            var others = await _context.AnhTours
+                .Where(item => item.MaTour == maTourDb && item.IsAvatar == true)
+                .ToListAsync(cancellationToken);
+            foreach (var item in others)
+                item.IsAvatar = false;
+        }
         var media = new AnhTour
         {
             MaAnhTour = await GenerateIdAsync(),
@@ -105,6 +113,23 @@ public class AnhTourController : ControllerBase
         }
 
         return CreatedAtAction(nameof(GetByTour), new { maTour = FixedLengthHelper.TrimSafe(maTourDb) }, ToResponse(media));
+    }
+
+    [HttpPut("{maAnhTour}/dai-dien")]
+    [Authorize(Roles = "Sale,Admin")]
+    public async Task<ActionResult> SetAvatar(string maAnhTour, CancellationToken cancellationToken)
+    {
+        var key = FixedLengthHelper.PadTo20(maAnhTour);
+        var media = await _context.AnhTours.FirstOrDefaultAsync(item => item.MaAnhTour == key, cancellationToken);
+        if (media is null)
+            return NotFound(new { message = "Không tìm thấy media tour." });
+        if (FixedLengthHelper.TrimSafe(media.LoaiMedia) == "Video")
+            return BadRequest(new { message = "Chỉ đặt ảnh làm đại diện, không dùng video." });
+        var others = await _context.AnhTours.Where(item => item.MaTour == media.MaTour).ToListAsync(cancellationToken);
+        foreach (var item in others)
+            item.IsAvatar = item.MaAnhTour == media.MaAnhTour;
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(ToResponse(media));
     }
 
     [HttpPut("{maAnhTour}")]

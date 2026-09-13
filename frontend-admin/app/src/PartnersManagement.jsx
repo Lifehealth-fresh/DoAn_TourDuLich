@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
-import { Notice } from './components';
+import { ExpandRecord, Notice } from './components';
 
 const types = [
   { id: 'LuuTru', label: 'Khách sạn / lưu trú' },
@@ -12,6 +12,11 @@ const money = (n) => Number(n || 0).toLocaleString('vi-VN') + ' đ';
 const rows = (response) => Array.isArray(response.data) ? response.data : response.data.items || [];
 const emptyPartner = () => ({ tenDoiTac: '', loaiDoiTac: 'LuuTru', maKhuVuc: '', nguoiLienHe: '', soDienThoai: '', email: '', trangThai: 'HoatDong' });
 const emptyRoom = () => ({ tenSanPham: 'Phòng Deluxe', donViTinh: 'dem', giaNiemYet: 1200000, mota: '', trangThai: 'HoatDong' });
+const fill = (item) => ({
+  tenDoiTac: item.tenDoiTac || '', loaiDoiTac: item.loaiDoiTac || 'LuuTru', maKhuVuc: item.maKhuVuc || '',
+  nguoiLienHe: item.nguoiLienHe || '', soDienThoai: item.soDienThoai || '', email: item.email || '',
+  trangThai: item.trangThai || 'HoatDong',
+});
 
 export default function PartnersManagement() {
   const [partners, setPartners] = useState([]);
@@ -20,6 +25,7 @@ export default function PartnersManagement() {
   const [form, setForm] = useState(emptyPartner);
   const [room, setRoom] = useState(emptyRoom);
   const [selected, setSelected] = useState('');
+  const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -32,6 +38,11 @@ export default function PartnersManagement() {
     load().catch((e) => setError(api.errorMessage(e, 'Không tải được đối tác.'))).finally(() => setBusy(false));
   }, []);
   const field = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+  const open = (item) => { setCreating(false); setSelected(item.maDoiTac); setForm(fill(item)); setRoom(emptyRoom()); };
+  const toggle = (item) => {
+    if (selected === item.maDoiTac) { setSelected(''); setCreating(false); return; }
+    open(item);
+  };
   const save = (event) => {
     event.preventDefault();
     if (busy) return;
@@ -42,7 +53,7 @@ export default function PartnersManagement() {
     run.then(async (response) => {
       setMessage(selected ? 'Đã cập nhật đối tác.' : 'Đã thêm đối tác.');
       const id = selected || response.data.maDoiTac;
-      setSelected(id);
+      setCreating(false); setSelected(id);
       await load();
     }).catch((e) => setError(api.errorMessage(e, 'Không lưu được đối tác.'))).finally(() => setBusy(false));
   };
@@ -51,7 +62,7 @@ export default function PartnersManagement() {
     setBusy(true); setError(''); setMessage('');
     api.deletePartner(id).then(async () => {
       setMessage('Đã xóa đối tác.');
-      if (selected === id) { setSelected(''); setForm(emptyPartner()); }
+      if (selected === id) { setSelected(''); setCreating(false); setForm(emptyPartner()); }
       await load();
     }).catch((e) => setError(api.errorMessage(e, 'Không xóa được đối tác.'))).finally(() => setBusy(false));
   };
@@ -75,24 +86,9 @@ export default function PartnersManagement() {
       .catch((e) => setError(api.errorMessage(e, 'Không xóa được sản phẩm.'))).finally(() => setBusy(false));
   };
   const rooms = products.filter((item) => item.maDoiTac === selected);
-
-  return <div>
-    <h1>Đối tác và khách sạn</h1>
-    <p className="muted">Khách sạn (LuuTru) bắt buộc chọn khu vực để tự thiết kế ghép đúng vùng.</p>
-    <Notice error={error} />{message && <div className="notice ok">{message}</div>}
-    <button disabled={busy} onClick={() => { setSelected(''); setForm(emptyPartner()); }}>Thêm đối tác</button>
-    <div className="table">
-      {partners.map((item) => <div className="row" key={item.maDoiTac} style={{ outline: selected === item.maDoiTac ? '3px solid var(--gold)' : undefined }}>
-        <b>{item.tenDoiTac}</b><span>{types.find((t) => t.id === item.loaiDoiTac)?.label || item.loaiDoiTac}</span>
-        <span>{item.tenKhuVuc || item.maKhuVuc || '—'}</span>
-        <div className="inline">
-          <button disabled={busy} onClick={() => { setSelected(item.maDoiTac); setForm({ tenDoiTac: item.tenDoiTac || '', loaiDoiTac: item.loaiDoiTac || 'LuuTru', maKhuVuc: item.maKhuVuc || '', nguoiLienHe: item.nguoiLienHe || '', soDienThoai: item.soDienThoai || '', email: item.email || '', trangThai: item.trangThai || 'HoatDong' }); }}>Sửa</button>
-          <button className="danger" disabled={busy} onClick={() => remove(item.maDoiTac)}>Xóa</button>
-        </div>
-      </div>)}
-    </div>
-    <form className="panel" onSubmit={save} style={{ marginTop: 24 }}>
-      <h2>{selected ? 'Sửa đối tác' : 'Thêm đối tác'}</h2>
+  const editor = (
+    <form className="panel" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }} onSubmit={save}>
+      <h2>{selected ? 'Sửa đối tác' : 'Thêm đối tác mới'}</h2>
       <label>Tên<input required maxLength={150} value={form.tenDoiTac} onChange={field('tenDoiTac')} /></label>
       <label>Loại<select value={form.loaiDoiTac} onChange={field('loaiDoiTac')}>
         {types.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
@@ -109,19 +105,41 @@ export default function PartnersManagement() {
       </select></label>
       <button disabled={busy} style={{ marginTop: 12 }}>{selected ? 'Lưu đối tác' : 'Thêm đối tác'}</button>
     </form>
-    {selectedPartner && <section className="panel">
-      <h2>Sản phẩm / loại phòng của {selectedPartner.tenDoiTac}</h2>
-      <ul>{rooms.map((item) => <li key={item.maSanPham}>
-        <b>{item.tenSanPham}</b> · {item.donViTinh || '—'} · {money(item.giaNiemYet)}
-        <button className="danger" disabled={busy} onClick={() => removeProduct(item.maSanPham)}>Xóa</button>
-      </li>)}</ul>
-      <form onSubmit={saveRoom}>
-        <h3>Thêm {selectedPartner.loaiDoiTac === 'LuuTru' ? 'loại phòng (giá 1 đêm)' : 'sản phẩm'}</h3>
-        <label>Tên / loại phòng<input required value={room.tenSanPham} onChange={(e) => setRoom({ ...room, tenSanPham: e.target.value })} /></label>
-        <label>Giá<input type="number" required min="1" value={room.giaNiemYet} onChange={(e) => setRoom({ ...room, giaNiemYet: e.target.value })} /></label>
-        <label>Mô tả<textarea rows={2} value={room.mota} onChange={(e) => setRoom({ ...room, mota: e.target.value })} /></label>
-        <button disabled={busy}>Thêm</button>
-      </form>
-    </section>}
+  );
+
+  return <div>
+    <h1>Đối tác và khách sạn</h1>
+    <p className="muted">Khách sạn (LuuTru) bắt buộc chọn khu vực để tự thiết kế ghép đúng vùng.</p>
+    <Notice error={error} />{message && <div className="notice ok">{message}</div>}
+    <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(emptyPartner()); requestAnimationFrame(() => document.getElementById('partner-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm đối tác</button>
+    {creating && <div id="partner-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
+    <div className="table">
+      {partners.map((item) => <ExpandRecord key={item.maDoiTac} open={selected === item.maDoiTac} summary={
+        <div className="row" style={{ cursor: busy ? 'wait' : 'pointer' }} onClick={() => { if (!busy) toggle(item); }}>
+          <b>{item.tenDoiTac}</b><span>{types.find((t) => t.id === item.loaiDoiTac)?.label || item.loaiDoiTac}</span>
+          <span>{item.tenKhuVuc || item.maKhuVuc || '—'}</span>
+          <div className="inline" style={{ margin: 0 }}>
+            <button disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa</button>
+            <button className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item.maDoiTac); }}>Xóa</button>
+          </div>
+        </div>
+      }>
+        {editor}
+        {selectedPartner && <section style={{ marginTop: 16 }}>
+          <h2>Sản phẩm / loại phòng của {selectedPartner.tenDoiTac}</h2>
+          <ul>{rooms.map((roomItem) => <li key={roomItem.maSanPham}>
+            <b>{roomItem.tenSanPham}</b> · {roomItem.donViTinh || '—'} · {money(roomItem.giaNiemYet)}
+            <button className="danger" disabled={busy} onClick={() => removeProduct(roomItem.maSanPham)}>Xóa</button>
+          </li>)}</ul>
+          <form onSubmit={saveRoom}>
+            <h3>Thêm {selectedPartner.loaiDoiTac === 'LuuTru' ? 'loại phòng (giá 1 đêm)' : 'sản phẩm'}</h3>
+            <label>Tên / loại phòng<input required value={room.tenSanPham} onChange={(e) => setRoom({ ...room, tenSanPham: e.target.value })} /></label>
+            <label>Giá<input type="number" required min="1" value={room.giaNiemYet} onChange={(e) => setRoom({ ...room, giaNiemYet: e.target.value })} /></label>
+            <label>Mô tả<textarea rows={2} value={room.mota} onChange={(e) => setRoom({ ...room, mota: e.target.value })} /></label>
+            <button disabled={busy}>Thêm</button>
+          </form>
+        </section>}
+      </ExpandRecord>)}
+    </div>
   </div>;
 }

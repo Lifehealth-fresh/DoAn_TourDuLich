@@ -100,15 +100,22 @@ const TOUR_EXTRA = {
 };
 
 const pickImage = (item) => {
-  const remote = item.avatarUrl || item.imageUrl || item.url;
+  const remote = item.anhDaiDien || item.avatarUrl || item.imageUrl || item.url;
   if (remote) return remote;
   const id = trim(item.maTour);
   return TOUR_IMAGES[id]?.[0] || fallbackImage;
 };
 
+const pickCoverUrl = (photos = []) => {
+  const images = photos.filter((p) => trim(p.loaiMedia) !== 'Video');
+  const cover = images.find((p) => p.isAvatar) || images[0];
+  return cover?.url || cover?.imageUrl || '';
+};
+
 const normalizeTour = (item) => {
   const id = trim(item.maTour);
   const extra = TOUR_EXTRA[id] || { tags: [], highlights: [], includes: [], excludes: [] };
+  const image = pickImage(item);
   return {
     ...item,
     id,
@@ -117,14 +124,44 @@ const normalizeTour = (item) => {
     region: item.khuVuc || item.tenKhuVuc || guessRegion(item.tenTour),
     price: item.giaTour || 0,
     duration: item.thoiGian || 1,
-    image: pickImage(item),
-    gallery: TOUR_IMAGES[id] || [pickImage(item)],
+    image,
+    gallery: [image, ...(TOUR_IMAGES[id] || []).filter((url) => url !== image)],
     rating: item.diemTrungBinh || 0,
     description: item.mota || item.moTa || 'Hành trình được chọn lọc, vừa vặn với nhịp sống của bạn.',
     terms: item.dieuKhoan || '',
     ...extra,
   };
 };
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function retryRequest(fn, tries = 3) {
+  let last;
+  for (let i = 0; i < tries; i += 1) {
+    try { return await fn(); } catch (err) {
+      last = err;
+      const status = err?.response?.status;
+      if (err?.response && status < 500 && status !== 408) throw err;
+      if (i === tries - 1) throw err;
+      try { await api.tours(); } catch { /* wake sleeping API */ }
+      await wait(1200 * (i + 1));
+    }
+  }
+  throw last;
+}
+
+async function withCover(item) {
+  if (item?.anhDaiDien) return normalizeTour(item);
+  try {
+    const photos = itemsOf(await api.tourPhotos(item.maTour));
+    return normalizeTour({ ...item, anhDaiDien: pickCoverUrl(photos) });
+  } catch {
+    return normalizeTour(item);
+  }
+}
+
+async function withCovers(list) {
+  return Promise.all((list || []).map(withCover));
+}
 
 function Brand() {
   return (
@@ -207,7 +244,8 @@ function Home() {
 
   useEffect(() => {
     api.tours()
-      .then((r) => setItems(itemsOf(r).slice(0, 6).map(normalizeTour)))
+      .then((r) => withCovers(itemsOf(r).slice(0, 6)))
+      .then(setItems)
       .catch((e) => setError(api.errorMessage(e, 'Không tải được tour nổi bật.')));
   }, []);
 
@@ -328,7 +366,8 @@ function ToursPage() {
 
   useEffect(() => {
     api.tours()
-      .then((r) => setItems(itemsOf(r).map(normalizeTour)))
+      .then((r) => withCovers(itemsOf(r)))
+      .then(setItems)
       .catch((e) => setError(api.errorMessage(e)));
   }, []);
 
@@ -411,18 +450,18 @@ function TourDetail() {
   useEffect(() => {
     let alive = true;
     Promise.all([api.tourDetail(id), api.departures(id), api.itinerary(id), api.tourPhotos(id), api.reviews(id), api.tours()])
-      .then(([t, d, i, p, r, all]) => {
+      .then(async ([t, d, i, p, r, all]) => {
         if (!alive) return;
         const next = normalizeTour(t.data);
-        const shots = itemsOf(p);
+        const shots = itemsOf(p).slice().sort((a, b) => Number(!!b.isAvatar) - Number(!!a.isAvatar) || (a.thuTu ?? 99) - (b.thuTu ?? 99));
         const local = next.gallery || [next.image];
-        setTour(next);
+        setTour({ ...next, image: pickCoverUrl(shots) || next.image });
         setDates(itemsOf(d));
         setPlan(i.data?.lichTrinh || []);
         setPhotos(shots.length ? shots : local.map((url) => ({ url })));
-        setActivePhoto(shots[0]?.url || shots[0]?.imageUrl || local[0]);
+        setActivePhoto(pickCoverUrl(shots) || shots[0]?.url || shots[0]?.imageUrl || local[0]);
         setReviewData(r.data || {});
-        setRelated(itemsOf(all).map(normalizeTour).filter((x) => x.id !== next.id && x.region === next.region).slice(0, 3));
+        setRelated((await withCovers(itemsOf(all))).filter((x) => x.id !== next.id && x.region === next.region).slice(0, 3));
       })
       .catch((e) => setError(api.errorMessage(e, 'Không thể tải thông tin tour.')));
     api.logBehavior({ MaTour: id, HanhDong: 'Xem' }).catch(() => {});
@@ -630,20 +669,48 @@ function Protected({ children }) {
 
 function RecommendationPage() {
   const [items, setItems] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
 
-  const load = async (generate) => {
+  const hydrate = async (recs) => {
+    const results = await Promise.allSettled((recs || []).map((x) =>
+      api.tourDetail(x.maTour).then((t) => withCover({ ...t.data, lyDo: x.lyDo })).then((tour) => ({
+        ...tour,
+        reason: x.lyDo || tour.reason,
+      }))
+    ));
+    return results.flatMap((r) => r.status === 'fulfilled' ? [r.value] : []);
+  };
+
+  const load = async (forceGenerate = false) => {
     setBusy(true);
     setError('');
     try {
-      const r = generate ? await api.generateRecommendations() : await api.recommendations();
-      const detailed = await Promise.all(itemsOf(r).map((x) =>
-        api.tourDetail(x.maTour).then((t) => ({ ...normalizeTour(t.data), reason: x.lyDo }))
-      ));
-      setItems(detailed);
+      let recs = [];
+      if (!forceGenerate) {
+        recs = itemsOf(await retryRequest(() => api.recommendations()));
+      }
+      if (!recs.length) {
+        recs = itemsOf(await retryRequest(() => api.generateRecommendations()));
+      }
+      const detailed = recs.length ? await hydrate(recs) : [];
+      if (detailed.length) {
+        setItems(detailed);
+        return;
+      }
+      const fallback = (await withCovers(itemsOf(await retryRequest(() => api.tours())))).slice(0, 6)
+        .map((tour) => ({ ...tour, reason: 'Tour đang mở bán, xếp theo lượt xem và đánh giá.' }));
+      setItems(fallback);
+      if (!fallback.length) setError('Chưa đủ dữ liệu gợi ý.');
     } catch (e) {
-      setError(api.errorMessage(e, 'Chưa đủ dữ liệu gợi ý.'));
+      try {
+        const fallback = (await withCovers(itemsOf(await api.tours()))).slice(0, 6)
+          .map((tour) => ({ ...tour, reason: 'Tour đang mở bán, xếp theo lượt xem và đánh giá.' }));
+        setItems(fallback);
+        if (!fallback.length) setError(api.errorMessage(e, 'Chưa đủ dữ liệu gợi ý.'));
+      } catch (e2) {
+        setError(api.errorMessage(e2, api.errorMessage(e, 'Chưa đủ dữ liệu gợi ý.')));
+      }
     } finally {
       setBusy(false);
     }
@@ -662,9 +729,9 @@ function RecommendationPage() {
       <div className="ai-banner">
         <div>
           <h2>ANAM Curator</h2>
-          <p>Gợi ý học từ những gì bạn xem, tìm và đặt. Càng dùng càng đúng.</p>
+          <p>Gợi ý học từ những gì bạn xem, tìm và đặt. Càng dùng càng đúng. Nếu máy chủ gợi ý bận, hệ thống xếp tour đang bán.</p>
         </div>
-        <button className="primary-button" onClick={() => load(true)}>{busy ? 'Đang tải...' : 'Làm mới gợi ý'}</button>
+        <button className="primary-button" disabled={busy} onClick={() => load(true)}>{busy ? 'Đang tải...' : 'Làm mới gợi ý'}</button>
       </div>
       {error && <div className="form-error">{error}</div>}
       {items.length ? <TourGrid items={items} /> : !busy && <div className="empty-state"><h2>Chưa đủ dữ liệu gợi ý.</h2><p>Xem vài tour rồi bấm làm mới. Hệ thống xếp tour theo lượt xem và đánh giá, không cần máy chủ gợi ý riêng.</p></div>}
@@ -679,7 +746,8 @@ function FindTourPage() {
 
   useEffect(() => {
     api.tours()
-      .then((r) => setTours(itemsOf(r).map(normalizeTour)))
+      .then((r) => withCovers(itemsOf(r)))
+      .then(setTours)
       .catch((e) => setError(api.errorMessage(e)));
   }, []);
 

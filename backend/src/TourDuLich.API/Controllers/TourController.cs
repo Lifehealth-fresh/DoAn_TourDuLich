@@ -81,11 +81,44 @@ public class TourController : ControllerBase
                 slkhach = t.Slkhach,
                 slhuongDanVien = t.SlhuongDanVien,
                 loaiTour = FixedLengthHelper.TrimSafe(t.LoaiTour),
-                trangThai = FixedLengthHelper.TrimSafe(t.TrangThai)
+                trangThai = FixedLengthHelper.TrimSafe(t.TrangThai),
+                maTourDb = t.MaTour
             })
             .ToListAsync();
 
-        return Ok(new { items = result, page, pageSize, totalCount });
+        var keys = result.Select(t => t.maTourDb).ToList();
+        var covers = await _context.AnhTours.AsNoTracking()
+            .Where(a => keys.Contains(a.MaTour) && a.LoaiMedia != "Video")
+            .Select(a => new { a.MaTour, a.IsAvatar, a.ThuTu, Url = a.Url ?? a.ImageUrl })
+            .ToListAsync();
+        var coverByTour = covers
+            .Where(a => !string.IsNullOrWhiteSpace(a.Url))
+            .GroupBy(a => a.MaTour)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(x => x.IsAvatar == true).ThenBy(x => x.ThuTu ?? int.MaxValue)
+                    .Select(x => x.Url).FirstOrDefault());
+
+        return Ok(new
+        {
+            items = result.Select(t => new
+            {
+                t.maTour,
+                t.tenTour,
+                t.mota,
+                t.thoiGian,
+                t.dieuKhoan,
+                t.giaTour,
+                t.slkhach,
+                t.slhuongDanVien,
+                t.loaiTour,
+                t.trangThai,
+                anhDaiDien = coverByTour.GetValueOrDefault(t.maTourDb)
+            }),
+            page,
+            pageSize,
+            totalCount
+        });
     }
 
     // GET /api/Tour/{maTour}
@@ -105,6 +138,13 @@ public class TourController : ControllerBase
 
         var requestState = await _context.YeuCauThietKes.AsNoTracking()
             .Where(r => r.MaTourTao == key).Select(r => r.TrangThai).FirstOrDefaultAsync();
+        var cover = await _context.AnhTours.AsNoTracking()
+            .Where(a => a.MaTour == key && a.LoaiMedia != "Video")
+            .OrderByDescending(a => a.IsAvatar == true)
+            .ThenBy(a => a.ThuTu ?? int.MaxValue)
+            .Select(a => a.Url ?? a.ImageUrl)
+            .Where(url => url != null && url != "")
+            .FirstOrDefaultAsync();
         var tour = new
         {
             maTour = FixedLengthHelper.TrimSafe(tourEntity.MaTour),
@@ -117,7 +157,8 @@ public class TourController : ControllerBase
             slhuongDanVien = tourEntity.SlhuongDanVien,
             loaiTour = FixedLengthHelper.TrimSafe(tourEntity.LoaiTour),
             trangThai = FixedLengthHelper.TrimSafe(tourEntity.TrangThai),
-            trangThaiYeuCau = requestState?.Trim()
+            trangThaiYeuCau = requestState?.Trim(),
+            anhDaiDien = cover
         };
 
         return Ok(tour);
@@ -166,7 +207,8 @@ public class TourController : ControllerBase
         var result = await _context.AnhTours
             .AsNoTracking()
             .Where(x => x.MaTour == key)
-            .OrderBy(x => x.ThuTu)
+            .OrderByDescending(x => x.IsAvatar == true)
+            .ThenBy(x => x.ThuTu)
             .Select(x => new
             {
                 maAnhTour = FixedLengthHelper.TrimSafe(x.MaAnhTour),

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
-import { Notice } from './components';
+import { ExpandRecord, Notice } from './components';
 
 const asUtc = (value) => value ? new Date(/[zZ]$|[+-]\d\d:\d\d$/.test(value) ? value : value + 'Z') : null;
 const localInput = (date) => {
@@ -32,6 +32,7 @@ export default function PromotionsManagement() {
   const [items, setItems] = useState([]);
   const [tours, setTours] = useState([]);
   const [selected, setSelected] = useState('');
+  const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -42,7 +43,7 @@ export default function PromotionsManagement() {
   const loadList = async () => setItems(rows(await api.promotions({ all: 1 })));
   const loadDetail = async (id) => {
     const response = await api.promotionDetail(id);
-    setSelected(id); setForm(fromPromotion(response.data));
+    setCreating(false); setSelected(id); setForm(fromPromotion(response.data));
   };
   const run = async (action, fallback) => {
     if (busy) return;
@@ -73,12 +74,16 @@ export default function PromotionsManagement() {
     return () => { active = false; };
   }, []);
   const field = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
-  useEffect(() => {
-    if (error || message) document.getElementById('promotion-notice')?.scrollIntoView({ block: 'nearest' });
-  }, [error, message]);
   const fresh = (demo = false) => {
-    setSelected(''); setForm({ ...empty(), ...(demo ? { tenKm: 'Ưu đãi trải nghiệm DEMO10', maCode: 'DEMO10', donToiThieu: 1000000 } : {}) });
+    setSelected(''); setCreating(true);
+    setForm({ ...empty(), ...(demo ? { tenKm: 'Ưu đãi trải nghiệm DEMO10', maCode: 'DEMO10', donToiThieu: 1000000 } : {}) });
     setError(''); setMessage(demo ? 'Đã điền mẫu DEMO10: giảm 10%, đơn tối thiểu 1.000.000 đ. Bấm Thêm ưu đãi để lưu.' : '');
+    requestAnimationFrame(() => document.getElementById('promo-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  };
+  const openRow = (id) => run(() => loadDetail(id), 'Không tải được chi tiết ưu đãi.');
+  const toggleRow = (id) => {
+    if (selected === id) { setSelected(''); setCreating(false); return; }
+    openRow(id);
   };
   const save = (event) => {
     event.preventDefault();
@@ -96,19 +101,18 @@ export default function PromotionsManagement() {
       };
       let id = selected;
       if (id) await api.updatePromotion(id, data);
-      else { const response = await api.createPromotion(data); id = response.data.maKm; setSelected(id); }
+      else { const response = await api.createPromotion(data); id = response.data.maKm; }
       setMessage(selected ? 'Đã cập nhật ưu đãi.' : 'Đã thêm ưu đãi.');
       await loadList(); await loadDetail(id);
     }, 'Không lưu được ưu đãi hoặc tải lại dữ liệu.');
   };
   const remove = (id) => {
-    if (!window.confirm('Xóa ưu đãi này? Nếu đã sử dụng, hệ thống sẽ ngừng hoạt động mã.')) return;
+    if (!window.confirm('Xóa hẳn ưu đãi này? Nếu đã có vé dùng mã, hãy sửa trạng thái thành Ngừng hoạt động.')) return;
     run(async () => {
-      const response = await api.deletePromotion(id);
-      setMessage(response.data?.message || 'Đã xóa ưu đãi.');
+      await api.deletePromotion(id);
+      setMessage('Đã xóa ưu đãi.');
       await loadList();
-      if (response.status === 200) await loadDetail(id);
-      else if (selected === id) { setSelected(''); setForm(empty()); }
+      if (selected === id) { setSelected(''); setCreating(false); setForm(empty()); }
     }, 'Không xóa được ưu đãi.');
   };
   const now = Date.now();
@@ -117,36 +121,9 @@ export default function PromotionsManagement() {
   const hasDemo = items.some((item) => (item.maCode || '').trim() === 'DEMO10');
   const options = [...tours, ...form.maTours.filter((id) => !tours.some((tour) => tour.maTour.trim() === id))
     .map((id) => ({ maTour: id, tenTour: 'Tour đã gắn với mã' }))];
-
-  return <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}
-    onInvalidCapture={() => { setMessage(''); setError('Hãy điền đủ thông tin và kiểm tra giới hạn số trong biểu mẫu.'); }}>
-    <h1>Quản lý ưu đãi</h1>
-    <div id="promotion-notice" aria-live="polite"><Notice error={error} />{message && <div className="notice ok" role="status">{message}</div>}</div>
-    {busy && <p role="status">Đang xử lý…</p>}
-    <div className="inline">
-      <button disabled={busy} onClick={() => fresh()}>Thêm mới</button>
-      <button disabled={busy} onClick={() => run(async () => {
-        await loadList(); if (selected) await loadDetail(selected);
-      }, 'Không tải lại được ưu đãi.')}>Tải lại ưu đãi</button>
-      {!hasValidSeed && !hasDemo && <button disabled={busy} onClick={() => fresh(true)}>Điền mã DEMO10</button>}
-    </div>
-    <p className="muted">Giữ nguyên DALAT08/ISLAND10 còn hạn. Nếu đã hết hạn, dùng mẫu DEMO10 hoặc thêm mã mới; không gia hạn tự động mã cũ.</p>
-    <div className="table" aria-label="Danh sách ưu đãi">
-      {items.map((item) => <div className="row" key={item.maKm}
-        style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,140px),1fr))', outline: selected === item.maKm ? '3px solid var(--gold)' : undefined }}>
-        <b>{item.maCode}</b><span>{item.tenKm}</span><span>{item.donVi === '%' ? item.giamGia + '%' : money(item.giamGia)}</span>
-        <span>{item.trangThai === 'HoatDong' ? 'Hoạt động' : 'Ngừng hoạt động'}</span>
-        <span>Hết hạn: {asUtc(item.ngayKt)?.toLocaleString('vi-VN') || '—'}</span>
-        <div className="inline" style={{ margin: 0 }}>
-          <button disabled={busy} aria-label={'Sửa ưu đãi ' + item.maCode}
-            onClick={() => run(() => loadDetail(item.maKm), 'Không tải được chi tiết ưu đãi.')}>Sửa</button>
-          <button className="danger" disabled={busy} aria-label={'Xóa ưu đãi ' + item.maCode} onClick={() => remove(item.maKm)}>Xóa</button>
-        </div>
-      </div>)}
-      {!items.length && !busy && <p>Chưa có ưu đãi.</p>}
-    </div>
-    <form className="panel" aria-label="Thông tin ưu đãi" onSubmit={save} style={{ marginTop: 24 }}>
-      <h2>{selected ? 'Sửa ưu đãi ' + selected : 'Thêm ưu đãi'}</h2>
+  const editor = (
+    <form className="panel" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }} aria-label="Thông tin ưu đãi" onSubmit={save}>
+      <h2>{selected ? 'Sửa ưu đãi ' + selected : 'Thêm ưu đãi mới'}</h2>
       <fieldset disabled={busy} style={{ border: 0, padding: 0, minWidth: 0 }}>
         <div style={grid}>
           <label style={label}>Tên ưu đãi<input required maxLength={50} style={fieldStyle} value={form.tenKm} onChange={field('tenKm')} /></label>
@@ -169,8 +146,8 @@ export default function PromotionsManagement() {
           <label><input type="checkbox" checked={form.lanDatDau} onChange={(event) => setForm({ ...form, lanDatDau: event.target.checked })} /> Chỉ lần đặt đầu</label>
         </div>
         <h3>Tour áp dụng</h3>
-        <p className="muted">Không chọn tour = áp dụng mọi tour. Thời gian nhập theo giờ máy, gửi API theo UTC.</p>
-        <div style={{ ...grid, maxHeight: 260, overflow: 'auto' }}>
+        <p className="muted">Không chọn tour = áp dụng mọi tour. Ngừng hoạt động: đổi trạng thái rồi Lưu. Xóa là xóa hẳn.</p>
+        <div style={{ ...grid, maxHeight: 220, overflow: 'auto' }}>
           {options.map((tour) => <label key={tour.maTour} style={{ overflowWrap: 'anywhere' }}>
             <input type="checkbox" checked={form.maTours.includes(tour.maTour.trim())} onChange={(event) => {
               const id = tour.maTour.trim();
@@ -181,5 +158,37 @@ export default function PromotionsManagement() {
         <button style={{ marginTop: 18 }} type="submit">{selected ? 'Lưu ưu đãi' : 'Thêm ưu đãi'}</button>
       </fieldset>
     </form>
+  );
+
+  return <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}
+    onInvalidCapture={() => { setMessage(''); setError('Hãy điền đủ thông tin và kiểm tra giới hạn số trong biểu mẫu.'); }}>
+    <h1>Quản lý ưu đãi</h1>
+    <div id="promotion-notice" aria-live="polite"><Notice error={error} />{message && <div className="notice ok" role="status">{message}</div>}</div>
+    {busy && <p role="status">Đang xử lý…</p>}
+    <div className="inline">
+      <button disabled={busy} onClick={() => fresh()}>Thêm mới</button>
+      <button disabled={busy} onClick={() => run(async () => {
+        await loadList(); if (selected) await loadDetail(selected);
+      }, 'Không tải lại được ưu đãi.')}>Tải lại ưu đãi</button>
+      {!hasValidSeed && !hasDemo && <button disabled={busy} onClick={() => fresh(true)}>Điền mã DEMO10</button>}
+    </div>
+    {creating && <div id="promo-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
+    <div className="table" aria-label="Danh sách ưu đãi">
+      {items.map((item) => <ExpandRecord key={item.maKm} open={selected === item.maKm} summary={
+        <div className="row" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,140px),1fr))', cursor: busy ? 'wait' : 'pointer' }}
+          onClick={() => { if (!busy) toggleRow(item.maKm); }}>
+          <b>{item.maCode}</b><span>{item.tenKm}</span><span>{item.donVi === '%' ? item.giamGia + '%' : money(item.giamGia)}</span>
+          <span>{item.trangThai === 'HoatDong' ? 'Hoạt động' : 'Ngừng hoạt động'}</span>
+          <span>Hết hạn: {asUtc(item.ngayKt)?.toLocaleString('vi-VN') || '—'}</span>
+          <div className="inline" style={{ margin: 0 }}>
+            <button disabled={busy} aria-label={'Sửa ưu đãi ' + item.maCode}
+              onClick={(event) => { event.stopPropagation(); openRow(item.maKm); }}>Sửa</button>
+            <button className="danger" disabled={busy} aria-label={'Xóa ưu đãi ' + item.maCode}
+              onClick={(event) => { event.stopPropagation(); remove(item.maKm); }}>Xóa</button>
+          </div>
+        </div>
+      }>{editor}</ExpandRecord>)}
+      {!items.length && !busy && <p>Chưa có ưu đãi.</p>}
+    </div>
   </div>;
 }

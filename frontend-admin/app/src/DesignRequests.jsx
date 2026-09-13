@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
-import { Notice } from './components';
+import { ExpandRecord, Notice } from './components';
 
 const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
@@ -73,6 +73,11 @@ export function DesignRequests() {
 
   const reload = () => { setLoading(true); setLoadingDetails(Boolean(selectedId)); setRefresh((value) => value + 1); };
   const select = (item) => {
+    if (selectedId === item.maYeuCau) {
+      setSelectedId(''); setPlans([]); setSchedule(null); setRows([]); setEditing(false);
+      setError(''); setOk(''); setLyDo('');
+      return;
+    }
     setSelectedId(item.maYeuCau); setLoadingDetails(true); setPlans([]); setSchedule(null);
     setError(''); setOk(''); setLyDo(''); setEditing(false);
   };
@@ -149,13 +154,13 @@ export function DesignRequests() {
       <p className="notice">Chỉ được duyệt sau khi khách bấm Đồng ý lịch này. Khi khách yêu cầu chỉnh lại, sửa và gửi khách xác nhận lần nữa.</p>
       <Notice error={listError} /><Notice error={error} />{ok && <div className="notice ok" role="status">{ok}</div>}
       {loading ? <p role="status">Đang tải yêu cầu…</p> : !listError && <div className="table">
-        {items.map((item) => <button key={item.maYeuCau} className={`row booking-row${selectedId === item.maYeuCau ? ' on' : ''}`} aria-pressed={selectedId === item.maYeuCau} disabled={Boolean(busy) || editing} onClick={() => { if (selectedId !== item.maYeuCau) select(item); }}>
-          <b>{item.maYeuCau}</b><span>{item.diemDenMongMuon || 'Chưa chọn điểm đến'}</span><span>Ngày đi: {dateText(item.ngayDuKienDi)}</span>
-          <span>{item.soNgay ?? '—'} ngày</span><span>{item.nganSachDuKien == null ? 'Chưa có ngân sách' : money(item.nganSachDuKien)}</span><span className="badge">{statusLabel(item.trangThai)}</span>
-        </button>)}
-        {!items.length && <p className="muted">Chưa có yêu cầu thiết kế.</p>}
-      </div>}
-      {selected && <section className="panel">
+        {items.map((item) => <ExpandRecord key={item.maYeuCau} open={selectedId === item.maYeuCau} summary={
+          <button type="button" className={`row booking-row${selectedId === item.maYeuCau ? ' on' : ''}`} aria-pressed={selectedId === item.maYeuCau} disabled={Boolean(busy) || (editing && selectedId !== item.maYeuCau)} onClick={() => select(item)}>
+            <b>{item.maYeuCau}</b><span>{item.diemDenMongMuon || 'Chưa chọn điểm đến'}</span><span>Ngày đi: {dateText(item.ngayDuKienDi)}</span>
+            <span>{item.soNgay ?? '—'} ngày</span><span>{item.nganSachDuKien == null ? 'Chưa có ngân sách' : money(item.nganSachDuKien)}</span><span className="badge">{statusLabel(item.trangThai)}</span>
+          </button>
+        }>
+      {selectedId === item.maYeuCau && selected && <>
         <header className="panel-head"><h2>Yêu cầu {selected.maYeuCau}</h2><span className="badge">{statusLabel(state)}</span></header>
         <p>Khách hàng: {selected.maUser} · Ngày gửi: {dateText(selected.ngayGui)}</p>
         {tourId && <p>Tour đã tạo: <b>{tourId}</b></p>}
@@ -244,8 +249,10 @@ export function DesignRequests() {
             </article>)}
           </div>
         </>}
-      </section>}
-      {!selected && !loading && items.length > 0 && <p className="muted">Chọn một yêu cầu để xem và xử lý.</p>}
+      </>}
+        </ExpandRecord>)}
+        {!items.length && <p className="muted">Chưa có yêu cầu thiết kế.</p>}
+      </div>}
     </div>
   );
 }
