@@ -201,7 +201,7 @@ public class KhachHangController : ControllerBase
     }
 
     [HttpGet("tim-kiem")]
-    [Authorize(Roles = "Sale")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> Search([FromQuery] string soDienThoai)
     {
         if (string.IsNullOrWhiteSpace(soDienThoai))
@@ -222,7 +222,7 @@ public class KhachHangController : ControllerBase
     }
 
     [HttpPost("sale/{maUser}")]
-    [Authorize(Roles = "Sale")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> SaleCreate(string maUser, KhachHangCreateDto request)
     {
         var maUserDb = FixedLengthHelper.PadTo20(maUser);
@@ -233,7 +233,7 @@ public class KhachHangController : ControllerBase
     }
 
     [HttpPut("sale/{maKhachHang}")]
-    [Authorize(Roles = "Sale")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> SaleUpdate(string maKhachHang, KhachHangUpdateDto request)
     {
         var validation = ValidateProfile(request.Ho, request.Ten);
@@ -250,7 +250,7 @@ public class KhachHangController : ControllerBase
     }
 
     [HttpPost("sale/{maKhachHang}/giay-to")]
-    [Authorize(Roles = "Sale")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> SaleAddDocument(string maKhachHang, GiayToCreateDto request)
     {
         var profile = await _context.KhachHangs.FirstOrDefaultAsync(item =>
@@ -261,7 +261,7 @@ public class KhachHangController : ControllerBase
     }
 
     [HttpPut("sale/{maKhachHang}/giay-to/{maGiayTo}")]
-    [Authorize(Roles = "Sale")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> SaleUpdateDocument(
         string maKhachHang,
         string maGiayTo,
@@ -282,7 +282,7 @@ public class KhachHangController : ControllerBase
     }
 
     [HttpDelete("sale/{maKhachHang}/giay-to/{maGiayTo}")]
-    [Authorize(Roles = "Sale")]
+    [Authorize(Roles = "Sale,Admin")]
     public async Task<IActionResult> SaleDeleteDocument(string maKhachHang, string maGiayTo)
     {
         var document = await _context.GiayTos.FirstOrDefaultAsync(item =>

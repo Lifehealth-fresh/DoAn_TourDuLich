@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as api from './api';
 import DepartureGuests from './DepartureGuests';
 import { useAuth } from './context';
-import { ExpandRecord, Notice } from './components';
+import { ExpandRecord, Notice, BarList, StatusMix } from './components';
 export { DesignRequests } from './DesignRequests';
 
 const v = (o, ...ks) => ks.map((k) => o?.[k]).find((x) => x !== undefined && x !== null);
@@ -62,33 +62,76 @@ export function Login() {
 export function Dashboard() {
   const [tours, setTours] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     Promise.allSettled([
       api.tours({ pageSize: 50 }),
       api.bookings({ pageSize: 50 }),
-    ]).then(([tourRes, bookRes]) => {
+      api.overview(),
+    ]).then(([tourRes, bookRes, overviewRes]) => {
       if (tourRes.status === 'fulfilled') setTours(itemsOf(tourRes.value));
       else setError(api.errorMessage(tourRes.reason, 'Không tải được tour.'));
       if (bookRes.status === 'fulfilled') setBookings(itemsOf(bookRes.value));
       else setError((prev) => prev || api.errorMessage(bookRes.reason, 'Không tải được booking. Đăng nhập lại bằng tài khoản Admin/Sale.'));
+      if (overviewRes.status === 'fulfilled') setStats(overviewRes.value.data);
+      else setError((prev) => prev || api.errorMessage(overviewRes.reason, 'Không tải được biểu đồ thống kê.'));
     });
   }, []);
 
   const pending = bookings.filter((x) => String(x.trangThai || '').trim() === 'ChoXacNhan');
   const paid = bookings.filter((x) => /DaThanhToan|HoanThanh/.test(String(x.trangThai || '').trim()));
-  const revenue = paid.reduce((sum, x) => sum + Number(x.thanhTien || 0), 0);
+  const revenue = stats?.daThu ?? paid.reduce((sum, x) => sum + Number(x.thanhTien || 0), 0);
+  const percent = (value) => `${Math.round(Number(value || 0) * 1000) / 10}%`;
 
   return (
     <>
       <h1>Tổng quan vận hành</h1>
+      <p className="muted">Số liệu gộp từ vé, thanh toán đã xác nhận và lịch khởi hành sắp chạy — dùng để định hướng chỗ, giá và tour đẩy mạnh.</p>
       <Notice error={error} />
       <div className="stats">
-        <div><b>{tours.length}</b><span>Tour đang bán</span></div>
-        <div><b>{bookings.length}</b><span>Booking gần đây</span></div>
-        <div><b>{pending.length}</b><span>Chờ xác nhận</span></div>
-        <div><b>{money(revenue)}</b><span>Đã thu (đã TT / hoàn thành)</span></div>
+        <div><b>{stats?.toursDangBan ?? tours.length}</b><span>Tour đang bán</span></div>
+        <div><b>{stats?.tongBooking ?? bookings.length}</b><span>Tổng booking</span></div>
+        <div><b>{stats?.choXacNhan ?? pending.length}</b><span>Chờ xác nhận</span></div>
+        <div><b>{money(revenue)}</b><span>Đã thu (thanh toán xác nhận)</span></div>
+        <div><b>{money(stats?.conPhaiThu)}</b><span>Còn phải thu</span></div>
+        <div><b>{percent(stats?.tyLeHuy)}</b><span>Tỷ lệ hủy / hoàn tiền</span></div>
+      </div>
+      <div className="charts">
+        <section className="panel">
+          <h2>Doanh thu 6 tháng</h2>
+          <p className="muted">Chỉ cộng giao dịch đã xác nhận. Tháng trống = chưa thu.</p>
+          <BarList rows={(stats?.doanhThuTheoThang || []).map((row) => ({
+            id: row.nhan, label: row.nhan, value: row.daThu, display: money(row.daThu),
+            hint: `${row.soGiaoDich} giao dịch`, color: 'var(--coral)',
+          }))} empty="Chưa có thanh toán xác nhận." />
+        </section>
+        <section className="panel">
+          <h2>Booking theo trạng thái</h2>
+          <StatusMix items={stats?.theoTrangThai || []} labels={STATUS} />
+        </section>
+        <section className="panel">
+          <h2>Tour đóng góp doanh thu</h2>
+          <p className="muted">Ưu tiên đẩy tour thu tốt, giảm tour hủy nhiều.</p>
+          <BarList rows={(stats?.topTour || []).map((row) => ({
+            id: row.maTour, label: row.tenTour, value: row.daThu, display: money(row.daThu),
+            hint: `${row.soBooking} vé · hủy ${percent(row.tyLeHuy)} · ${row.diemTrungBinh || 'chưa có'}★`,
+            color: 'var(--navy)',
+          }))} empty="Chưa có doanh thu theo tour." />
+        </section>
+        <section className="panel">
+          <h2>Lấp đầy lịch sắp khởi hành</h2>
+          <p className="muted">Lịch gần đầy: cân nhắc đóng bán hoặc mở thêm chuyến.</p>
+          <BarList rows={(stats?.lichSapKhoiHanh || []).map((row) => ({
+            id: row.maKhoiHanh,
+            label: `${row.tenTour} · ${dateText(row.ngayKhoiHanh)}`,
+            value: Number(row.tyLeLapDay || 0) * 100,
+            display: `${row.daDat}/${row.sucChua}`,
+            hint: `Còn ${row.conTrong} chỗ`,
+            color: Number(row.tyLeLapDay) >= 0.8 ? 'var(--coral)' : 'var(--jade)',
+          }))} empty="Chưa có lịch khởi hành trong tương lai." />
+        </section>
       </div>
       <section className="panel">
         <header className="panel-head">

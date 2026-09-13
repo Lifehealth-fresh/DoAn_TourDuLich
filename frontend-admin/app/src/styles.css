@@ -58,7 +58,7 @@ button {
 }
 .table { display: grid; gap: 10px; }
 .row { display: grid; grid-template-columns: 1.3fr 2fr 1fr auto auto auto; gap: 12px; align-items: center; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 24px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 18px; margin-bottom: 24px; }
 .stats > div { display: flex; flex-direction: column; gap: 10px; }
 .stats b { font-family: Fraunces, serif; font-size: 1.5rem; }
 .stats span { color: var(--muted); }
@@ -107,4 +107,24 @@ button {
 .record.open .booking-row { outline: 3px solid var(--gold); }
 .create-slot { margin: 12px 0 18px; }
 .create-slot .record-body { border-top: 2px solid var(--ink); }
+
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 24px; }
+.charts h2 { font-family: Fraunces, serif; margin: 0 0 8px; }
+.chart-bars { display: grid; gap: 8px; }
+.chart-row { display: grid; grid-template-columns: minmax(90px, 1.5fr) 3fr auto; gap: 10px; align-items: center; }
+.chart-label { font-size: 0.85rem; overflow-wrap: anywhere; }
+.chart-track { height: 14px; background: #efe4d4; border: 2px solid var(--ink); overflow: hidden; }
+.chart-track i { display: block; height: 100%; background: var(--coral); min-width: 0; }
+.chart-row b { font-size: 0.82rem; white-space: nowrap; }
+.status-mix { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.donut { width: 140px; height: 140px; border-radius: 50%; border: 2px solid var(--ink); flex: 0 0 auto; }
+.status-mix ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.status-mix li { display: flex; gap: 8px; align-items: center; }
+.status-mix i { width: 12px; height: 12px; border: 2px solid var(--ink); display: inline-block; }
+
+@media (max-width: 800px) {
+  .charts { grid-template-columns: 1fr; }
+  .chart-row { grid-template-columns: 1fr; }
+}
+
 

@@ -194,25 +194,119 @@ public class DatDichVuController : ControllerBase
     [Authorize(Roles = "Sale,Admin")]
     public async Task<ActionResult> GetGuestProfile(string maBooking)
     {
-        var key = FixedLengthHelper.PadTo20(maBooking);
-        var booking = await _context.DatDichVus.AsNoTracking().Where(b => b.MaBooking == key)
-            .Select(b => new { b.MaBooking, b.MaUser, b.MaKhachHang }).FirstOrDefaultAsync();
+        var booking = await FindBookingAsync(maBooking);
         if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
-        var profile = await _context.KhachHangs.AsNoTracking().Include(k => k.GiayTos)
-            .Where(k => booking.MaKhachHang != null ? k.MaKhachHang == booking.MaKhachHang : k.MaUser == booking.MaUser)
-            .OrderBy(k => k.MaKhachHang).FirstOrDefaultAsync();
-        return Ok(new
+        var profile = await LoadGuestProfileAsync(booking);
+        return Ok(ToGuestProfile(booking, profile));
+    }
+
+    [HttpPut("{maBooking}/ho-so-khach")]
+    [Authorize(Roles = "Sale,Admin")]
+    public async Task<ActionResult> UpdateGuestProfile(string maBooking, KhachHangUpdateDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Ho) || string.IsNullOrWhiteSpace(request.Ten))
+            return BadRequest(new { message = "Họ và tên không được để trống." });
+        var booking = await FindBookingAsync(maBooking);
+        if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
+        var profile = await LoadGuestProfileAsync(booking);
+        if (profile is null)
         {
-            maBooking = booking.MaBooking.Trim(), maKhachHang = profile?.MaKhachHang.Trim(),
-            ho = profile?.Ho.Trim(), ten = profile?.Ten.Trim(),
-            soDienThoai = profile?.SoDienThoai.Trim(), email = profile?.Email?.Trim(),
-            ngaySinh = profile?.NgaySinh, quocTich = profile?.QuocTich?.Trim(),
-            giayTo = (profile?.GiayTos ?? []).Select(g => new
+            var user = await _context.NguoiSuDungs.FirstOrDefaultAsync(item => item.MaUser == booking.MaUser);
+            if (user is null) return NotFound(new { message = "Không tìm thấy tài khoản khách." });
+            var phone = FixedLengthHelper.TrimSafe(user.SoDienThoai) ?? string.Empty;
+            if (phone.Length > 15)
+                return BadRequest(new { message = "Số điện thoại tài khoản vượt quá giới hạn 15 ký tự của hồ sơ khách hàng." });
+            profile = new KhachHang
             {
-                loaiGiayTo = g.LoaiGiayTo.Trim(), soTrenGiayTo = g.SoTrenGiayTo.Trim(),
-                ngayCap = g.NgayCap, ngayHetHan = g.NgayHetHan, noiCap = g.NoiCap.Trim()
-            }).ToArray()
-        });
+                MaKhachHang = await GenerateKeyedIdAsync("KH", _context.KhachHangs.Select(item => item.MaKhachHang)),
+                MaUser = booking.MaUser,
+                SoDienThoai = phone,
+                Ho = request.Ho.Trim(),
+                Ten = request.Ten.Trim()
+            };
+            _context.KhachHangs.Add(profile);
+            booking.MaKhachHang = profile.MaKhachHang;
+        }
+        else if (booking.MaKhachHang is null)
+            booking.MaKhachHang = profile.MaKhachHang;
+        profile.Ho = request.Ho.Trim();
+        profile.Ten = request.Ten.Trim();
+        profile.HoGiayTo = request.HoGiayTo?.Trim();
+        profile.TenGiayTo = request.TenGiayTo?.Trim();
+        profile.QuocTich = request.QuocTich?.Trim();
+        profile.DanhXung = request.DanhXung?.Trim();
+        profile.GioiTinh = request.GioiTinh?.Trim();
+        profile.NgaySinh = request.NgaySinh;
+        profile.Email = request.Email?.Trim();
+        await _context.SaveChangesAsync();
+        await _context.Entry(profile).Collection(item => item.GiayTos).LoadAsync();
+        return Ok(ToGuestProfile(booking, profile));
+    }
+
+    [HttpPost("{maBooking}/ho-so-khach/giay-to")]
+    [Authorize(Roles = "Sale,Admin")]
+    public async Task<ActionResult> AddGuestDocument(string maBooking, GiayToCreateDto request)
+    {
+        var documentError = ValidateGuestDocument(request.LoaiGiayTo, request.SoTrenGiayTo, request.NoiCap, request.NgayCap, request.NgayHetHan);
+        if (documentError is not null) return documentError;
+        var booking = await FindBookingAsync(maBooking);
+        if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
+        var profile = await LoadGuestProfileAsync(booking);
+        if (profile is null)
+            return BadRequest(new { message = "Hãy lưu hồ sơ khách trước khi thêm giấy tờ." });
+        var document = new GiayTo
+        {
+            MaGiayTo = await GenerateKeyedIdAsync("GT", _context.GiayTos.Select(item => item.MaGiayTo)),
+            MaKhachHang = profile.MaKhachHang,
+            LoaiGiayTo = request.LoaiGiayTo.Trim(),
+            SoTrenGiayTo = request.SoTrenGiayTo.Trim(),
+            NgayCap = request.NgayCap,
+            NgayHetHan = request.NgayHetHan,
+            NoiCap = request.NoiCap.Trim()
+        };
+        _context.GiayTos.Add(document);
+        await _context.SaveChangesAsync();
+        await _context.Entry(profile).Collection(item => item.GiayTos).LoadAsync();
+        return StatusCode(StatusCodes.Status201Created, ToGuestProfile(booking, profile));
+    }
+
+    [HttpPut("{maBooking}/ho-so-khach/giay-to/{maGiayTo}")]
+    [Authorize(Roles = "Sale,Admin")]
+    public async Task<ActionResult> UpdateGuestDocument(string maBooking, string maGiayTo, GiayToUpdateDto request)
+    {
+        var documentError = ValidateGuestDocument(request.LoaiGiayTo, request.SoTrenGiayTo, request.NoiCap, request.NgayCap, request.NgayHetHan);
+        if (documentError is not null) return documentError;
+        var booking = await FindBookingAsync(maBooking);
+        if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
+        var profile = await LoadGuestProfileAsync(booking);
+        if (profile is null) return NotFound(new { message = "Chưa có hồ sơ khách trên vé này." });
+        var document = profile.GiayTos.FirstOrDefault(item => item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo));
+        if (document is null)
+            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ khách của vé này." });
+        document.LoaiGiayTo = request.LoaiGiayTo.Trim();
+        document.SoTrenGiayTo = request.SoTrenGiayTo.Trim();
+        document.NgayCap = request.NgayCap;
+        document.NgayHetHan = request.NgayHetHan;
+        document.NoiCap = request.NoiCap.Trim();
+        await _context.SaveChangesAsync();
+        return Ok(ToGuestProfile(booking, profile));
+    }
+
+    [HttpDelete("{maBooking}/ho-so-khach/giay-to/{maGiayTo}")]
+    [Authorize(Roles = "Sale,Admin")]
+    public async Task<ActionResult> DeleteGuestDocument(string maBooking, string maGiayTo)
+    {
+        var booking = await FindBookingAsync(maBooking);
+        if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
+        var profile = await LoadGuestProfileAsync(booking);
+        if (profile is null) return NotFound(new { message = "Chưa có hồ sơ khách trên vé này." });
+        var document = profile.GiayTos.FirstOrDefault(item => item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo));
+        if (document is null)
+            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ khách của vé này." });
+        _context.GiayTos.Remove(document);
+        await _context.SaveChangesAsync();
+        profile.GiayTos.Remove(document);
+        return Ok(ToGuestProfile(booking, profile));
     }
 
     [HttpPost]
@@ -625,6 +719,68 @@ public class DatDichVuController : ControllerBase
     {
         return User.FindFirst("MaUser")?.Value;
     }
+
+    private Task<DatDichVu?> FindBookingAsync(string maBooking)
+        => _context.DatDichVus.FirstOrDefaultAsync(item => item.MaBooking == FixedLengthHelper.PadTo20(maBooking));
+
+    private Task<KhachHang?> LoadGuestProfileAsync(DatDichVu booking)
+    {
+        if (!string.IsNullOrWhiteSpace(booking.MaKhachHang))
+            return _context.KhachHangs.Include(item => item.GiayTos)
+                .FirstOrDefaultAsync(item => item.MaKhachHang == booking.MaKhachHang);
+        return _context.KhachHangs.Include(item => item.GiayTos)
+            .Where(item => item.MaUser == booking.MaUser)
+            .OrderBy(item => item.MaKhachHang)
+            .FirstOrDefaultAsync();
+    }
+
+    private async Task<string> GenerateKeyedIdAsync(string prefix, IQueryable<string> existing)
+    {
+        string id;
+        do
+        {
+            id = FixedLengthHelper.PadTo20($"{prefix}{Guid.NewGuid():N}"[..20].ToUpperInvariant());
+        } while (await existing.AnyAsync(item => item == id));
+        return id;
+    }
+
+    private static ActionResult? ValidateGuestDocument(
+        string? loai, string? so, string? noiCap, DateOnly ngayCap, DateOnly ngayHetHan)
+    {
+        if (string.IsNullOrWhiteSpace(loai) || string.IsNullOrWhiteSpace(so) || string.IsNullOrWhiteSpace(noiCap))
+            return new BadRequestObjectResult(new { message = "Thông tin giấy tờ không được để trống." });
+        return ngayHetHan < ngayCap
+            ? new BadRequestObjectResult(new { message = "Ngày hết hạn phải sau hoặc bằng ngày cấp." })
+            : null;
+    }
+
+    private static object ToGuestProfile(DatDichVu booking, KhachHang? profile) => new
+    {
+        maBooking = FixedLengthHelper.TrimSafe(booking.MaBooking),
+        maTour = FixedLengthHelper.TrimSafe(booking.MaTour),
+        maKhoiHanh = FixedLengthHelper.TrimSafe(booking.MaKhoiHanh),
+        trangThai = FixedLengthHelper.TrimSafe(booking.TrangThai),
+        maKhachHang = FixedLengthHelper.TrimSafe(profile?.MaKhachHang),
+        ho = profile?.Ho?.Trim(),
+        ten = profile?.Ten?.Trim(),
+        hoGiayTo = profile?.HoGiayTo?.Trim(),
+        tenGiayTo = profile?.TenGiayTo?.Trim(),
+        danhXung = FixedLengthHelper.TrimSafe(profile?.DanhXung),
+        gioiTinh = FixedLengthHelper.TrimSafe(profile?.GioiTinh),
+        soDienThoai = FixedLengthHelper.TrimSafe(profile?.SoDienThoai),
+        email = profile?.Email?.Trim(),
+        ngaySinh = profile?.NgaySinh,
+        quocTich = profile?.QuocTich?.Trim(),
+        giayTo = (profile?.GiayTos ?? []).Select(g => new
+        {
+            maGiayTo = FixedLengthHelper.TrimSafe(g.MaGiayTo),
+            loaiGiayTo = g.LoaiGiayTo?.Trim(),
+            soTrenGiayTo = g.SoTrenGiayTo?.Trim(),
+            ngayCap = g.NgayCap,
+            ngayHetHan = g.NgayHetHan,
+            noiCap = g.NoiCap?.Trim()
+        }).ToArray()
+    };
 
     private async Task<string> GenerateMaHopDongAsync()
     {
