@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
 import { ExpandRecord, Notice } from './components';
+import { useAuth } from './context';
 
 const rows = (response) => Array.isArray(response.data) ? response.data : response.data.items || [];
 const empty = () => ({ tenDiaDanh: '', diaChi: '', maKhuVuc: '', mota: '' });
@@ -9,6 +10,10 @@ const fill = (item) => ({
 });
 
 export default function SightseeingManagement() {
+  const { can } = useAuth();
+  const canThem = can('DiemThamQuan', 'Them');
+  const canSua = can('DiemThamQuan', 'Sua');
+  const canXoa = can('DiemThamQuan', 'Xoa');
   const [items, setItems] = useState([]);
   const [regions, setRegions] = useState([]);
   const [form, setForm] = useState(empty);
@@ -69,15 +74,15 @@ export default function SightseeingManagement() {
   return <div>
     <h1>Điểm tham quan</h1>
     <Notice error={error} />{message && <div className="notice ok">{message}</div>}
-    <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(empty()); requestAnimationFrame(() => document.getElementById('sight-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm mới</button>
+    {canThem && <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(empty()); requestAnimationFrame(() => document.getElementById('sight-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm mới</button>}
     {creating && <div id="sight-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
     <div className="table">
       {items.map((item) => <ExpandRecord key={item.maDthamQuan} open={selected === item.maDthamQuan} summary={
         <div className="row" style={{ cursor: busy ? 'wait' : 'pointer' }} onClick={() => { if (!busy) toggle(item); }}>
           <b>{item.tenDiaDanh}</b><span>{item.tenKhuVuc || item.maKhuVuc || '—'}</span><span>{item.diaChi || '—'}</span>
           <div className="inline" style={{ margin: 0 }}>
-            <button disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa</button>
-            <button className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item.maDthamQuan); }}>Xóa</button>
+            {canSua && <button disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa</button>}
+            {canXoa && <button className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item.maDthamQuan); }}>Xóa</button>}
           </div>
         </div>
       }>{editor}</ExpandRecord>)}

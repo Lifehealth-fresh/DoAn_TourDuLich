@@ -7,23 +7,28 @@ export function Protected() {
 }
 
 export function Layout() {
-  const { logout } = useAuth();
+  const { logout, navItems } = useAuth();
   const nav = useNavigate();
   return (
     <div className="shell">
       <aside>
         <Link className="brand" to="/">ANAM Admin<small>Vận hành lữ hành</small></Link>
-        <Link to="/">Tổng quan</Link>
-        <Link to="/tours">Quản lý tour</Link>
-        <Link to="/booking">Booking</Link>
-        <Link to="/uu-dai">Ưu đãi</Link>
-        <Link to="/diem-tham-quan">Điểm tham quan</Link>
-        <Link to="/doi-tac">Đối tác</Link>
-        <Link to="/thiet-ke">Thiết kế</Link>
+        {navItems.map((item) => <Link key={item.to} to={item.to}>{item.label}</Link>)}
         <button onClick={() => { logout(); nav('/dang-nhap'); }}>Đăng xuất</button>
       </aside>
       <main><Outlet /></main>
     </div>
+  );
+}
+
+export function ModuleGate({ module, children }) {
+  const { can } = useAuth();
+  if (can(module, 'Xem')) return children;
+  return (
+    <section className="panel">
+      <h1>Bị hạn chế quyền</h1>
+      <p>Bạn bị hạn chế quyền: không được sử dụng chức năng này.</p>
+    </section>
   );
 }
 

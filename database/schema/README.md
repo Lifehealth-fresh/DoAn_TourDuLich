@@ -19,9 +19,10 @@ database. Không có `CREATE DATABASE` hoặc `USE`; hãy mở đúng database t
 12. `012_AnhTour_Cloudinary.sql` — lưu Cloudinary public ID để thay thế/xóa media an toàn.
 
 21. `019_BaoCaoAdmin.sql` — view doanh thu theo tháng, booking theo trạng thái, chỗ trống theo lịch khởi hành (trang tổng quan admin + Power BI).
+22. `020_QuyenTaiKhoan.sql` — bảng `QuyenNhanVien`: phân quyền Thêm/Sửa/Xóa/Toàn quyền theo từng tài khoản và từng chức năng admin.
 
 Thứ tự chạy thực tế là `001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012`.
-Các file 013–019 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.
+Các file 013–020 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.
 
 Tất cả tài khoản test trong bước 3 dùng mật khẩu `Test@123456`. Mật khẩu được lưu
 bằng BCrypt hash cố định được tạo bằng package `BCrypt.Net-Next` phiên bản `4.2.0`

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
 import { ExpandRecord, Notice } from './components';
+import { useAuth } from './context';
 
 const asUtc = (value) => value ? new Date(/[zZ]$|[+-]\d\d:\d\d$/.test(value) ? value : value + 'Z') : null;
 const localInput = (date) => {
@@ -29,6 +30,10 @@ const fromPromotion = (item) => {
 };
 
 export default function PromotionsManagement() {
+  const { can } = useAuth();
+  const canThem = can('UuDai', 'Them');
+  const canSua = can('UuDai', 'Sua');
+  const canXoa = can('UuDai', 'Xoa');
   const [items, setItems] = useState([]);
   const [tours, setTours] = useState([]);
   const [selected, setSelected] = useState('');
@@ -124,7 +129,7 @@ export default function PromotionsManagement() {
   const editor = (
     <form className="panel" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }} aria-label="Thông tin ưu đãi" onSubmit={save}>
       <h2>{selected ? 'Sửa ưu đãi ' + selected : 'Thêm ưu đãi mới'}</h2>
-      <fieldset disabled={busy} style={{ border: 0, padding: 0, minWidth: 0 }}>
+      <fieldset disabled={busy || (selected ? !canSua : !canThem)} style={{ border: 0, padding: 0, minWidth: 0 }}>
         <div style={grid}>
           <label style={label}>Tên ưu đãi<input required maxLength={50} style={fieldStyle} value={form.tenKm} onChange={field('tenKm')} /></label>
           <label style={label}>Mã ưu đãi<input required maxLength={10} style={fieldStyle} value={form.maCode} onChange={field('maCode')} /></label>
@@ -166,11 +171,11 @@ export default function PromotionsManagement() {
     <div id="promotion-notice" aria-live="polite"><Notice error={error} />{message && <div className="notice ok" role="status">{message}</div>}</div>
     {busy && <p role="status">Đang xử lý…</p>}
     <div className="inline">
-      <button disabled={busy} onClick={() => fresh()}>Thêm mới</button>
+      {canThem && <button disabled={busy} onClick={() => fresh()}>Thêm mới</button>}
       <button disabled={busy} onClick={() => run(async () => {
         await loadList(); if (selected) await loadDetail(selected);
       }, 'Không tải lại được ưu đãi.')}>Tải lại ưu đãi</button>
-      {!hasValidSeed && !hasDemo && <button disabled={busy} onClick={() => fresh(true)}>Điền mã DEMO10</button>}
+      {canThem && !hasValidSeed && !hasDemo && <button disabled={busy} onClick={() => fresh(true)}>Điền mã DEMO10</button>}
     </div>
     {creating && <div id="promo-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
     <div className="table" aria-label="Danh sách ưu đãi">
@@ -181,10 +186,10 @@ export default function PromotionsManagement() {
           <span>{item.trangThai === 'HoatDong' ? 'Hoạt động' : 'Ngừng hoạt động'}</span>
           <span>Hết hạn: {asUtc(item.ngayKt)?.toLocaleString('vi-VN') || '—'}</span>
           <div className="inline" style={{ margin: 0 }}>
-            <button disabled={busy} aria-label={'Sửa ưu đãi ' + item.maCode}
-              onClick={(event) => { event.stopPropagation(); openRow(item.maKm); }}>Sửa</button>
-            <button className="danger" disabled={busy} aria-label={'Xóa ưu đãi ' + item.maCode}
-              onClick={(event) => { event.stopPropagation(); remove(item.maKm); }}>Xóa</button>
+            {canSua && <button disabled={busy} aria-label={'Sửa ưu đãi ' + item.maCode}
+              onClick={(event) => { event.stopPropagation(); openRow(item.maKm); }}>Sửa</button>}
+            {canXoa && <button className="danger" disabled={busy} aria-label={'Xóa ưu đãi ' + item.maCode}
+              onClick={(event) => { event.stopPropagation(); remove(item.maKm); }}>Xóa</button>}
           </div>
         </div>
       }>{editor}</ExpandRecord>)}

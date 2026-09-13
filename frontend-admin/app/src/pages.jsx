@@ -38,8 +38,8 @@ export function Login() {
   const submit = async (x) => {
     x.preventDefault();
     try {
-      await login(f);
-      nav('/');
+      const result = await login(f);
+      nav(result.home || '/');
     } catch (err) {
       setE(err.message || api.errorMessage(err, 'Đăng nhập thất bại.'));
     }
@@ -159,6 +159,8 @@ export function Dashboard() {
 }
 
 export function BookingManagement() {
+  const { can } = useAuth();
+  const canSua = can('Booking', 'Sua');
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('');
   const [id, setId] = useState('');
@@ -287,7 +289,7 @@ export function BookingManagement() {
                 {next.map((s) => {
                   const cancelLocked = s === 'DaHuy' && paid > 0;
                   const paymentLocked = (s === 'DaXacNhan' && paid <= 0) || (s === 'DaThanhToan' && remaining > 0) || cancelLocked;
-                  const disabled = busy || paymentLocked;
+                  const disabled = busy || paymentLocked || !canSua;
                   return <button key={s} className={s === 'DaHuy' ? 'danger' : undefined} disabled={disabled}
                     style={{ opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
                     title={cancelLocked ? 'Khách đã thanh toán. Chờ yêu cầu hủy rồi xác nhận hoàn tiền.' : undefined}
@@ -296,7 +298,7 @@ export function BookingManagement() {
                   </button>;
                 })}
                 {state === 'ChoHoanTien' && (
-                  <button type="button" disabled={busy} onClick={refund}>Xác nhận hoàn tiền</button>
+                  <button type="button" disabled={busy || !canSua} onClick={refund}>Xác nhận hoàn tiền</button>
                 )}
                 {!next.length && state !== 'ChoHoanTien' && <span className="muted">Không còn bước tiếp theo.</span>}
               </div>
@@ -310,6 +312,10 @@ export function BookingManagement() {
 }
 
 export function TourAdminPage() {
+  const { can } = useAuth();
+  const canThem = can('Tour', 'Them');
+  const canSua = can('Tour', 'Sua');
+  const canXoa = can('Tour', 'Xoa');
   const emptyTour = () => ({
     MaTour: '', TenTour: '', Mota: '', ThoiGian: 1, GiaTour: 0, Slkhach: 1,
     SlhuongDanVien: 1, LoaiTour: 'Chuan', TrangThai: 'HoatDong', DieuKhoan: '',
@@ -527,7 +533,7 @@ export function TourAdminPage() {
       </div>
       {busy && <p role="status">Đang xử lý…</p>}
       <div className="inline">
-        <button type="button" disabled={busy} onClick={newTour}>Thêm tour mới</button>
+        {canThem && <button type="button" disabled={busy} onClick={newTour}>Thêm tour mới</button>}
         <button type="button" disabled={busy} onClick={() => run(async () => {
           if (selected) await loadDetails(selected);
           await loadList();
@@ -546,7 +552,7 @@ export function TourAdminPage() {
       <section className="panel" id="tour-create-form" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }}>
         <h2>Thêm tour</h2>
         <form onSubmit={save} aria-label="Thông tin tour">
-          <fieldset disabled={busy} style={fieldset}>
+          <fieldset disabled={busy || !canThem} style={fieldset}>
             <div style={grid}>
               <label style={field}>Mã tour<input style={control} maxLength={20} required
                 value={form.MaTour} onChange={setTourField('MaTour')} /></label>
@@ -596,12 +602,12 @@ export function TourAdminPage() {
                 <span>Số khách: {v(item, 'slkhach', 'Slkhach') ?? '—'}</span>
                 <span className="badge">{stateNames[state] || state}</span>
                 <div className="inline" style={{ margin: 0 }}>
-                  <button type="button" disabled={busy} onClick={(event) => {
+                  {canSua && <button type="button" disabled={busy} onClick={(event) => {
                     event.stopPropagation();
                     selectTour(id);
-                  }}>Sửa</button>
-                  <button type="button" className="danger" disabled={busy}
-                    onClick={(event) => { event.stopPropagation(); remove(id); }}>Xóa</button>
+                  }}>Sửa</button>}
+                  {canXoa && <button type="button" className="danger" disabled={busy}
+                    onClick={(event) => { event.stopPropagation(); remove(id); }}>Xóa</button>}
                 </div>
               </div>
             }>
@@ -609,7 +615,7 @@ export function TourAdminPage() {
                 <section className="panel" id="tour-form" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }}>
                   <h2>Chi tiết / sửa tour {selected}</h2>
                   <form onSubmit={save} aria-label="Thông tin tour">
-                    <fieldset disabled={busy || privateScheduleLocked} style={fieldset}>
+                    <fieldset disabled={busy || privateScheduleLocked || !canSua} style={fieldset}>
                       <div style={grid}>
                         <label style={field}>Mã tour<input style={control} maxLength={20} required readOnly
                           value={form.MaTour} onChange={setTourField('MaTour')} /></label>
@@ -652,15 +658,15 @@ export function TourAdminPage() {
                   <span>{line.mota || '—'}</span>
                   <span>SL: {line.soLuong ?? '—'} · Đơn giá: {money(line.donGia)}</span>
                   <b>Thành tiền: {money(line.thanhTien)}</b>
-                  <button type="button" className="danger" disabled={busy || scheduleLocked} aria-label={'Xóa lịch trình ' + line.maLichTrinh}
-                    onClick={() => removeSchedule(line.maLichTrinh)}>Xóa dòng</button>
+                  {canXoa && <button type="button" className="danger" disabled={busy || scheduleLocked} aria-label={'Xóa lịch trình ' + line.maLichTrinh}
+                    onClick={() => removeSchedule(line.maLichTrinh)}>Xóa dòng</button>}
                 </div>
               ))}
             </div>
             {!schedule.length && <p>Chưa có dòng lịch trình.</p>}
           </>}
           <form onSubmit={addSchedule} aria-label="Thêm lịch trình" style={{ marginTop: 20 }}>
-            <fieldset disabled={busy || scheduleLocked} style={fieldset}>
+            <fieldset disabled={busy || scheduleLocked || !canSua} style={fieldset}>
               <div style={grid}>
                 <label style={field}>Ngày thứ<input style={control} type="number" min="1" max={v(detail, 'thoiGian', 'ThoiGian') || 2147483647} required
                   value={scheduleForm.NgayThu} onChange={setScheduleField('NgayThu')} /></label>
@@ -683,7 +689,7 @@ export function TourAdminPage() {
         <section className="panel">
           <h2>Ảnh / video tour {selected}</h2>
           <form onSubmit={addMedia} aria-label="Upload ảnh tour">
-            <fieldset disabled={busy} style={fieldset}>
+            <fieldset disabled={busy || !canSua} style={fieldset}>
               <div style={grid}>
                 <label style={field}>File ảnh / video<input key={fileKey} style={control} type="file"
                   accept=".jpg,.jpeg,.png,.webp,.mp4,.webm,image/jpeg,image/png,image/webp,video/mp4,video/webm" required
@@ -705,9 +711,9 @@ export function TourAdminPage() {
               <p>{item.loaiMedia} · Thứ tự: {item.thuTu ?? 0}{item.isAvatar ? ' · Ảnh đại diện' : ''}</p>
               <div className="inline">
                 <a href={item.url} target="_blank" rel="noreferrer">Xem media</a>
-                <button type="button" className="danger" disabled={busy} aria-label={'Xóa ảnh ' + item.maAnhTour}
-                  onClick={() => removeMedia(item.maAnhTour)}>Xóa ảnh/video</button>
-                {item.loaiMedia !== 'Video' && <button type="button" disabled={busy || item.isAvatar}
+                {canXoa && <button type="button" className="danger" disabled={busy} aria-label={'Xóa ảnh ' + item.maAnhTour}
+                  onClick={() => removeMedia(item.maAnhTour)}>Xóa ảnh/video</button>}
+                {canSua && item.loaiMedia !== 'Video' && <button type="button" disabled={busy || item.isAvatar}
                   onClick={() => run(async () => {
                     await api.setTourCover(item.maAnhTour);
                     setMessage('Đã đặt ảnh đại diện. Trang chủ khách dùng ảnh này.');

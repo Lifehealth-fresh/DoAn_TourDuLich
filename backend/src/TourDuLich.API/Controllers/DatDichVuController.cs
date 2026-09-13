@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
+using TourDuLich.API.Authorization;
 using TourDuLich.API.Services;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Application.Services;
@@ -70,6 +71,7 @@ public class DatDichVuController : ControllerBase
 
     [HttpGet("danh-sach")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Xem)]
     public async Task<ActionResult> GetAllForStaff(
         [FromQuery] string? trangThai = null,
         [FromQuery] int page = 1,
@@ -192,6 +194,7 @@ public class DatDichVuController : ControllerBase
 
     [HttpGet("{maBooking}/ho-so-khach")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Xem)]
     public async Task<ActionResult> GetGuestProfile(string maBooking)
     {
         var booking = await FindBookingAsync(maBooking);
@@ -202,6 +205,7 @@ public class DatDichVuController : ControllerBase
 
     [HttpPut("{maBooking}/ho-so-khach")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
     public async Task<ActionResult> UpdateGuestProfile(string maBooking, KhachHangUpdateDto request)
     {
         if (string.IsNullOrWhiteSpace(request.Ho) || string.IsNullOrWhiteSpace(request.Ten))
@@ -245,6 +249,7 @@ public class DatDichVuController : ControllerBase
 
     [HttpPost("{maBooking}/ho-so-khach/giay-to")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
     public async Task<ActionResult> AddGuestDocument(string maBooking, GiayToCreateDto request)
     {
         var documentError = ValidateGuestDocument(request.LoaiGiayTo, request.SoTrenGiayTo, request.NoiCap, request.NgayCap, request.NgayHetHan);
@@ -272,6 +277,7 @@ public class DatDichVuController : ControllerBase
 
     [HttpPut("{maBooking}/ho-so-khach/giay-to/{maGiayTo}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
     public async Task<ActionResult> UpdateGuestDocument(string maBooking, string maGiayTo, GiayToUpdateDto request)
     {
         var documentError = ValidateGuestDocument(request.LoaiGiayTo, request.SoTrenGiayTo, request.NoiCap, request.NgayCap, request.NgayHetHan);
@@ -294,6 +300,7 @@ public class DatDichVuController : ControllerBase
 
     [HttpDelete("{maBooking}/ho-so-khach/giay-to/{maGiayTo}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Xoa)]
     public async Task<ActionResult> DeleteGuestDocument(string maBooking, string maGiayTo)
     {
         var booking = await FindBookingAsync(maBooking);
@@ -507,6 +514,7 @@ public class DatDichVuController : ControllerBase
 
     [HttpPut("{maBooking}/trang-thai")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
     public async Task<ActionResult> UpdateStatus(
         string maBooking,
         DatDichVuTrangThaiDto request)
@@ -669,6 +677,7 @@ public class DatDichVuController : ControllerBase
 
     [HttpPut("{maBooking}/xac-nhan-hoan-tien")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
     public async Task<ActionResult> ConfirmRefund(string maBooking)
     {
         var maBookingDb = FixedLengthHelper.PadTo20(maBooking);

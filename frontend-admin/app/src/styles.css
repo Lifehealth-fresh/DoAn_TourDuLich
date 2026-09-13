@@ -127,4 +127,48 @@ button {
   .chart-row { grid-template-columns: 1fr; }
 }
 
+.perm-grid {
+  display: grid;
+  gap: 0;
+  border: 2px solid var(--ink);
+  margin: 12px 0 18px;
+  background: #fffdf8;
+}
+.perm-head, .perm-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.8fr) repeat(4, minmax(72px, 1fr));
+  align-items: center;
+  gap: 0;
+}
+.perm-head {
+  background: var(--navy);
+  color: #fff3d6;
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+.perm-head span, .perm-row span, .perm-row input {
+  padding: 10px 12px;
+  border-right: 1px solid #e0c39a;
+}
+.perm-row { border-top: 1px solid #e0c39a; }
+.perm-row input {
+  width: 18px;
+  height: 18px;
+  justify-self: center;
+  accent-color: var(--jade);
+}
+.account-form {
+  display: grid;
+  gap: 12px;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.account-form label { display: grid; gap: 6; }
+@media (max-width: 800px) {
+  .perm-head, .perm-row { grid-template-columns: 1fr 1fr; }
+}
+
+
 

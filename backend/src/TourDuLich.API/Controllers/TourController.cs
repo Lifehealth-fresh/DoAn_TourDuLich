@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
+using TourDuLich.API.Authorization;
 using TourDuLich.API.DTOs;
 using TourDuLich.API.Services;
 using TourDuLich.Application.Services;
@@ -227,6 +228,7 @@ public class TourController : ControllerBase
     // POST /api/Tour
     [HttpPost]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Them)]
     public async Task<ActionResult> CreateTour([FromBody] TourCreateDto dto)
     {
         var maTour = FixedLengthHelper.PadTo20(dto.MaTour);
@@ -269,6 +271,7 @@ public class TourController : ControllerBase
     // PUT /api/Tour/{maTour} — chặn sửa GiaTour/DieuKhoan khi đã có HopDong DaKy (snapshot bất biến sau ký)
     [HttpPut("{maTour}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
     public async Task<IActionResult> UpdateTour(string maTour, [FromBody] TourUpdateDto dto)
     {
         var key = FixedLengthHelper.PadTo20(maTour);
@@ -316,6 +319,7 @@ public class TourController : ControllerBase
     // DELETE /api/Tour/{maTour}
     [HttpDelete("{maTour}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Xoa)]
     public async Task<IActionResult> DeleteTour(string maTour)
     {
         var existing = await _context.Tours.FindAsync(FixedLengthHelper.PadTo20(maTour));

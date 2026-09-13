@@ -65,3 +65,10 @@ export const updateGuestDocument=(id,docId,data)=>api.put('/api/DatDichVu/'+enco
 export const deleteGuestDocument=(id,docId)=>api.delete('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach/giay-to/'+encodeURIComponent(docId));
 export const overview=()=>api.get('/api/BaoCao/tong-quan');
 export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');
+export const me=()=>api.get('/api/Auth/toi');
+export const accounts=(params)=>api.get('/api/Admin/tai-khoan',{params});
+export const account=id=>api.get('/api/Admin/tai-khoan/'+encodeURIComponent(id));
+export const createAccount=data=>api.post('/api/Admin/tai-khoan',data);
+export const updateAccountGrants=(id,data)=>api.put('/api/Admin/tai-khoan/'+encodeURIComponent(id)+'/quyen',data);
+export const changeAccountRole=(id,tenVaiTro)=>api.put('/api/Admin/tai-khoan/'+encodeURIComponent(id)+'/vai-tro',{tenVaiTro});
+

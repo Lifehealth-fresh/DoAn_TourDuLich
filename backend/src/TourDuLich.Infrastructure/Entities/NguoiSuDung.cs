@@ -33,6 +33,8 @@ public partial class NguoiSuDung
 
     public virtual VaiTro MaVaiTroNavigation { get; set; } = null!;
 
+    public virtual ICollection<QuyenNhanVien> QuyenNhanViens { get; set; } = new List<QuyenNhanVien>();
+
     public virtual ICollection<ThongBao> ThongBaos { get; set; } = new List<ThongBao>();
 
     public virtual ICollection<YeuCauThietKe> YeuCauThietKes { get; set; } = new List<YeuCauThietKe>();

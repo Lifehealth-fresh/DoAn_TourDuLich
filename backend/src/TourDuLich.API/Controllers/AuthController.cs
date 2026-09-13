@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
+using TourDuLich.API.Authorization;
 using TourDuLich.API.DTOs;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Application.Services;
@@ -15,11 +16,16 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly JwtTokenService _jwtTokenService;
+    private readonly IPermissionService _permissions;
 
-    public AuthController(AppDbContext context, JwtTokenService jwtTokenService)
+    public AuthController(
+        AppDbContext context,
+        JwtTokenService jwtTokenService,
+        IPermissionService permissions)
     {
         _context = context;
         _jwtTokenService = jwtTokenService;
+        _permissions = permissions;
     }
 
     [HttpPost("register")]
@@ -85,7 +91,11 @@ public class AuthController : ControllerBase
             token,
             maUser = FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser),
             soDienThoai = FixedLengthHelper.TrimSafe(nguoiSuDung.SoDienThoai),
-            maVaiTro = nguoiSuDung.MaVaiTro
+            maVaiTro = nguoiSuDung.MaVaiTro,
+            tenVaiTro = vaiTroKhachHang.TenVaiTro.Trim(),
+            quyen = await _permissions.GetEffectiveGrantsAsync(
+                FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!,
+                vaiTroKhachHang.TenVaiTro.Trim())
         });
     }
 
@@ -114,16 +124,36 @@ public class AuthController : ControllerBase
         }
 
         var maUser = FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!;
+        var tenVaiTro = nguoiSuDung.MaVaiTroNavigation.TenVaiTro.Trim();
         var token = _jwtTokenService.GenerateToken(
             maUser,
             nguoiSuDung.MaVaiTro,
-            nguoiSuDung.MaVaiTroNavigation.TenVaiTro.Trim());
+            tenVaiTro);
 
         return Ok(new
         {
             token,
             maUser,
-            maVaiTro = nguoiSuDung.MaVaiTro
+            maVaiTro = nguoiSuDung.MaVaiTro,
+            tenVaiTro,
+            quyen = await _permissions.GetEffectiveGrantsAsync(maUser, tenVaiTro)
+        });
+    }
+
+    [HttpGet("toi")]
+    [Authorize]
+    public async Task<ActionResult> Me()
+    {
+        var maUser = User.FindFirst("MaUser")?.Value;
+        var tenVaiTro = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        if (string.IsNullOrWhiteSpace(maUser))
+            return Unauthorized(new { message = "Phiên đăng nhập không hợp lệ." });
+
+        return Ok(new
+        {
+            maUser,
+            tenVaiTro,
+            quyen = await _permissions.GetEffectiveGrantsAsync(maUser, tenVaiTro)
         });
     }
 }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TourDuLich.API.Authorization;
 using TourDuLich.API.DTOs;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
@@ -67,6 +68,7 @@ public class KhuyenMaiController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Admin,Sale")]
+    [RequirePermission(PermissionCatalog.UuDai, PermissionCatalog.Them)]
     public async Task<ActionResult> Create(KhuyenMaiCreateDto request)
     {
         var error = ValidateFields(request.TenKm, request.MaCode, request.NgayBd, request.NgayKt,
@@ -105,6 +107,7 @@ public class KhuyenMaiController : ControllerBase
 
     [HttpPut("{maKm}")]
     [Authorize(Roles = "Admin,Sale")]
+    [RequirePermission(PermissionCatalog.UuDai, PermissionCatalog.Sua)]
     public async Task<IActionResult> Update(string maKm, KhuyenMaiUpdateDto request)
     {
         var key = FixedLengthHelper.PadTo20(maKm);
@@ -143,6 +146,7 @@ public class KhuyenMaiController : ControllerBase
 
     [HttpDelete("{maKm}")]
     [Authorize(Roles = "Admin,Sale")]
+    [RequirePermission(PermissionCatalog.UuDai, PermissionCatalog.Xoa)]
     public async Task<IActionResult> Delete(string maKm)
     {
         var key = FixedLengthHelper.PadTo20(maKm);
@@ -167,6 +171,7 @@ public class KhuyenMaiController : ControllerBase
 
     [HttpPost("{maKm}/dieu-kien")]
     [Authorize(Roles = "Admin,Sale")]
+    [RequirePermission(PermissionCatalog.UuDai, PermissionCatalog.Sua)]
     public async Task<ActionResult> AddCondition(string maKm, DieuKienKmCreateDto request)
     {
         var error = ValidateCondition(request);

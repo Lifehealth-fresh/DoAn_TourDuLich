@@ -69,6 +69,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<NguoiSuDung> NguoiSuDungs { get; set; }
 
+    public virtual DbSet<QuyenNhanVien> QuyenNhanViens { get; set; }
+
     public virtual DbSet<NhomKhuyenMai> NhomKhuyenMais { get; set; }
 
     public virtual DbSet<Quyen> Quyens { get; set; }
@@ -848,6 +850,25 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.MaVaiTro)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_NguoiSuDung_VaiTro");
+        });
+
+        modelBuilder.Entity<QuyenNhanVien>(entity =>
+        {
+            entity.HasKey(e => e.MaQuyen);
+            entity.ToTable("QuyenNhanVien");
+            entity.HasIndex(e => new { e.MaUser, e.ChucNang }).IsUnique();
+            entity.HasIndex(e => e.MaUser);
+            entity.Property(e => e.MaQuyen)
+                .HasMaxLength(20)
+                .IsFixedLength();
+            entity.Property(e => e.MaUser)
+                .HasMaxLength(20)
+                .IsFixedLength();
+            entity.Property(e => e.ChucNang).HasMaxLength(40);
+            entity.HasOne(d => d.MaUserNavigation).WithMany(p => p.QuyenNhanViens)
+                .HasForeignKey(d => d.MaUser)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_QuyenNhanVien_NguoiSuDung");
         });
 
         modelBuilder.Entity<NhomKhuyenMai>(entity =>

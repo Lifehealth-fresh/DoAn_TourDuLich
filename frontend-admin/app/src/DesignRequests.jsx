@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
 import { ExpandRecord, Notice } from './components';
+import { useAuth } from './context';
 
 const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
@@ -12,6 +13,8 @@ const statusLabel = (value) => labels[trim(value)] || trim(value) || '—';
 const toRow = (item = {}) => ({ ngayThu: item.ngayThu ?? 1, thuTuTrongNgay: item.thuTuTrongNgay ?? 1, maDthamQuan: trim(item.maDthamQuan), maSanPham: trim(item.maSanPham), soLuong: item.soLuong ?? 1, mota: item.mota || '' });
 
 export function DesignRequests() {
+  const { can } = useAuth();
+  const allowed = can('ThietKe', 'Sua');
   const [items, setItems] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [plans, setPlans] = useState([]);
@@ -34,10 +37,10 @@ export function DesignRequests() {
   const state = trim(schedule?.trangThai ?? selected?.trangThai);
   const blocked = Boolean(busy || loading || loadingDetails || listError || detailError);
   const revision = schedule || selected;
-  const canGenerate = !blocked && !editing && state === 'Moi';
-  const canEdit = !blocked && Boolean(tourId) && ['DangThietKe', 'CanChinhSua'].includes(state);
+  const canGenerate = allowed && !blocked && !editing && state === 'Moi';
+  const canEdit = allowed && !blocked && Boolean(tourId) && ['DangThietKe', 'CanChinhSua'].includes(state);
   const canSubmit = canEdit && !editing;
-  const canApprove = !blocked && !editing && Boolean(tourId) && state === 'ChoDuyet';
+  const canApprove = allowed && !blocked && !editing && Boolean(tourId) && state === 'ChoDuyet';
 
   useEffect(() => {
     api.sightseeingPlaces().then((response) => setPlaces(rowsOf(response))).catch(() => {});

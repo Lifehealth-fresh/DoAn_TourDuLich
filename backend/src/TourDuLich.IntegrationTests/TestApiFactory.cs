@@ -190,6 +190,7 @@ public abstract class ApiTestBase : IAsyncLifetime
             DELETE FROM dbo.LichTrinh WHERE MaTour LIKE N'IT%';
             DELETE FROM dbo.LichKhoiHanh WHERE MaTour LIKE N'IT%';
             DELETE FROM dbo.Tour WHERE MaTour LIKE N'IT%';
+            DELETE FROM dbo.QuyenNhanVien WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%');
             DELETE FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%';
             """);
     }

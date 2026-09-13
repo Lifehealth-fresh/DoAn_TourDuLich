@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
 import { ExpandRecord, Notice } from './components';
+import { useAuth } from './context';
 
 const types = [
   { id: 'LuuTru', label: 'Khách sạn / lưu trú' },
@@ -19,6 +20,10 @@ const fill = (item) => ({
 });
 
 export default function PartnersManagement() {
+  const { can } = useAuth();
+  const canThem = can('DoiTac', 'Them');
+  const canSua = can('DoiTac', 'Sua');
+  const canXoa = can('DoiTac', 'Xoa');
   const [partners, setPartners] = useState([]);
   const [products, setProducts] = useState([]);
   const [regions, setRegions] = useState([]);
@@ -111,7 +116,7 @@ export default function PartnersManagement() {
     <h1>Đối tác và khách sạn</h1>
     <p className="muted">Khách sạn (LuuTru) bắt buộc chọn khu vực để tự thiết kế ghép đúng vùng.</p>
     <Notice error={error} />{message && <div className="notice ok">{message}</div>}
-    <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(emptyPartner()); requestAnimationFrame(() => document.getElementById('partner-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm đối tác</button>
+    {canThem && <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(emptyPartner()); requestAnimationFrame(() => document.getElementById('partner-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm đối tác</button>}
     {creating && <div id="partner-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
     <div className="table">
       {partners.map((item) => <ExpandRecord key={item.maDoiTac} open={selected === item.maDoiTac} summary={
@@ -119,8 +124,8 @@ export default function PartnersManagement() {
           <b>{item.tenDoiTac}</b><span>{types.find((t) => t.id === item.loaiDoiTac)?.label || item.loaiDoiTac}</span>
           <span>{item.tenKhuVuc || item.maKhuVuc || '—'}</span>
           <div className="inline" style={{ margin: 0 }}>
-            <button disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa</button>
-            <button className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item.maDoiTac); }}>Xóa</button>
+            {canSua && <button disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa</button>}
+            {canXoa && <button className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item.maDoiTac); }}>Xóa</button>}
           </div>
         </div>
       }>
@@ -129,15 +134,15 @@ export default function PartnersManagement() {
           <h2>Sản phẩm / loại phòng của {selectedPartner.tenDoiTac}</h2>
           <ul>{rooms.map((roomItem) => <li key={roomItem.maSanPham}>
             <b>{roomItem.tenSanPham}</b> · {roomItem.donViTinh || '—'} · {money(roomItem.giaNiemYet)}
-            <button className="danger" disabled={busy} onClick={() => removeProduct(roomItem.maSanPham)}>Xóa</button>
+            {canXoa && <button className="danger" disabled={busy} onClick={() => removeProduct(roomItem.maSanPham)}>Xóa</button>}
           </li>)}</ul>
-          <form onSubmit={saveRoom}>
+          {canSua && <form onSubmit={saveRoom}>
             <h3>Thêm {selectedPartner.loaiDoiTac === 'LuuTru' ? 'loại phòng (giá 1 đêm)' : 'sản phẩm'}</h3>
             <label>Tên / loại phòng<input required value={room.tenSanPham} onChange={(e) => setRoom({ ...room, tenSanPham: e.target.value })} /></label>
             <label>Giá<input type="number" required min="1" value={room.giaNiemYet} onChange={(e) => setRoom({ ...room, giaNiemYet: e.target.value })} /></label>
             <label>Mô tả<textarea rows={2} value={room.mota} onChange={(e) => setRoom({ ...room, mota: e.target.value })} /></label>
             <button disabled={busy}>Thêm</button>
-          </form>
+          </form>}
         </section>}
       </ExpandRecord>)}
     </div>

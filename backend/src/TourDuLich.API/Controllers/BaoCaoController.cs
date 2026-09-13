@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TourDuLich.API.Authorization;
 using TourDuLich.API.Services;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
@@ -17,6 +18,7 @@ public class BaoCaoController : ControllerBase
     public BaoCaoController(AppDbContext context) => _context = context;
 
     [HttpGet("tong-quan")]
+    [RequirePermission(PermissionCatalog.TongQuan, PermissionCatalog.Xem)]
     public async Task<ActionResult> TongQuan(CancellationToken cancellationToken)
     {
         var daHuy = FixedLengthHelper.PadTo20("DaHuy");

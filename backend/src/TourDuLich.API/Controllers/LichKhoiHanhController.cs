@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.Services;
+using TourDuLich.API.Authorization;
 using TourDuLich.API.DTOs;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
@@ -58,6 +59,7 @@ public class LichKhoiHanhController : ControllerBase
     // POST /api/LichKhoiHanh
     [HttpPost]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
     public async Task<ActionResult> CreateLichKhoiHanh([FromBody] LichKhoiHanhCreateDto dto)
     {
         var maKhoiHanh = FixedLengthHelper.PadTo20(dto.MaKhoiHanh);
@@ -96,6 +98,7 @@ public class LichKhoiHanhController : ControllerBase
     // PUT /api/LichKhoiHanh/{maKhoiHanh}
     [HttpPut("{maKhoiHanh}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
     public async Task<IActionResult> UpdateLichKhoiHanh(string maKhoiHanh, [FromBody] LichKhoiHanhUpdateDto dto)
     {
         var key = FixedLengthHelper.PadTo20(maKhoiHanh);
@@ -136,6 +139,7 @@ public class LichKhoiHanhController : ControllerBase
 
     [HttpGet("{maKhoiHanh}/khach")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Xem)]
     public async Task<ActionResult> GetGuests(string maKhoiHanh)
     {
         var key = FixedLengthHelper.PadTo20(maKhoiHanh);
@@ -158,6 +162,7 @@ public class LichKhoiHanhController : ControllerBase
     // DELETE /api/LichKhoiHanh/{maKhoiHanh}
     [HttpDelete("{maKhoiHanh}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Xoa)]
     public async Task<IActionResult> DeleteLichKhoiHanh(string maKhoiHanh)
     {
         var key = FixedLengthHelper.PadTo20(maKhoiHanh);

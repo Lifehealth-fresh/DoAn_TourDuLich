@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
+using TourDuLich.API.Authorization;
 using TourDuLich.Application.Helpers;
 using TourDuLich.API.Services;
 using TourDuLich.Infrastructure;
@@ -50,6 +51,7 @@ public class AnhTourController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
     public async Task<ActionResult> Create(AnhTourCreateDto request)
     {
         return StatusCode(StatusCodes.Status410Gone, new
@@ -60,6 +62,7 @@ public class AnhTourController : ControllerBase
 
     [HttpPost("theo-tour/{maTour}/upload")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
     [RequestSizeLimit(104_857_600)]
     public async Task<ActionResult> Upload(string maTour, [FromForm] AnhTourUploadDto request, CancellationToken cancellationToken)
     {
@@ -117,6 +120,7 @@ public class AnhTourController : ControllerBase
 
     [HttpPut("{maAnhTour}/dai-dien")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
     public async Task<ActionResult> SetAvatar(string maAnhTour, CancellationToken cancellationToken)
     {
         var key = FixedLengthHelper.PadTo20(maAnhTour);
@@ -134,6 +138,7 @@ public class AnhTourController : ControllerBase
 
     [HttpPut("{maAnhTour}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
     public async Task<ActionResult> Update(string maAnhTour, AnhTourUpdateDto request)
     {
         return StatusCode(StatusCodes.Status410Gone, new
@@ -144,6 +149,7 @@ public class AnhTourController : ControllerBase
 
     [HttpPut("{maAnhTour}/upload")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
     [RequestSizeLimit(104_857_600)]
     public async Task<ActionResult> ReplaceUpload(string maAnhTour, [FromForm] AnhTourUploadDto request, CancellationToken cancellationToken)
     {
@@ -191,6 +197,7 @@ public class AnhTourController : ControllerBase
 
     [HttpDelete("{maAnhTour}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Xoa)]
     public async Task<IActionResult> Delete(string maAnhTour)
     {
         var key = FixedLengthHelper.PadTo20(maAnhTour);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
 import { ExpandRecord, Notice } from './components';
+import { useAuth } from './context';
 
 const instant = (value) => value ? new Date(/(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? value : value + 'Z') : null;
 const stamp = (value) => instant(value)?.toLocaleString('vi-VN') || 'Chưa xác định';
@@ -22,6 +23,11 @@ const emptyProfile = () => ({
 const emptyDoc = () => ({ loaiGiayTo: 'CCCD', soTrenGiayTo: '', ngayCap: '', ngayHetHan: '', noiCap: '' });
 
 export default function DepartureGuests({ tourId, defaultCapacity, disabled = false }) {
+  const { can } = useAuth();
+  const canSuaTour = can('Tour', 'Sua');
+  const canXoaTour = can('Tour', 'Xoa');
+  const canSuaBooking = can('Booking', 'Sua');
+  const canXoaBooking = can('Booking', 'Xoa');
   const [dates, setDates] = useState([]);
   const [roster, setRoster] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -176,11 +182,11 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
                 <span className="chart-track" style={{ width: 120 }} title={`${fill}%`}>
                   <i style={{ width: `${fill}%`, background: fill >= 80 ? 'var(--coral)' : 'var(--jade)' }} />
                 </span>
-                <button type="button" disabled={blocked} onClick={(event) => {
+                {canSuaTour && <button type="button" disabled={blocked} onClick={(event) => {
                   event.stopPropagation();
                   setEditing(d.maKhoiHanh);
                   setForm({ ...d, ngayKhoiHanh: inputDate(d.ngayKhoiHanh), ngayKetThuc: inputDate(d.ngayKetThuc), soCho: d.soCho ?? defaultCapacity });
-                }}>Sửa lịch / số chỗ</button>
+                }}>Sửa lịch / số chỗ</button>}
               </div>
             }>
               {open && roster && <>
@@ -221,7 +227,7 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
                     <label>Email<input type="email" value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} /></label>
                     <label>Điện thoại<input readOnly value={profile.soDienThoai || ''} /></label>
                   </div>
-                  <button disabled={blocked} style={{ marginTop: 12 }}>{profile.maKhachHang ? 'Lưu hồ sơ' : 'Tạo hồ sơ khách'}</button>
+                  <button disabled={blocked || !canSuaBooking} style={{ marginTop: 12 }}>{profile.maKhachHang ? 'Lưu hồ sơ' : 'Tạo hồ sơ khách'}</button>
                   <h4>Giấy tờ</h4>
                   {!(profile.giayTo || []).length && <p>Chưa có giấy tờ.</p>}
                   {(profile.giayTo || []).map((g) => (
@@ -229,14 +235,14 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
                       <b>{g.loaiGiayTo} · {g.soTrenGiayTo}</b>
                       <p>Cấp: {day(g.ngayCap)} · Hết hạn: {day(g.ngayHetHan)} · Nơi cấp: {g.noiCap}</p>
                       <div className="inline" style={{ margin: 0 }}>
-                        <button type="button" disabled={blocked} onClick={() => {
+                        {canSuaBooking && <button type="button" disabled={blocked} onClick={() => {
                           setEditingDoc(g.maGiayTo);
                           setDocForm({
                             loaiGiayTo: g.loaiGiayTo || 'CCCD', soTrenGiayTo: g.soTrenGiayTo || '',
                             ngayCap: isoDay(g.ngayCap), ngayHetHan: isoDay(g.ngayHetHan), noiCap: g.noiCap || '',
                           });
-                        }}>Sửa giấy tờ</button>
-                        <button type="button" className="danger" disabled={blocked} onClick={() => removeDoc(g.maGiayTo)}>Xóa</button>
+                        }}>Sửa giấy tờ</button>}
+                        {canXoaBooking && <button type="button" className="danger" disabled={blocked} onClick={() => removeDoc(g.maGiayTo)}>Xóa</button>}
                       </div>
                     </div>
                   ))}
@@ -255,7 +261,7 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
                     <label>Nơi cấp<input required value={docForm.noiCap} onChange={(e) => setDocForm({ ...docForm, noiCap: e.target.value })} /></label>
                   </div>
                   <div className="inline" style={{ marginTop: 12 }}>
-                    <button disabled={blocked || !profile.maKhachHang}>{editingDoc ? 'Lưu giấy tờ' : 'Thêm giấy tờ'}</button>
+                    <button disabled={blocked || !profile.maKhachHang || !canSuaBooking}>{editingDoc ? 'Lưu giấy tờ' : 'Thêm giấy tờ'}</button>
                     {editingDoc && <button type="button" disabled={blocked} onClick={() => { setEditingDoc(''); setDocForm(emptyDoc()); }}>Hủy sửa</button>}
                   </div>
                 </form>
@@ -265,7 +271,7 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
         })}
       </div>
       <form onSubmit={saveDeparture}>
-        <fieldset disabled={blocked} style={{ border: 0, padding: 0 }}>
+        <fieldset disabled={blocked || !canSuaTour} style={{ border: 0, padding: 0 }}>
           <h3>{editing ? 'Sửa lịch ' + editing : 'Thêm lịch khởi hành'}</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <label>Mã lịch<input required maxLength={20} readOnly={!!editing} value={form.maKhoiHanh} onChange={(e) => setForm({ ...form, maKhoiHanh: e.target.value })} /></label>

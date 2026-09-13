@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.DTOs;
+using TourDuLich.API.Authorization;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
@@ -260,6 +261,7 @@ public class YeuCauThietKeController : ControllerBase
 
     [HttpPost("{maYeuCau}/sinh-de-xuat")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
     public async Task<ActionResult> GenerateProposals(string maYeuCau, CancellationToken cancellationToken)
     {
         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
@@ -383,6 +385,7 @@ public class YeuCauThietKeController : ControllerBase
 
     [HttpPut("{maYeuCau}/tu-choi-boi-sale")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
     public async Task<ActionResult> RejectBySale(
         string maYeuCau, LyDoTuChoiBoiSaleDto request, CancellationToken cancellationToken)
     {
@@ -410,6 +413,7 @@ public class YeuCauThietKeController : ControllerBase
 
     [HttpPut("{maYeuCau}/sua-lich-trinh")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
     public async Task<ActionResult> EditSchedule(
         string maYeuCau, SuaLichTrinhDto request, CancellationToken cancellationToken)
     {
@@ -642,6 +646,7 @@ public class YeuCauThietKeController : ControllerBase
 
     [HttpGet("danh-sach")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Xem)]
     public async Task<ActionResult> GetAllForStaff(CancellationToken cancellationToken)
     {
         var requests = await _context.YeuCauThietKes
@@ -655,6 +660,7 @@ public class YeuCauThietKeController : ControllerBase
     // PUT /api/YeuCauThietKe/{maYeuCau}/gui-duyet
     [HttpPut("{maYeuCau}/gui-duyet")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
     public async Task<ActionResult> SubmitForApproval(string maYeuCau)
     {
         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
@@ -736,6 +742,7 @@ public class YeuCauThietKeController : ControllerBase
     // PUT /api/YeuCauThietKe/{maYeuCau}/duyet
     [HttpPut("{maYeuCau}/duyet")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
     public async Task<ActionResult> Approve(string maYeuCau)
     {
         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
