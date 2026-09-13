@@ -67,6 +67,7 @@ public class SanPhamDoiTacController : ControllerBase
                 maKhuVuc = FixedLengthHelper.TrimSafe(item.MaDoiTacNavigation.MaKhuVuc),
                 tenKhuVuc = item.MaDoiTacNavigation.MaKhuVucNavigation != null
                     ? item.MaDoiTacNavigation.MaKhuVucNavigation.TenKhuVuc : null,
+                maTinh = FixedLengthHelper.TrimSafe(item.MaDoiTacNavigation.MaTinh),
                 tenSanPham = item.TenSanPham,
                 donViTinh = item.DonViTinh,
                 giaNiemYet = item.GiaNiemYet,

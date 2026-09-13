@@ -202,9 +202,10 @@ public sealed class SelfDesignedTourFlowTests : IsolatedApiTestBase
                 Assert.Equal(2, days.Count());
                 foreach (var day in days)
                 {
-                    var last = day.OrderBy(item => item.GetProperty("thuTuTrongNgay").GetInt32()).Last();
-                    Assert.Equal(hotelId.Trim(), last.GetProperty("maSanPham").GetString()?.Trim());
-                    Assert.True(last.GetProperty("laKhachSan").GetBoolean());
+                    var slots = day.OrderBy(item => item.GetProperty("thuTuTrongNgay").GetInt32()).ToList();
+                    Assert.Contains(slots, item => item.GetProperty("laKhachSan").GetBoolean() &&
+                        string.Equals(hotelId.Trim(), item.GetProperty("maSanPham").GetString()?.Trim(), StringComparison.OrdinalIgnoreCase));
+                    Assert.Contains("07:00", slots[0].GetProperty("mota").GetString() ?? "");
                 }
             }
             var first = proposals[0].GetProperty("chiTiets").EnumerateArray()

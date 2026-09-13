@@ -199,7 +199,7 @@ function DesignRequestDetail({ id }) {
             <div className="proposal-days">{days.map((day) => <section className="day-card" key={day}>
               <header><b>Ngày {day}</b></header>
               <ol>{details.filter((detail) => detail.ngayThu === day).map((detail) => <li key={detail.maChiTiet}>
-                <strong>{detail.laKhachSan ? `Khách sạn · ${detail.tenDoiTac || ''} · ${detail.tenSanPham}` : (detail.mota || trim(detail.maDthamQuan) || 'Điểm tham quan')}</strong>
+                <strong>{detail.gioBatDau ? `${detail.gioBatDau} · ` : ''}{detail.laKhachSan ? `Khách sạn · ${detail.tenDoiTac || ''} · ${detail.tenSanPham}` : (detail.mota || trim(detail.maDthamQuan) || 'Điểm tham quan')}</strong>
                 <p>{detail.laKhachSan
                   ? `${money(detail.donGia)} / đêm · SL ${detail.soLuong} — ${money(detail.thanhTien)}`
                   : (trim(detail.maSanPham) ? `Dịch vụ ${trim(detail.tenSanPham || detail.maSanPham)} · SL ${detail.soLuong} × ${money(detail.donGia)}` : 'Chưa kèm dịch vụ đối tác') + ` — ${money(detail.thanhTien)}`}</p>

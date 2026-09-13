@@ -12,6 +12,7 @@ public partial class LichTrinhDeXuatChiTiet
     public int DonGia { get; set; }
     public int ThanhTien { get; set; }
     public string? Mota { get; set; }
+    public TimeSpan? GioBatDau { get; set; }
     public virtual LichTrinhDeXuat MaDeXuatNavigation { get; set; } = null!;
     public virtual DiemThamQuan? MaDthamQuanNavigation { get; set; }
     public virtual SanPhamDoiTac? MaSanPhamNavigation { get; set; }

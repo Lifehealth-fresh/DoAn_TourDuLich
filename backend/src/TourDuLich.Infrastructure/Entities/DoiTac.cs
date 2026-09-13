@@ -19,11 +19,15 @@ public partial class DoiTac
 
     public string? MaKhuVuc { get; set; }
 
+    public string? MaTinh { get; set; }
+
     public decimal? PhanTramHoaHong { get; set; }
 
     public string? TrangThai { get; set; }
 
     public virtual KhuVuc? MaKhuVucNavigation { get; set; }
+
+    public virtual TinhThanh? MaTinhNavigation { get; set; }
 
     public virtual ICollection<SanPhamDoiTac> SanPhamDoiTacs { get; set; } = new List<SanPhamDoiTac>();
 }

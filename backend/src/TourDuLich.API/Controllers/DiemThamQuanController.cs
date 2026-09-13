@@ -37,6 +37,7 @@ public class DiemThamQuanController : ControllerBase
                 diaChi = x.DiaChi,
                 maKhuVuc = FixedLengthHelper.TrimSafe(x.MaKhuVuc),
                 tenKhuVuc = x.MaKhuVucNavigation != null ? x.MaKhuVucNavigation.TenKhuVuc : null,
+                maTinh = FixedLengthHelper.TrimSafe(x.MaTinh),
                 kinhDo = x.KinhDo,
                 viDo = x.ViDo,
                 mota = x.Mota
@@ -63,6 +64,7 @@ public class DiemThamQuanController : ControllerBase
                 diaChi = x.DiaChi,
                 maKhuVuc = FixedLengthHelper.TrimSafe(x.MaKhuVuc),
                 tenKhuVuc = x.MaKhuVucNavigation != null ? x.MaKhuVucNavigation.TenKhuVuc : null,
+                maTinh = FixedLengthHelper.TrimSafe(x.MaTinh),
                 kinhDo = x.KinhDo,
                 viDo = x.ViDo,
                 mota = x.Mota

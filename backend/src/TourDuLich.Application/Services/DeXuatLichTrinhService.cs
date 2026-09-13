@@ -8,43 +8,59 @@ namespace TourDuLich.Application.Services;
 public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
 {
     private readonly AppDbContext _context;
-
     public DeXuatLichTrinhService(AppDbContext context) => _context = context;
 
     public async Task<IReadOnlyList<LichTrinhDeXuat>> GenerateAsync(
         YeuCauThietKe request, CancellationToken cancellationToken = default)
     {
         var destination = request.DiemDenMongMuon?.Trim() ?? string.Empty;
-        var region = await ResolveRegionAsync(destination, cancellationToken);
-        if (region is null)
-            return [];
-
-        var points = await _context.DiemThamQuans.AsNoTracking()
-            .Where(item => item.MaKhuVuc == region.MaKhuVuc)
-            .OrderBy(item => item.MaDthamQuan)
-            .ToListAsync(cancellationToken);
-        if (points.Count == 0)
+        var province = await ResolveProvinceAsync(destination, cancellationToken);
+        var region = province is null ? await ResolveRegionAsync(destination, cancellationToken) : null;
+        var provinceId = province?.MaTinh;
+        var regionId = province?.MaKhuVuc ?? region?.MaKhuVuc;
+        if (provinceId is null && regionId is null)
             return [];
 
         var active = FixedLengthHelper.PadTo20("HoatDong");
         var luuTru = FixedLengthHelper.PadTo20(HotelStayRules.LoaiLuuTru);
-        var hotels = await _context.SanPhamDoiTacs
+        var anUong = FixedLengthHelper.PadTo20(HotelStayRules.LoaiAnUong);
+
+        var points = await _context.DiemThamQuans.AsNoTracking()
+            .Where(item => provinceId != null ? item.MaTinh == provinceId : item.MaKhuVuc == regionId)
+            .OrderBy(item => item.MaDthamQuan)
+            .ToListAsync(cancellationToken);
+        var visits = points.Where(item => (item.MaDthamQuan ?? string.Empty).StartsWith("DTV", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (visits.Count == 0)
+            visits = points;
+        var plays = points.Where(item => (item.MaDthamQuan ?? "").StartsWith("DTP") ||
+                                         (item.Mota ?? "").Contains("vui chơi", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var products = await _context.SanPhamDoiTacs.AsNoTracking()
             .Include(item => item.MaDoiTacNavigation)
             .Where(item =>
-                item.MaDoiTacNavigation.LoaiDoiTac == luuTru &&
-                item.MaDoiTacNavigation.MaKhuVuc == region.MaKhuVuc &&
                 (item.TrangThai == null || item.TrangThai == active) &&
-                (item.MaDoiTacNavigation.TrangThai == null || item.MaDoiTacNavigation.TrangThai == active))
-            .OrderBy(item => item.GiaNiemYet)
+                (item.MaDoiTacNavigation.TrangThai == null || item.MaDoiTacNavigation.TrangThai == active) &&
+                (provinceId != null
+                    ? item.MaDoiTacNavigation.MaTinh == provinceId
+                    : item.MaDoiTacNavigation.MaKhuVuc == regionId))
             .ToListAsync(cancellationToken);
-        if (hotels.Count == 0)
+
+        var hotels = products.Where(HotelStayRules.IsHotelProduct).OrderBy(item => item.GiaNiemYet).ToList();
+        var meals = products.Where(item => HotelStayRules.IsDining(item.MaDoiTacNavigation?.LoaiDoiTac))
+            .OrderBy(item => item.GiaNiemYet).ToList();
+        var tickets = products.Where(item => HotelStayRules.IsActivity(item.MaDoiTacNavigation?.LoaiDoiTac)).ToList();
+        if (hotels.Count == 0 || visits.Count == 0)
             return [];
 
         var days = Math.Clamp(request.SoNgay ?? 1, 1, 30);
+        var nights = Math.Max(1, days);
+        var placeName = province?.TenTinh ?? region?.TenKhuVuc ?? "điểm đến";
         var plans = new List<LichTrinhDeXuat>();
 
         for (var planNumber = 1; planNumber <= 3; planNumber++)
         {
+            var hotel = SelectByPlan(hotels, planNumber);
             var plan = new LichTrinhDeXuat
             {
                 MaDeXuat = await GeneratePlanIdAsync(cancellationToken),
@@ -56,48 +72,41 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
                     2 => "Phương án cân bằng",
                     _ => "Phương án cao cấp"
                 },
-                GhiChu = $"Đề xuất cùng khu vực {region.TenKhuVuc}. Mỗi ngày kết thúc bằng khách sạn (giá 1 đêm).",
+                GhiChu = $"Lịch {placeName}. Cả tour một khách sạn. Mỗi ngày có tham quan, ăn uống và giờ giấc.",
                 TrangThai = FixedLengthHelper.PadTo20("DeXuat"),
                 NgayTao = DateTime.UtcNow
             };
 
-            var hotel = SelectHotel(hotels, planNumber);
-            var selectedPoints = SelectPointsForPlan(points, days, planNumber);
             for (var day = 1; day <= days; day++)
             {
-                var dayPoints = selectedPoints.Where(item => item.NgayThu == day).ToList();
+                var visit = visits[(day - 1 + planNumber - 1) % visits.Count];
+                var play = plays.Count == 0 ? null : plays[(day + planNumber) % plays.Count];
+                var meal = meals.Count == 0 ? null : meals[(day - 1 + planNumber - 1) % meals.Count];
+                var ticket = tickets.FirstOrDefault(item => item.MaDthamQuan == visit.MaDthamQuan);
+                var playTicket = play is null ? null : tickets.FirstOrDefault(item => item.MaDthamQuan == play.MaDthamQuan);
                 var order = 1;
-                foreach (var selection in dayPoints)
+                if (day == 1)
                 {
-                    var point = selection.Point;
-                    plan.ChiTiets.Add(new LichTrinhDeXuatChiTiet
-                    {
-                        MaChiTiet = await GenerateDetailIdAsync(cancellationToken),
-                        MaDeXuat = plan.MaDeXuat,
-                        NgayThu = day,
-                        ThuTuTrongNgay = order++,
-                        MaDthamQuan = point.MaDthamQuan,
-                        MaSanPham = null,
-                        SoLuong = 1,
-                        DonGia = 0,
-                        ThanhTien = 0,
-                        Mota = point.TenDiaDanh
-                    });
+                    await AddLine(plan, day, order++, new TimeSpan(7, 0, 0), hotel, 0, 1,
+                        $"Có mặt tại {hotel.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
+                    await AddLine(plan, day, order++, new TimeSpan(9, 0, 0), hotel, hotel.GiaNiemYet, nights,
+                        $"Check-in phòng {hotel.TenSanPham} — {nights} đêm", cancellationToken);
+                    if (meal is not null)
+                        await AddLine(plan, day, order++, new TimeSpan(11, 0, 0), meal, meal.GiaNiemYet, 1,
+                            $"Dùng bữa tại {meal.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
+                    await AddVisit(plan, day, order++, new TimeSpan(15, 0, 0), visit, ticket, cancellationToken);
                 }
-
-                plan.ChiTiets.Add(new LichTrinhDeXuatChiTiet
+                else
                 {
-                    MaChiTiet = await GenerateDetailIdAsync(cancellationToken),
-                    MaDeXuat = plan.MaDeXuat,
-                    NgayThu = day,
-                    ThuTuTrongNgay = order,
-                    MaDthamQuan = null,
-                    MaSanPham = hotel.MaSanPham,
-                    SoLuong = 1,
-                    DonGia = hotel.GiaNiemYet,
-                    ThanhTien = TuThietKeTourPricing.CalculateLine(hotel.GiaNiemYet, 1),
-                    Mota = HotelStayRules.HotelCaption(hotel)
-                });
+                    await AddLine(plan, day, order++, new TimeSpan(7, 0, 0), hotel, 0, 1,
+                        $"Xuất phát từ {hotel.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
+                    if (play is not null)
+                        await AddVisit(plan, day, order++, new TimeSpan(9, 0, 0), play, playTicket, cancellationToken);
+                    if (meal is not null)
+                        await AddLine(plan, day, order++, new TimeSpan(11, 0, 0), meal, meal.GiaNiemYet, 1,
+                            $"Dùng bữa tại {meal.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
+                    await AddVisit(plan, day, order, new TimeSpan(15, 0, 0), visit, ticket, cancellationToken);
+                }
             }
 
             plan.TongTienDuKien = TuThietKeTourPricing.CalculateTotal(plan.ChiTiets.Select(item => item.ThanhTien));
@@ -115,6 +124,76 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
         return plans;
     }
 
+    private async Task AddVisit(LichTrinhDeXuat plan, int day, int order, TimeSpan time,
+        DiemThamQuan point, SanPhamDoiTac? ticket, CancellationToken cancellationToken)
+    {
+        var price = ticket?.GiaNiemYet ?? 0;
+        var line = new LichTrinhDeXuatChiTiet
+        {
+            MaChiTiet = await GenerateDetailIdAsync(cancellationToken),
+            MaDeXuat = plan.MaDeXuat,
+            NgayThu = day,
+            ThuTuTrongNgay = order,
+            MaDthamQuan = point.MaDthamQuan,
+            MaSanPham = ticket?.MaSanPham,
+            SoLuong = 1,
+            DonGia = price,
+            ThanhTien = TuThietKeTourPricing.CalculateLine(price, 1),
+            GioBatDau = time,
+            Mota = HotelStayRules.FormatSlot(time, $"Tham quan tại {point.TenDiaDanh}")
+        };
+        plan.ChiTiets.Add(line);
+    }
+
+    private async Task AddLine(LichTrinhDeXuat plan, int day, int order, TimeSpan time,
+        SanPhamDoiTac product, int donGia, int soLuong, string caption, CancellationToken cancellationToken)
+    {
+        plan.ChiTiets.Add(new LichTrinhDeXuatChiTiet
+        {
+            MaChiTiet = await GenerateDetailIdAsync(cancellationToken),
+            MaDeXuat = plan.MaDeXuat,
+            NgayThu = day,
+            ThuTuTrongNgay = order,
+            MaDthamQuan = product.MaDthamQuan,
+            MaSanPham = product.MaSanPham,
+            SoLuong = soLuong,
+            DonGia = donGia,
+            ThanhTien = TuThietKeTourPricing.CalculateLine(donGia, soLuong),
+            GioBatDau = time,
+            Mota = HotelStayRules.FormatSlot(time, caption)
+        });
+    }
+
+    private async Task<TinhThanh?> ResolveProvinceAsync(string destination, CancellationToken cancellationToken)
+    {
+        if (destination.Length > 0)
+        {
+            var named = await _context.TinhThanhs.AsNoTracking()
+                .Where(item => item.TenTinh.Contains(destination))
+                .OrderBy(item => item.MaTinh)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (named is not null)
+                return named;
+
+            var fromPoint = await _context.DiemThamQuans.AsNoTracking()
+                .Where(item =>
+                    (item.TenDiaDanh != null && item.TenDiaDanh.Contains(destination)) ||
+                    (item.DiaChi != null && item.DiaChi.Contains(destination)))
+                .Select(item => item.MaTinh)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fromPoint))
+                return await _context.TinhThanhs.AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.MaTinh == fromPoint, cancellationToken);
+        }
+
+        return await _context.TinhThanhs.AsNoTracking()
+            .Where(item => _context.DoiTacs.Any(partner =>
+                partner.MaTinh == item.MaTinh &&
+                partner.LoaiDoiTac == FixedLengthHelper.PadTo20(HotelStayRules.LoaiLuuTru)))
+            .OrderBy(item => item.MaTinh)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     private async Task<KhuVuc?> ResolveRegionAsync(string destination, CancellationToken cancellationToken)
     {
         if (destination.Length > 0)
@@ -125,16 +204,6 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
                 .FirstOrDefaultAsync(cancellationToken);
             if (named is not null)
                 return named;
-
-            var fromPoint = await _context.DiemThamQuans.AsNoTracking()
-                .Include(item => item.MaKhuVucNavigation)
-                .Where(item =>
-                    (item.TenDiaDanh != null && item.TenDiaDanh.Contains(destination)) ||
-                    (item.DiaChi != null && item.DiaChi.Contains(destination)))
-                .Select(item => item.MaKhuVucNavigation)
-                .FirstOrDefaultAsync(cancellationToken);
-            if (fromPoint is not null)
-                return fromPoint;
         }
 
         return await _context.KhuVucs.AsNoTracking()
@@ -146,37 +215,16 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    private static List<PointSelection> SelectPointsForPlan(
-        IReadOnlyList<DiemThamQuan> points, int days, int planNumber)
-    {
-        if (points.Count == 0)
-            return [];
-
-        var perDay = planNumber == 3 && points.Count >= days * 2 ? 2 : 1;
-        var selected = new List<PointSelection>();
-        for (var day = 1; day <= days; day++)
-        {
-            for (var slot = 1; slot <= perDay; slot++)
-            {
-                var index = ((day - 1) * perDay + (slot - 1) + (planNumber - 1)) % points.Count;
-                selected.Add(new PointSelection(points[index], day, slot));
-            }
-        }
-        return selected;
-    }
-
-    private static SanPhamDoiTac SelectHotel(IReadOnlyList<SanPhamDoiTac> hotels, int planNumber)
+    private static T SelectByPlan<T>(IReadOnlyList<T> items, int planNumber)
     {
         var index = planNumber switch
         {
             1 => 0,
-            2 => hotels.Count / 2,
-            _ => hotels.Count - 1
+            2 => items.Count / 2,
+            _ => items.Count - 1
         };
-        return hotels[index];
+        return items[index];
     }
-
-    private sealed record PointSelection(DiemThamQuan Point, int NgayThu, int ThuTuTrongNgay);
 
     private async Task<string> GeneratePlanIdAsync(CancellationToken cancellationToken)
         => await GenerateIdAsync("DX", id => _context.LichTrinhDeXuats.AnyAsync(item => item.MaDeXuat == id, cancellationToken));
@@ -187,10 +235,8 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
     private static async Task<string> GenerateIdAsync(string prefix, Func<string, Task<bool>> exists)
     {
         string id;
-        do
-        {
-            id = FixedLengthHelper.PadTo20($"{prefix}{Guid.NewGuid():N}"[..20].ToUpperInvariant());
-        } while (await exists(id));
+        do { id = FixedLengthHelper.PadTo20($"{prefix}{Guid.NewGuid():N}"[..20].ToUpperInvariant()); }
+        while (await exists(id));
         return id;
     }
 }

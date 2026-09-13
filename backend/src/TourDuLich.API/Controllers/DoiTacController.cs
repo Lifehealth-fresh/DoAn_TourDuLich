@@ -70,6 +70,7 @@ public class DoiTacController : ControllerBase
                 email = item.Email,
                 maKhuVuc = FixedLengthHelper.TrimSafe(item.MaKhuVuc),
                 tenKhuVuc = item.MaKhuVucNavigation!.TenKhuVuc,
+                maTinh = FixedLengthHelper.TrimSafe(item.MaTinh),
                 phanTramHoaHong = item.PhanTramHoaHong,
                 trangThai = FixedLengthHelper.TrimSafe(item.TrangThai)
             })
@@ -97,6 +98,7 @@ public class DoiTacController : ControllerBase
                 email = item.Email,
                 maKhuVuc = FixedLengthHelper.TrimSafe(item.MaKhuVuc),
                 tenKhuVuc = item.MaKhuVucNavigation!.TenKhuVuc,
+                maTinh = FixedLengthHelper.TrimSafe(item.MaTinh),
                 phanTramHoaHong = item.PhanTramHoaHong,
                 trangThai = FixedLengthHelper.TrimSafe(item.TrangThai)
             })

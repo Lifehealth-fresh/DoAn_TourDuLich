@@ -436,10 +436,10 @@ public class YeuCauThietKeController : ControllerBase
             return BadRequest(new { message = "Điểm tham quan hoặc sản phẩm trong lịch trình không tồn tại." });
         if (request.ChiTiets.Any(item => item.SoLuong <= 0 || (string.IsNullOrWhiteSpace(item.MaDthamQuan) && string.IsNullOrWhiteSpace(item.MaSanPham))))
             return BadRequest(new { message = "Mỗi dòng phải có điểm/sản phẩm và số lượng lớn hơn 0." });
-        var hotelError = HotelStayRules.MissingHotelMessage(request.ChiTiets.Select(item =>
+        var hotelError = HotelStayRules.ItineraryStructureMessage(request.ChiTiets.Select(item =>
         {
             var product = string.IsNullOrWhiteSpace(item.MaSanPham) ? null : products.GetValueOrDefault(FixedLengthHelper.PadTo20(item.MaSanPham));
-            return (item.NgayThu, item.ThuTuTrongNgay, product);
+            return (item.NgayThu, item.ThuTuTrongNgay, item.MaDthamQuan, product);
         }));
         if (hotelError is not null)
             return BadRequest(new { message = hotelError });
@@ -627,6 +627,7 @@ public class YeuCauThietKeController : ControllerBase
             loaiDoiTac = detail.MaSanPhamNavigation == null ? null : FixedLengthHelper.TrimSafe(detail.MaSanPhamNavigation.MaDoiTacNavigation.LoaiDoiTac),
             donViTinh = detail.MaSanPhamNavigation == null ? null : detail.MaSanPhamNavigation.DonViTinh,
             laKhachSan = HotelStayRules.IsHotelProduct(detail.MaSanPhamNavigation),
+            gioBatDau = detail.GioBatDau.HasValue ? detail.GioBatDau.Value.ToString(@"hh\:mm") : null,
             soLuong = detail.SoLuong,
             donGia = detail.DonGia,
             thanhTien = detail.ThanhTien,
@@ -700,8 +701,8 @@ public class YeuCauThietKeController : ControllerBase
             .Include(item => item.MaDthamQuanNavigation)
             .Where(item => item.MaTour == requestData.Tour.MaTour)
             .ToListAsync();
-        var hotelError = HotelStayRules.MissingHotelMessage(schedule.Select(item =>
-            (item.NgayThu ?? 0, item.ThuTuTrongNgay ?? 0, item.MaSanPhamNavigation)));
+        var hotelError = HotelStayRules.ItineraryStructureMessage(schedule.Select(item =>
+            (item.NgayThu ?? 0, item.ThuTuTrongNgay ?? 0, item.MaDthamQuan, item.MaSanPhamNavigation)));
         if (hotelError is not null)
             return BadRequest(new { message = hotelError });
         var regionError = HotelStayRules.RegionMismatchMessage(schedule.Select(item =>

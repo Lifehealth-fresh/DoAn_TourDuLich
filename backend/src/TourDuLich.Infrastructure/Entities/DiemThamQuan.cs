@@ -13,6 +13,8 @@ public partial class DiemThamQuan
 
     public string? MaKhuVuc { get; set; }
 
+    public string? MaTinh { get; set; }
+
     public decimal? KinhDo { get; set; }
 
     public decimal? ViDo { get; set; }
@@ -22,6 +24,8 @@ public partial class DiemThamQuan
     public virtual ICollection<LichTrinh> LichTrinhs { get; set; } = new List<LichTrinh>();
 
     public virtual KhuVuc? MaKhuVucNavigation { get; set; }
+
+    public virtual TinhThanh? MaTinhNavigation { get; set; }
 
     public virtual ICollection<SanPhamDoiTac> SanPhamDoiTacs { get; set; } = new List<SanPhamDoiTac>();
 }

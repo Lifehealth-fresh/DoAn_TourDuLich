@@ -50,6 +50,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<KhuVuc> KhuVucs { get; set; }
 
+    public virtual DbSet<TinhThanh> TinhThanhs { get; set; }
+
     public virtual DbSet<KhuyenMai> KhuyenMais { get; set; }
 
     public virtual DbSet<KmTour> KmTours { get; set; }
@@ -393,12 +395,18 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.MaKhuVuc)
                 .HasMaxLength(20)
                 .IsFixedLength();
+            entity.Property(e => e.MaTinh)
+                .HasMaxLength(20)
+                .IsFixedLength();
             entity.Property(e => e.TenDiaDanh).HasMaxLength(100);
             entity.Property(e => e.ViDo).HasColumnType("decimal(9, 6)");
 
             entity.HasOne(d => d.MaKhuVucNavigation).WithMany(p => p.DiemThamQuans)
                 .HasForeignKey(d => d.MaKhuVuc)
                 .HasConstraintName("FK_DiemThamQuan_KhuVuc");
+            entity.HasOne(d => d.MaTinhNavigation).WithMany(p => p.DiemThamQuans)
+                .HasForeignKey(d => d.MaTinh)
+                .HasConstraintName("FK_DiemThamQuan_TinhThanh");
         });
 
         modelBuilder.Entity<DieuKienKm>(entity =>
@@ -436,6 +444,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.MaKhuVuc)
                 .HasMaxLength(20)
                 .IsFixedLength();
+            entity.Property(e => e.MaTinh)
+                .HasMaxLength(20)
+                .IsFixedLength();
             entity.Property(e => e.NguoiLienHe).HasMaxLength(50);
             entity.Property(e => e.PhanTramHoaHong).HasColumnType("decimal(5, 2)");
             entity.Property(e => e.SoDienThoai)
@@ -449,6 +460,9 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.MaKhuVucNavigation).WithMany(p => p.DoiTacs)
                 .HasForeignKey(d => d.MaKhuVuc)
                 .HasConstraintName("FK_DoiTac_KhuVuc");
+            entity.HasOne(d => d.MaTinhNavigation).WithMany(p => p.DoiTacs)
+                .HasForeignKey(d => d.MaTinh)
+                .HasConstraintName("FK_DoiTac_TinhThanh");
         });
 
         modelBuilder.Entity<GiayTo>(entity =>
@@ -609,6 +623,18 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(20)
                 .IsFixedLength();
             entity.Property(e => e.ViDo).HasColumnType("decimal(9, 6)");
+        });
+
+        modelBuilder.Entity<TinhThanh>(entity =>
+        {
+            entity.HasKey(e => e.MaTinh).HasName("PK_TinhThanh");
+            entity.ToTable("TinhThanh");
+            entity.Property(e => e.MaTinh).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.TenTinh).HasMaxLength(100);
+            entity.Property(e => e.MaKhuVuc).HasMaxLength(20).IsFixedLength();
+            entity.HasOne(e => e.MaKhuVucNavigation).WithMany(p => p.TinhThanhs)
+                .HasForeignKey(e => e.MaKhuVuc)
+                .HasConstraintName("FK_TinhThanh_KhuVuc");
         });
 
         modelBuilder.Entity<KhuyenMai>(entity =>
@@ -792,6 +818,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.MaDthamQuan).HasMaxLength(20).IsFixedLength().HasColumnName("MaDThamQuan");
             entity.Property(e => e.MaSanPham).HasMaxLength(20).IsFixedLength();
             entity.Property(e => e.Mota).HasMaxLength(500);
+            entity.Property(e => e.GioBatDau).HasColumnType("time(0)");
             entity.HasOne(e => e.MaDeXuatNavigation).WithMany(e => e.ChiTiets)
                 .HasForeignKey(e => e.MaDeXuat).OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_LichTrinhDeXuatChiTiet_DeXuat");

@@ -120,20 +120,24 @@ export function DesignRequests() {
     }
     const byDay = {};
     chiTiets.forEach((row) => { (byDay[row.ngayThu] ||= []).push(row); });
-    const missingHotel = Object.values(byDay).some((dayRows) => {
-      const last = [...dayRows].sort((a, b) => a.thuTuTrongNgay - b.thuTuTrongNgay).at(-1);
-      const product = products.find((item) => item.maSanPham === last.maSanPham);
-      return !product || product.loaiDoiTac !== 'LuuTru';
+    const hotelsUsed = [...new Set(chiTiets.map((row) => products.find((item) => item.maSanPham === row.maSanPham))
+      .filter((item) => item?.loaiDoiTac === 'LuuTru').map((item) => item.maDoiTac))];
+    if (hotelsUsed.length !== 1) { setError('Cả lịch trình chỉ dùng một khách sạn lưu trú.'); return; }
+    const missingDay = Object.entries(byDay).some(([day, dayRows]) => {
+      const hasVisit = dayRows.some((row) => row.maDthamQuan || products.find((item) => item.maSanPham === row.maSanPham)?.loaiDoiTac === 'HoatDong');
+      const hasMeal = dayRows.some((row) => products.find((item) => item.maSanPham === row.maSanPham)?.loaiDoiTac === 'AnUong');
+      const hasStay = dayRows.some((row) => products.find((item) => item.maSanPham === row.maSanPham)?.loaiDoiTac === 'LuuTru');
+      if (!hasVisit || !hasMeal || !hasStay) { setError(`Ngày ${day} cần tham quan (hoặc vui chơi), ăn uống và khách sạn đã chọn.`); return true; }
+      return false;
     });
-    if (missingHotel) { setError('Mỗi ngày phải kết thúc bằng khách sạn.'); return; }
-    const regionMismatch = Object.entries(byDay).some(([day, dayRows]) => {
+    if (missingDay) return;
+    const regionMismatch = Object.entries(byDay).some(([, dayRows]) => {
       const ids = dayRows.map((row) => row.maDthamQuan).filter(Boolean);
       const region = places.find((place) => ids.includes(place.maDthamQuan))?.maKhuVuc;
-      const last = [...dayRows].sort((a, b) => a.thuTuTrongNgay - b.thuTuTrongNgay).at(-1);
-      const product = products.find((item) => item.maSanPham === last.maSanPham);
-      return region && product?.maKhuVuc && product.maKhuVuc !== region;
+      const hotel = products.find((item) => item.maDoiTac === hotelsUsed[0]);
+      return region && hotel?.maKhuVuc && hotel.maKhuVuc !== region;
     });
-    if (regionMismatch) { setError('Khách sạn phải cùng khu vực với điểm tham quan trong ngày.'); return; }
+    if (regionMismatch) { setError('Khách sạn phải cùng tỉnh/khu vực với điểm tham quan.'); return; }
     act('save', { chiTiets });
   };
   const actionButton = (action, caption, allowed) => <button disabled={!allowed} style={{ opacity: allowed ? 1 : 0.5 }} onClick={() => act(action)}>{busy === action ? 'Đang xử lý…' : caption}</button>;
@@ -175,7 +179,7 @@ export function DesignRequests() {
             <header className="panel-head"><h2>Lịch trình hiện tại</h2>{!editing && canEdit && <button onClick={() => { setEditing(true); setError(''); setOk(''); }}>Sửa lịch trình</button>}</header>
             <p>Giá lịch trình đã lưu: <b>{money(schedule.tongGiaHienTai)}</b>. Máy chủ tính lại giá từ sản phẩm và số lượng khi lưu.</p>
             {editing ? <form onSubmit={save}>
-              <p>Chọn điểm tham quan hoặc sản phẩm (khách sạn = loại lưu trú). Mỗi ngày dòng cuối phải là khách sạn, giá tính theo 1 đêm.</p>
+              <p>Mỗi ngày cần tham quan/vui chơi, một bữa ăn, và cùng một khách sạn cho cả tour. Giờ ghi trong mô tả (07:00 có mặt, 09:00 check-in, 11:00 ăn, 15:00 tham quan).</p>
               <div className="table">{rows.map((row, index) => <fieldset className="panel" key={index} disabled={Boolean(busy)}>
                 <legend>Dòng {index + 1}</legend>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>

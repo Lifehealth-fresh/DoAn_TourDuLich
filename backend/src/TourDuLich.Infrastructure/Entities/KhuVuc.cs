@@ -22,4 +22,6 @@ public partial class KhuVuc
     public virtual ICollection<DiemThamQuan> DiemThamQuans { get; set; } = new List<DiemThamQuan>();
 
     public virtual ICollection<DoiTac> DoiTacs { get; set; } = new List<DoiTac>();
+
+    public virtual ICollection<TinhThanh> TinhThanhs { get; set; } = new List<TinhThanh>();
 }
