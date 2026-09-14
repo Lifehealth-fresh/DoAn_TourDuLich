@@ -1,0 +1,1212 @@
+From 7900c2456916a8d880a5625db8a2d70aefdda66c Mon Sep 17 00:00:00 2001
+From: Lifehealth-fresh <khaitran.160505@gmail.com>
+Date: Sun, 13 Sep 2026 22:08:35 +0000
+Subject: [PATCH] feat: admin overview charts and editable guest papers on
+ departures
+
+Dashboard reads aggregated booking, payment and occupancy stats so staff can steer capacity and pricing. On a tour, each operating departure lists held/paid guests; staff may edit only the customer profile and identity documents, not the ticket itself.
+---
+ .../Controllers/BaoCaoController.cs           | 176 +++++++++
+ .../Controllers/DatDichVuController.cs        | 190 +++++++++-
+ .../Controllers/KhachHangController.cs        |  12 +-
+ .../BaoCaoGuestProfileTests.cs                |  83 +++++
+ database/schema/019_BaoCaoAdmin.sql           |  53 +++
+ database/schema/README.md                     |   3 +
+ frontend-admin/app/src/DepartureGuests.jsx    | 347 ++++++++++++++----
+ frontend-admin/app/src/api.js                 |   5 +
+ frontend-admin/app/src/components.jsx         |  47 +++
+ frontend-admin/app/src/pages.jsx              |  57 ++-
+ frontend-admin/app/src/styles.css             |  22 +-
+ powerbi/CHECKLIST_DONG_BO_BI.md               |   4 +-
+ 12 files changed, 900 insertions(+), 99 deletions(-)
+ create mode 100644 backend/src/TourDuLich.API/Controllers/BaoCaoController.cs
+ create mode 100644 backend/src/TourDuLich.IntegrationTests/BaoCaoGuestProfileTests.cs
+ create mode 100644 database/schema/019_BaoCaoAdmin.sql
+
+diff --git a/backend/src/TourDuLich.API/Controllers/BaoCaoController.cs b/backend/src/TourDuLich.API/Controllers/BaoCaoController.cs
+new file mode 100644
+index 0000000..7217977
+--- /dev/null
++++ b/backend/src/TourDuLich.API/Controllers/BaoCaoController.cs
+@@ -0,0 +1,176 @@
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.EntityFrameworkCore;
++using TourDuLich.API.Services;
++using TourDuLich.Application.Helpers;
++using TourDuLich.Infrastructure;
++
++namespace TourDuLich.API.Controllers;
++
++[ApiController]
++[Route("api/[controller]")]
++[Authorize(Roles = "Admin,Sale")]
++public class BaoCaoController : ControllerBase
++{
++    private readonly AppDbContext _context;
++
++    public BaoCaoController(AppDbContext context) => _context = context;
++
++    [HttpGet("tong-quan")]
++    public async Task<ActionResult> TongQuan(CancellationToken cancellationToken)
++    {
++        var daHuy = FixedLengthHelper.PadTo20("DaHuy");
++        var choHoan = FixedLengthHelper.PadTo20("ChoHoanTien");
++        var payOk = new[] { FixedLengthHelper.PadTo20("DaXacNhan"), FixedLengthHelper.PadTo20("ThanhCong") };
++        var chuan = FixedLengthHelper.PadTo20("Chuan");
++        var hoatDong = FixedLengthHelper.PadTo20("HoatDong");
++        var now = DateTime.UtcNow;
++        var fromMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-5);
++
++        var toursDangBan = await _context.Tours.AsNoTracking()
++            .CountAsync(t => t.LoaiTour == chuan && (t.TrangThai == null || t.TrangThai == hoatDong), cancellationToken);
++
++        var theoTrangThai = (await _context.DatDichVus.AsNoTracking()
++            .GroupBy(b => b.TrangThai)
++            .Select(g => new
++            {
++                trangThai = g.Key,
++                soLuong = g.Count(),
++                thanhTien = g.Sum(x => (long?)(x.ThanhTien ?? 0)) ?? 0
++            })
++            .ToListAsync(cancellationToken))
++            .Select(row => new
++            {
++                trangThai = FixedLengthHelper.TrimSafe(row.trangThai) ?? "KhongRo",
++                row.soLuong,
++                row.thanhTien
++            })
++            .OrderByDescending(row => row.soLuong)
++            .ToList();
++
++        var choXacNhanCount = theoTrangThai
++            .Where(row => row.trangThai == "ChoXacNhan")
++            .Select(row => row.soLuong)
++            .FirstOrDefault();
++        var tongBooking = theoTrangThai.Sum(row => row.soLuong);
++        var soHuy = theoTrangThai.Where(row => row.trangThai is "DaHuy" or "ChoHoanTien").Sum(row => row.soLuong);
++
++        var payments = await _context.ThanhToans.AsNoTracking()
++            .Where(p => payOk.Contains(p.TrangThai!))
++            .Select(p => new { p.SoTien, Ngay = p.PaidAt ?? p.NgayTt, p.MaBooking })
++            .ToListAsync(cancellationToken);
++        var daThu = payments.Sum(p => (long)(p.SoTien ?? 0));
++
++        var outstanding = await _context.DatDichVus.AsNoTracking()
++            .Where(b => b.TrangThai != daHuy && b.TrangThai != choHoan)
++            .Select(b => new
++            {
++                thanhTien = b.ThanhTien ?? 0,
++                daTra = b.ThanhToans
++                    .Where(p => payOk.Contains(p.TrangThai!))
++                    .Sum(p => (int?)p.SoTien) ?? 0
++            })
++            .ToListAsync(cancellationToken);
++        var conPhaiThu = outstanding.Sum(row => Math.Max(0L, row.thanhTien - row.daTra));
++
++        var monthlyMap = payments
++            .Where(p => p.Ngay != null && p.Ngay >= fromMonth)
++            .GroupBy(p => (p.Ngay!.Value.Year, p.Ngay.Value.Month))
++            .ToDictionary(g => g.Key, g => new { daThu = g.Sum(x => (long)(x.SoTien ?? 0)), soGiaoDich = g.Count() });
++        var doanhThuTheoThang = Enumerable.Range(0, 6)
++            .Select(offset => fromMonth.AddMonths(offset))
++            .Select(month =>
++            {
++                monthlyMap.TryGetValue((month.Year, month.Month), out var row);
++                return new
++                {
++                    nam = month.Year,
++                    thang = month.Month,
++                    nhan = $"T{month.Month}/{month.Year}",
++                    daThu = row?.daThu ?? 0,
++                    soGiaoDich = row?.soGiaoDich ?? 0
++                };
++            })
++            .ToList();
++
++        var paidByBooking = payments
++            .GroupBy(p => p.MaBooking)
++            .ToDictionary(g => g.Key, g => g.Sum(x => (long)(x.SoTien ?? 0)));
++        var bookingRows = await _context.DatDichVus.AsNoTracking()
++            .Select(b => new { b.MaBooking, b.MaTour, b.TrangThai, b.ThanhTien })
++            .ToListAsync(cancellationToken);
++        var tourNames = await _context.Tours.AsNoTracking()
++            .Select(t => new { t.MaTour, t.TenTour })
++            .ToListAsync(cancellationToken);
++        var ratings = await _context.DanhGiaTours.AsNoTracking()
++            .Where(r => r.MaTour != null && r.SaoDanhGia != null)
++            .GroupBy(r => r.MaTour!)
++            .Select(g => new { MaTour = g.Key, Diem = g.Average(x => (double)x.SaoDanhGia!) })
++            .ToListAsync(cancellationToken);
++        var ratingMap = ratings.ToDictionary(r => r.MaTour, r => r.Diem, StringComparer.OrdinalIgnoreCase);
++
++        var topTour = tourNames.Select(tour =>
++        {
++            var rows = bookingRows.Where(b => b.MaTour == tour.MaTour).ToList();
++            var huy = rows.Count(b =>
++            {
++                var state = FixedLengthHelper.TrimSafe(b.TrangThai);
++                return state is "DaHuy" or "ChoHoanTien";
++            });
++            var thu = rows.Sum(b => paidByBooking.GetValueOrDefault(b.MaBooking));
++            ratingMap.TryGetValue(tour.MaTour, out var diem);
++            return new
++            {
++                maTour = FixedLengthHelper.TrimSafe(tour.MaTour),
++                tenTour = tour.TenTour,
++                soBooking = rows.Count,
++                daThu = thu,
++                soHuy = huy,
++                tyLeHuy = rows.Count == 0 ? 0 : Math.Round(huy / (double)rows.Count, 4),
++                diemTrungBinh = Math.Round(diem, 2)
++            };
++        })
++            .Where(row => row.soBooking > 0 || row.daThu > 0)
++            .OrderByDescending(row => row.daThu)
++            .ThenByDescending(row => row.soBooking)
++            .Take(8)
++            .ToList();
++
++        var upcomingQuery = _context.LichKhoiHanhs.AsNoTracking()
++            .Where(d => d.NgayKhoiHanh != null && d.NgayKhoiHanh >= now)
++            .OrderBy(d => d.NgayKhoiHanh)
++            .Take(12);
++        var lichSapKhoiHanh = (await DepartureAvailability.Select(upcomingQuery).ToListAsync(cancellationToken))
++            .Select(d =>
++            {
++                var tour = tourNames.FirstOrDefault(t => t.MaTour.Trim() == d.MaTour || t.MaTour == d.MaTour);
++                return new
++                {
++                    maKhoiHanh = d.MaKhoiHanh,
++                    maTour = d.MaTour,
++                    tenTour = tour?.TenTour ?? d.MaTour,
++                    ngayKhoiHanh = d.NgayKhoiHanh,
++                    sucChua = d.SucChua,
++                    daDat = d.DaDat,
++                    conTrong = d.ConTrong,
++                    tyLeLapDay = d.SucChua <= 0 ? 0 : Math.Round(d.DaDat / (double)d.SucChua, 4)
++                };
++            })
++            .ToList();
++
++        return Ok(new
++        {
++            toursDangBan,
++            tongBooking,
++            choXacNhan = choXacNhanCount,
++            daThu,
++            conPhaiThu,
++            soHuy,
++            tyLeHuy = tongBooking == 0 ? 0 : Math.Round(soHuy / (double)tongBooking, 4),
++            theoTrangThai,
++            doanhThuTheoThang,
++            topTour,
++            lichSapKhoiHanh
++        });
++    }
++}
+diff --git a/backend/src/TourDuLich.API/Controllers/DatDichVuController.cs b/backend/src/TourDuLich.API/Controllers/DatDichVuController.cs
+index 2f7ddfc..25ca4cf 100644
+--- a/backend/src/TourDuLich.API/Controllers/DatDichVuController.cs
++++ b/backend/src/TourDuLich.API/Controllers/DatDichVuController.cs
+@@ -194,25 +194,119 @@ public class DatDichVuController : ControllerBase
+     [Authorize(Roles = "Sale,Admin")]
+     public async Task<ActionResult> GetGuestProfile(string maBooking)
+     {
+-        var key = FixedLengthHelper.PadTo20(maBooking);
+-        var booking = await _context.DatDichVus.AsNoTracking().Where(b => b.MaBooking == key)
+-            .Select(b => new { b.MaBooking, b.MaUser, b.MaKhachHang }).FirstOrDefaultAsync();
++        var booking = await FindBookingAsync(maBooking);
+         if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
+-        var profile = await _context.KhachHangs.AsNoTracking().Include(k => k.GiayTos)
+-            .Where(k => booking.MaKhachHang != null ? k.MaKhachHang == booking.MaKhachHang : k.MaUser == booking.MaUser)
+-            .OrderBy(k => k.MaKhachHang).FirstOrDefaultAsync();
+-        return Ok(new
+-        {
+-            maBooking = booking.MaBooking.Trim(), maKhachHang = profile?.MaKhachHang.Trim(),
+-            ho = profile?.Ho.Trim(), ten = profile?.Ten.Trim(),
+-            soDienThoai = profile?.SoDienThoai.Trim(), email = profile?.Email?.Trim(),
+-            ngaySinh = profile?.NgaySinh, quocTich = profile?.QuocTich?.Trim(),
+-            giayTo = (profile?.GiayTos ?? []).Select(g => new
++        var profile = await LoadGuestProfileAsync(booking);
++        return Ok(ToGuestProfile(booking, profile));
++    }
++
++    [HttpPut("{maBooking}/ho-so-khach")]
++    [Authorize(Roles = "Sale,Admin")]
++    public async Task<ActionResult> UpdateGuestProfile(string maBooking, KhachHangUpdateDto request)
++    {
++        if (string.IsNullOrWhiteSpace(request.Ho) || string.IsNullOrWhiteSpace(request.Ten))
++            return BadRequest(new { message = "Họ và tên không được để trống." });
++        var booking = await FindBookingAsync(maBooking);
++        if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
++        var profile = await LoadGuestProfileAsync(booking);
++        if (profile is null)
++        {
++            var user = await _context.NguoiSuDungs.FirstOrDefaultAsync(item => item.MaUser == booking.MaUser);
++            if (user is null) return NotFound(new { message = "Không tìm thấy tài khoản khách." });
++            var phone = FixedLengthHelper.TrimSafe(user.SoDienThoai) ?? string.Empty;
++            if (phone.Length > 15)
++                return BadRequest(new { message = "Số điện thoại tài khoản vượt quá giới hạn 15 ký tự của hồ sơ khách hàng." });
++            profile = new KhachHang
+             {
+-                loaiGiayTo = g.LoaiGiayTo.Trim(), soTrenGiayTo = g.SoTrenGiayTo.Trim(),
+-                ngayCap = g.NgayCap, ngayHetHan = g.NgayHetHan, noiCap = g.NoiCap.Trim()
+-            }).ToArray()
+-        });
++                MaKhachHang = await GenerateKeyedIdAsync("KH", _context.KhachHangs.Select(item => item.MaKhachHang)),
++                MaUser = booking.MaUser,
++                SoDienThoai = phone,
++                Ho = request.Ho.Trim(),
++                Ten = request.Ten.Trim()
++            };
++            _context.KhachHangs.Add(profile);
++            booking.MaKhachHang = profile.MaKhachHang;
++        }
++        else if (booking.MaKhachHang is null)
++            booking.MaKhachHang = profile.MaKhachHang;
++        profile.Ho = request.Ho.Trim();
++        profile.Ten = request.Ten.Trim();
++        profile.HoGiayTo = request.HoGiayTo?.Trim();
++        profile.TenGiayTo = request.TenGiayTo?.Trim();
++        profile.QuocTich = request.QuocTich?.Trim();
++        profile.DanhXung = request.DanhXung?.Trim();
++        profile.GioiTinh = request.GioiTinh?.Trim();
++        profile.NgaySinh = request.NgaySinh;
++        profile.Email = request.Email?.Trim();
++        await _context.SaveChangesAsync();
++        await _context.Entry(profile).Collection(item => item.GiayTos).LoadAsync();
++        return Ok(ToGuestProfile(booking, profile));
++    }
++
++    [HttpPost("{maBooking}/ho-so-khach/giay-to")]
++    [Authorize(Roles = "Sale,Admin")]
++    public async Task<ActionResult> AddGuestDocument(string maBooking, GiayToCreateDto request)
++    {
++        var documentError = ValidateGuestDocument(request.LoaiGiayTo, request.SoTrenGiayTo, request.NoiCap, request.NgayCap, request.NgayHetHan);
++        if (documentError is not null) return documentError;
++        var booking = await FindBookingAsync(maBooking);
++        if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
++        var profile = await LoadGuestProfileAsync(booking);
++        if (profile is null)
++            return BadRequest(new { message = "Hãy lưu hồ sơ khách trước khi thêm giấy tờ." });
++        var document = new GiayTo
++        {
++            MaGiayTo = await GenerateKeyedIdAsync("GT", _context.GiayTos.Select(item => item.MaGiayTo)),
++            MaKhachHang = profile.MaKhachHang,
++            LoaiGiayTo = request.LoaiGiayTo.Trim(),
++            SoTrenGiayTo = request.SoTrenGiayTo.Trim(),
++            NgayCap = request.NgayCap,
++            NgayHetHan = request.NgayHetHan,
++            NoiCap = request.NoiCap.Trim()
++        };
++        _context.GiayTos.Add(document);
++        await _context.SaveChangesAsync();
++        await _context.Entry(profile).Collection(item => item.GiayTos).LoadAsync();
++        return StatusCode(StatusCodes.Status201Created, ToGuestProfile(booking, profile));
++    }
++
++    [HttpPut("{maBooking}/ho-so-khach/giay-to/{maGiayTo}")]
++    [Authorize(Roles = "Sale,Admin")]
++    public async Task<ActionResult> UpdateGuestDocument(string maBooking, string maGiayTo, GiayToUpdateDto request)
++    {
++        var documentError = ValidateGuestDocument(request.LoaiGiayTo, request.SoTrenGiayTo, request.NoiCap, request.NgayCap, request.NgayHetHan);
++        if (documentError is not null) return documentError;
++        var booking = await FindBookingAsync(maBooking);
++        if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
++        var profile = await LoadGuestProfileAsync(booking);
++        if (profile is null) return NotFound(new { message = "Chưa có hồ sơ khách trên vé này." });
++        var document = profile.GiayTos.FirstOrDefault(item => item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo));
++        if (document is null)
++            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ khách của vé này." });
++        document.LoaiGiayTo = request.LoaiGiayTo.Trim();
++        document.SoTrenGiayTo = request.SoTrenGiayTo.Trim();
++        document.NgayCap = request.NgayCap;
++        document.NgayHetHan = request.NgayHetHan;
++        document.NoiCap = request.NoiCap.Trim();
++        await _context.SaveChangesAsync();
++        return Ok(ToGuestProfile(booking, profile));
++    }
++
++    [HttpDelete("{maBooking}/ho-so-khach/giay-to/{maGiayTo}")]
++    [Authorize(Roles = "Sale,Admin")]
++    public async Task<ActionResult> DeleteGuestDocument(string maBooking, string maGiayTo)
++    {
++        var booking = await FindBookingAsync(maBooking);
++        if (booking is null) return NotFound(new { message = "Không tìm thấy booking." });
++        var profile = await LoadGuestProfileAsync(booking);
++        if (profile is null) return NotFound(new { message = "Chưa có hồ sơ khách trên vé này." });
++        var document = profile.GiayTos.FirstOrDefault(item => item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo));
++        if (document is null)
++            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ khách của vé này." });
++        _context.GiayTos.Remove(document);
++        await _context.SaveChangesAsync();
++        profile.GiayTos.Remove(document);
++        return Ok(ToGuestProfile(booking, profile));
+     }
+ 
+     [HttpPost]
+@@ -626,6 +720,68 @@ public class DatDichVuController : ControllerBase
+         return User.FindFirst("MaUser")?.Value;
+     }
+ 
++    private Task<DatDichVu?> FindBookingAsync(string maBooking)
++        => _context.DatDichVus.FirstOrDefaultAsync(item => item.MaBooking == FixedLengthHelper.PadTo20(maBooking));
++
++    private Task<KhachHang?> LoadGuestProfileAsync(DatDichVu booking)
++    {
++        if (!string.IsNullOrWhiteSpace(booking.MaKhachHang))
++            return _context.KhachHangs.Include(item => item.GiayTos)
++                .FirstOrDefaultAsync(item => item.MaKhachHang == booking.MaKhachHang);
++        return _context.KhachHangs.Include(item => item.GiayTos)
++            .Where(item => item.MaUser == booking.MaUser)
++            .OrderBy(item => item.MaKhachHang)
++            .FirstOrDefaultAsync();
++    }
++
++    private async Task<string> GenerateKeyedIdAsync(string prefix, IQueryable<string> existing)
++    {
++        string id;
++        do
++        {
++            id = FixedLengthHelper.PadTo20($"{prefix}{Guid.NewGuid():N}"[..20].ToUpperInvariant());
++        } while (await existing.AnyAsync(item => item == id));
++        return id;
++    }
++
++    private static ActionResult? ValidateGuestDocument(
++        string? loai, string? so, string? noiCap, DateOnly ngayCap, DateOnly ngayHetHan)
++    {
++        if (string.IsNullOrWhiteSpace(loai) || string.IsNullOrWhiteSpace(so) || string.IsNullOrWhiteSpace(noiCap))
++            return new BadRequestObjectResult(new { message = "Thông tin giấy tờ không được để trống." });
++        return ngayHetHan < ngayCap
++            ? new BadRequestObjectResult(new { message = "Ngày hết hạn phải sau hoặc bằng ngày cấp." })
++            : null;
++    }
++
++    private static object ToGuestProfile(DatDichVu booking, KhachHang? profile) => new
++    {
++        maBooking = FixedLengthHelper.TrimSafe(booking.MaBooking),
++        maTour = FixedLengthHelper.TrimSafe(booking.MaTour),
++        maKhoiHanh = FixedLengthHelper.TrimSafe(booking.MaKhoiHanh),
++        trangThai = FixedLengthHelper.TrimSafe(booking.TrangThai),
++        maKhachHang = FixedLengthHelper.TrimSafe(profile?.MaKhachHang),
++        ho = profile?.Ho?.Trim(),
++        ten = profile?.Ten?.Trim(),
++        hoGiayTo = profile?.HoGiayTo?.Trim(),
++        tenGiayTo = profile?.TenGiayTo?.Trim(),
++        danhXung = FixedLengthHelper.TrimSafe(profile?.DanhXung),
++        gioiTinh = FixedLengthHelper.TrimSafe(profile?.GioiTinh),
++        soDienThoai = FixedLengthHelper.TrimSafe(profile?.SoDienThoai),
++        email = profile?.Email?.Trim(),
++        ngaySinh = profile?.NgaySinh,
++        quocTich = profile?.QuocTich?.Trim(),
++        giayTo = (profile?.GiayTos ?? []).Select(g => new
++        {
++            maGiayTo = FixedLengthHelper.TrimSafe(g.MaGiayTo),
++            loaiGiayTo = g.LoaiGiayTo?.Trim(),
++            soTrenGiayTo = g.SoTrenGiayTo?.Trim(),
++            ngayCap = g.NgayCap,
++            ngayHetHan = g.NgayHetHan,
++            noiCap = g.NoiCap?.Trim()
++        }).ToArray()
++    };
++
+     private async Task<string> GenerateMaHopDongAsync()
+     {
+         string maHopDongDb;
+diff --git a/backend/src/TourDuLich.API/Controllers/KhachHangController.cs b/backend/src/TourDuLich.API/Controllers/KhachHangController.cs
+index 9d437fb..39e10bf 100644
+--- a/backend/src/TourDuLich.API/Controllers/KhachHangController.cs
++++ b/backend/src/TourDuLich.API/Controllers/KhachHangController.cs
+@@ -201,7 +201,7 @@ public class KhachHangController : ControllerBase
+     }
+ 
+     [HttpGet("tim-kiem")]
+-    [Authorize(Roles = "Sale")]
++    [Authorize(Roles = "Sale,Admin")]
+     public async Task<ActionResult> Search([FromQuery] string soDienThoai)
+     {
+         if (string.IsNullOrWhiteSpace(soDienThoai))
+@@ -222,7 +222,7 @@ public class KhachHangController : ControllerBase
+     }
+ 
+     [HttpPost("sale/{maUser}")]
+-    [Authorize(Roles = "Sale")]
++    [Authorize(Roles = "Sale,Admin")]
+     public async Task<ActionResult> SaleCreate(string maUser, KhachHangCreateDto request)
+     {
+         var maUserDb = FixedLengthHelper.PadTo20(maUser);
+@@ -233,7 +233,7 @@ public class KhachHangController : ControllerBase
+     }
+ 
+     [HttpPut("sale/{maKhachHang}")]
+-    [Authorize(Roles = "Sale")]
++    [Authorize(Roles = "Sale,Admin")]
+     public async Task<ActionResult> SaleUpdate(string maKhachHang, KhachHangUpdateDto request)
+     {
+         var validation = ValidateProfile(request.Ho, request.Ten);
+@@ -250,7 +250,7 @@ public class KhachHangController : ControllerBase
+     }
+ 
+     [HttpPost("sale/{maKhachHang}/giay-to")]
+-    [Authorize(Roles = "Sale")]
++    [Authorize(Roles = "Sale,Admin")]
+     public async Task<ActionResult> SaleAddDocument(string maKhachHang, GiayToCreateDto request)
+     {
+         var profile = await _context.KhachHangs.FirstOrDefaultAsync(item =>
+@@ -261,7 +261,7 @@ public class KhachHangController : ControllerBase
+     }
+ 
+     [HttpPut("sale/{maKhachHang}/giay-to/{maGiayTo}")]
+-    [Authorize(Roles = "Sale")]
++    [Authorize(Roles = "Sale,Admin")]
+     public async Task<ActionResult> SaleUpdateDocument(
+         string maKhachHang,
+         string maGiayTo,
+@@ -282,7 +282,7 @@ public class KhachHangController : ControllerBase
+     }
+ 
+     [HttpDelete("sale/{maKhachHang}/giay-to/{maGiayTo}")]
+-    [Authorize(Roles = "Sale")]
++    [Authorize(Roles = "Sale,Admin")]
+     public async Task<IActionResult> SaleDeleteDocument(string maKhachHang, string maGiayTo)
+     {
+         var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
+diff --git a/backend/src/TourDuLich.IntegrationTests/BaoCaoGuestProfileTests.cs b/backend/src/TourDuLich.IntegrationTests/BaoCaoGuestProfileTests.cs
+new file mode 100644
+index 0000000..6270c7c
+--- /dev/null
++++ b/backend/src/TourDuLich.IntegrationTests/BaoCaoGuestProfileTests.cs
+@@ -0,0 +1,83 @@
++using System.Net;
++using System.Net.Http.Json;
++using System.Text.Json;
++using Xunit;
++
++namespace TourDuLich.IntegrationTests;
++
++public sealed class BaoCaoGuestProfileTests : ApiTestBase
++{
++    [Fact]
++    public async Task Customer_CannotReadOverviewReport()
++    {
++        SkipIfNoConnection();
++        UseToken(await RegisterAsync());
++        Assert.Equal(HttpStatusCode.Forbidden, (await Client.GetAsync("/api/BaoCao/tong-quan")).StatusCode);
++    }
++
++    [Fact]
++    public async Task Staff_ReadsOverviewReportShape()
++    {
++        SkipIfNoConnection();
++        UseToken(await LoginAdminAsync());
++        var response = await Client.GetAsync("/api/BaoCao/tong-quan");
++        response.EnsureSuccessStatusCode();
++        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
++        Assert.True(json.TryGetProperty("theoTrangThai", out _));
++        Assert.True(json.TryGetProperty("doanhThuTheoThang", out var months));
++        Assert.Equal(6, months.GetArrayLength());
++        Assert.True(json.TryGetProperty("topTour", out _));
++        Assert.True(json.TryGetProperty("lichSapKhoiHanh", out _));
++        Assert.True(json.TryGetProperty("daThu", out _));
++    }
++
++    [Fact]
++    public async Task Staff_CanEditGuestProfileAndDocumentsOnPaidOrHeldBooking()
++    {
++        SkipIfNoConnection();
++        var sale = await LoginSaleAsync();
++        var tour = await CreateTourAsync(sale);
++        var departure = await CreateDepartureAsync(sale, tour, DateTime.UtcNow.AddDays(21));
++        var customer = await RegisterAsync();
++        UseToken(customer);
++        var created = await Client.PostAsJsonAsync("/api/DatDichVu", new
++        {
++            maTour = tour, maKhoiHanh = departure, slnguoiLon = 1, sltreEm = 0
++        });
++        created.EnsureSuccessStatusCode();
++        var bookingId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("maBooking").GetString();
++        UseToken(sale);
++        var saved = await Client.PutAsJsonAsync($"/api/DatDichVu/{bookingId}/ho-so-khach", new
++        {
++            ho = "Nguyen", ten = "An", quocTich = "Việt Nam", email = "an@example.invalid",
++            ngaySinh = "1995-05-01", danhXung = "Anh", gioiTinh = "Nam"
++        });
++        saved.EnsureSuccessStatusCode();
++        var profile = await saved.Content.ReadFromJsonAsync<JsonElement>();
++        Assert.Equal("An", profile.GetProperty("ten").GetString());
++        Assert.False(string.IsNullOrWhiteSpace(profile.GetProperty("maKhachHang").GetString()));
++
++        var added = await Client.PostAsJsonAsync($"/api/DatDichVu/{bookingId}/ho-so-khach/giay-to", new
++        {
++            loaiGiayTo = "CCCD", soTrenGiayTo = "079095000001",
++            ngayCap = "2020-01-01", ngayHetHan = "2035-01-01", noiCap = "CA TPHCM"
++        });
++        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
++        var withDoc = await added.Content.ReadFromJsonAsync<JsonElement>();
++        var maGiayTo = withDoc.GetProperty("giayTo")[0].GetProperty("maGiayTo").GetString();
++        Assert.Equal("CCCD", withDoc.GetProperty("giayTo")[0].GetProperty("loaiGiayTo").GetString());
++
++        var updated = await Client.PutAsJsonAsync($"/api/DatDichVu/{bookingId}/ho-so-khach/giay-to/{maGiayTo}", new
++        {
++            loaiGiayTo = "Passport", soTrenGiayTo = "B12345678",
++            ngayCap = "2021-02-02", ngayHetHan = "2031-02-02", noiCap = "Cục QLHC"
++        });
++        updated.EnsureSuccessStatusCode();
++        Assert.Equal("Passport", (await updated.Content.ReadFromJsonAsync<JsonElement>())
++            .GetProperty("giayTo")[0].GetProperty("loaiGiayTo").GetString());
++
++        UseToken(customer);
++        Assert.Equal(HttpStatusCode.Forbidden,
++            (await Client.PutAsJsonAsync($"/api/DatDichVu/{bookingId}/ho-so-khach", new { ho = "X", ten = "Y" })).StatusCode);
++    }
++}
+diff --git a/database/schema/019_BaoCaoAdmin.sql b/database/schema/019_BaoCaoAdmin.sql
+new file mode 100644
+index 0000000..a51b048
+--- /dev/null
++++ b/database/schema/019_BaoCaoAdmin.sql
+@@ -0,0 +1,53 @@
++/* View đọc cho trang tổng quan admin và Power BI.
++   Mẫu số chỗ trống khớp DepartureAvailability (loại DaHuy / ChoHoanTien).
++   Doanh thu chỉ cộng thanh toán DaXacNhan / ThanhCong. */
++
++CREATE OR ALTER VIEW dbo.vw_DoanhThuTheoThang
++AS
++SELECT
++    YEAR(ISNULL(p.PaidAt, p.NgayTt)) AS Nam,
++    MONTH(ISNULL(p.PaidAt, p.NgayTt)) AS Thang,
++    SUM(ISNULL(p.SoTien, 0)) AS DaThu,
++    COUNT_BIG(*) AS SoGiaoDich
++FROM dbo.ThanhToan p
++WHERE RTRIM(p.TrangThai) IN (N'DaXacNhan', N'ThanhCong')
++  AND ISNULL(p.PaidAt, p.NgayTt) IS NOT NULL
++GROUP BY YEAR(ISNULL(p.PaidAt, p.NgayTt)), MONTH(ISNULL(p.PaidAt, p.NgayTt));
++GO
++
++CREATE OR ALTER VIEW dbo.vw_BookingTheoTrangThai
++AS
++SELECT
++    RTRIM(d.TrangThai) AS TrangThai,
++    COUNT_BIG(*) AS SoLuong,
++    SUM(ISNULL(d.ThanhTien, 0)) AS ThanhTien
++FROM dbo.DatDichVu d
++GROUP BY RTRIM(d.TrangThai);
++GO
++
++CREATE OR ALTER VIEW dbo.vw_ChoTrongTheoLich
++AS
++SELECT
++    RTRIM(l.MaKhoiHanh) AS MaKhoiHanh,
++    RTRIM(l.MaTour) AS MaTour,
++    t.TenTour,
++    l.NgayKhoiHanh,
++    l.NgayKetThuc,
++    ISNULL(l.SoCho, t.Slkhach) AS SucChua,
++    ISNULL(held.DaDat, 0) AS DaDat,
++    ISNULL(l.SoCho, t.Slkhach) - ISNULL(held.DaDat, 0) AS ConTrong,
++    CAST(
++        CASE WHEN ISNULL(l.SoCho, t.Slkhach) = 0 THEN 0
++             ELSE 1.0 * ISNULL(held.DaDat, 0) / ISNULL(l.SoCho, t.Slkhach)
++        END AS decimal(9, 4)
++    ) AS TyLeLapDay
++FROM dbo.LichKhoiHanh l
++INNER JOIN dbo.Tour t ON t.MaTour = l.MaTour
++OUTER APPLY
++(
++    SELECT SUM(ISNULL(d.SlnguoiLon, 0) + ISNULL(d.SltreEm, 0)) AS DaDat
++    FROM dbo.DatDichVu d
++    WHERE d.MaKhoiHanh = l.MaKhoiHanh
++      AND RTRIM(d.TrangThai) NOT IN (N'DaHuy', N'ChoHoanTien')
++) held;
++GO
+diff --git a/database/schema/README.md b/database/schema/README.md
+index ca7ee58..8b63cca 100644
+--- a/database/schema/README.md
++++ b/database/schema/README.md
+@@ -18,7 +18,10 @@ database. Không có `CREATE DATABASE` hoặc `USE`; hãy mở đúng database t
+ 11. `011_JobRunLog.sql` — nhật ký chạy job làm mới gợi ý AI.
+ 12. `012_AnhTour_Cloudinary.sql` — lưu Cloudinary public ID để thay thế/xóa media an toàn.
+ 
++21. `019_BaoCaoAdmin.sql` — view doanh thu theo tháng, booking theo trạng thái, chỗ trống theo lịch khởi hành (trang tổng quan admin + Power BI).
++
+ Thứ tự chạy thực tế là `001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012`.
++Các file 013–019 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.
+ 
+ Tất cả tài khoản test trong bước 3 dùng mật khẩu `Test@123456`. Mật khẩu được lưu
+ bằng BCrypt hash cố định được tạo bằng package `BCrypt.Net-Next` phiên bản `4.2.0`
+diff --git a/frontend-admin/app/src/DepartureGuests.jsx b/frontend-admin/app/src/DepartureGuests.jsx
+index fca60a4..b11e355 100644
+--- a/frontend-admin/app/src/DepartureGuests.jsx
++++ b/frontend-admin/app/src/DepartureGuests.jsx
+@@ -1,70 +1,283 @@
+-import {useEffect,useState} from 'react';
++import { useEffect, useState } from 'react';
+ import * as api from './api';
+-import {Notice} from './components';
+-const instant=v=>v?new Date(/(?:Z|[+-]\d\d:\d\d)$/i.test(v)?v:v+'Z'):null;
+-const stamp=v=>instant(v)?.toLocaleString('vi-VN')||'Chưa xác định';
+-const inputDate=v=>{const d=instant(v);return d?new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16):'';};
+-const day=v=>v?new Date(v).toLocaleDateString('vi-VN'):'—';
+-const status={ChoXacNhan:'Chờ xác nhận',DaXacNhan:'Đã xác nhận',DaThanhToan:'Đã thanh toán',HoanThanh:'Hoàn thành'};
+-export default function DepartureGuests({tourId,defaultCapacity,disabled=false}) {
+-  const empty=()=>({maKhoiHanh:'',ngayKhoiHanh:'',ngayKetThuc:'',diaDiem:'',soCho:defaultCapacity});
+-  const [dates,setDates]=useState([]),[roster,setRoster]=useState(null),[profile,setProfile]=useState(null);
+-  const [form,setForm]=useState(empty),[editing,setEditing]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+-  const [refresh,setRefresh]=useState(0),[departureId,setDepartureId]=useState(''),[bookingId,setBookingId]=useState('');
+-  useEffect(()=>{if(!editing)setForm(current=>({...current,soCho:defaultCapacity}));},[defaultCapacity]);
+-  useEffect(()=>{let active=true;setError('');setBusy(true);
+-    Promise.all([api.departures(tourId),departureId?api.departureGuests(departureId):Promise.resolve(null)])
+-      .then(([d,r])=>{if(active){setDates(d.data);setRoster(r?.data||null);if(bookingId&&!r?.data.bookings.some(b=>b.maBooking===bookingId)){setBookingId('');setProfile(null);}}})
+-      .catch(e=>{if(active)setError(api.errorMessage(e));}).finally(()=>{if(active)setBusy(false);});
+-    return()=>{active=false;};
+-  },[tourId,defaultCapacity,departureId,refresh]);
+-  useEffect(()=>{let active=true;setProfile(null);if(bookingId)api.guestProfile(bookingId).then(r=>{if(active)setProfile(r.data);}).catch(e=>{if(active)setError(api.errorMessage(e));});return()=>{active=false;};},[bookingId,refresh]);
+-  const save=async e=>{e.preventDefault();if(busy||disabled)return;setBusy(true);setError('');
+-    try{
+-      const payload={...form,maTour:tourId,soCho:form.soCho===''?null:Number(form.soCho),
+-        ngayKhoiHanh:form.ngayKhoiHanh?new Date(form.ngayKhoiHanh).toISOString():null,
+-        ngayKetThuc:form.ngayKetThuc?new Date(form.ngayKetThuc).toISOString():null};
+-      if(payload.ngayKetThuc&&payload.ngayKetThuc<payload.ngayKhoiHanh)throw Error('Ngày kết thúc phải sau ngày khởi hành.');
+-      if(editing)await api.updateDeparture(editing,payload);else await api.createDeparture(payload);
+-      setEditing('');setForm(empty());setRefresh(x=>x+1);
+-    }catch(e){setError(e.response?api.errorMessage(e):e.message);}finally{setBusy(false);}
++import { ExpandRecord, Notice } from './components';
++
++const instant = (value) => value ? new Date(/(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? value : value + 'Z') : null;
++const stamp = (value) => instant(value)?.toLocaleString('vi-VN') || 'Chưa xác định';
++const inputDate = (value) => {
++  const date = instant(value);
++  return date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
++};
++const day = (value) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
++const isoDay = (value) => value ? String(value).slice(0, 10) : '';
++const STATUS = {
++  ChoXacNhan: 'Chờ xác nhận', DaXacNhan: 'Đã xác nhận (cọc)', DaThanhToan: 'Đã thanh toán',
++  HoanThanh: 'Hoàn thành', ChoHoanTien: 'Chờ hoàn tiền', DaHuy: 'Đã hủy',
++};
++const paidOf = (state) => /DaThanhToan|HoanThanh/.test(String(state || '').trim());
++const emptyDeparture = (capacity) => ({ maKhoiHanh: '', ngayKhoiHanh: '', ngayKetThuc: '', diaDiem: '', soCho: capacity });
++const emptyProfile = () => ({
++  ho: '', ten: '', hoGiayTo: '', tenGiayTo: '', quocTich: '', danhXung: '', gioiTinh: '', ngaySinh: '', email: '',
++});
++const emptyDoc = () => ({ loaiGiayTo: 'CCCD', soTrenGiayTo: '', ngayCap: '', ngayHetHan: '', noiCap: '' });
++
++export default function DepartureGuests({ tourId, defaultCapacity, disabled = false }) {
++  const [dates, setDates] = useState([]);
++  const [roster, setRoster] = useState(null);
++  const [profile, setProfile] = useState(null);
++  const [form, setForm] = useState(emptyDeparture(defaultCapacity));
++  const [profileForm, setProfileForm] = useState(emptyProfile());
++  const [docForm, setDocForm] = useState(emptyDoc());
++  const [editingDoc, setEditingDoc] = useState('');
++  const [editing, setEditing] = useState('');
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState('');
++  const [ok, setOk] = useState('');
++  const [refresh, setRefresh] = useState(0);
++  const [departureId, setDepartureId] = useState('');
++  const [bookingId, setBookingId] = useState('');
++  const [paidOnly, setPaidOnly] = useState(false);
++
++  useEffect(() => {
++    if (!editing) setForm((current) => ({ ...current, soCho: defaultCapacity }));
++  }, [defaultCapacity, editing]);
++
++  useEffect(() => {
++    let active = true;
++    setError('');
++    setBusy(true);
++    Promise.all([api.departures(tourId), departureId ? api.departureGuests(departureId) : Promise.resolve(null)])
++      .then(([d, r]) => {
++        if (!active) return;
++        setDates(d.data || []);
++        setRoster(r?.data || null);
++        if (bookingId && r?.data && !r.data.bookings.some((b) => b.maBooking === bookingId)) {
++          setBookingId('');
++          setProfile(null);
++        }
++      })
++      .catch((e) => { if (active) setError(api.errorMessage(e)); })
++      .finally(() => { if (active) setBusy(false); });
++    return () => { active = false; };
++  }, [tourId, defaultCapacity, departureId, refresh]);
++
++  useEffect(() => {
++    let active = true;
++    setProfile(null);
++    if (!bookingId) return undefined;
++    api.guestProfile(bookingId).then((r) => {
++      if (!active) return;
++      setProfile(r.data);
++      setProfileForm({
++        ho: r.data.ho || '', ten: r.data.ten || '', hoGiayTo: r.data.hoGiayTo || '', tenGiayTo: r.data.tenGiayTo || '',
++        quocTich: r.data.quocTich || '', danhXung: r.data.danhXung || '', gioiTinh: r.data.gioiTinh || '',
++        ngaySinh: isoDay(r.data.ngaySinh), email: r.data.email || '',
++      });
++      setDocForm(emptyDoc());
++      setEditingDoc('');
++    }).catch((e) => { if (active) setError(api.errorMessage(e)); });
++    return () => { active = false; };
++  }, [bookingId, refresh]);
++
++  const blocked = busy || disabled;
++  const guests = (roster?.bookings || []).filter((b) => !paidOnly || paidOf(b.trangThai));
++  const saveDeparture = async (event) => {
++    event.preventDefault();
++    if (blocked) return;
++    setBusy(true); setError(''); setOk('');
++    try {
++      const payload = {
++        ...form, maTour: tourId, soCho: form.soCho === '' ? null : Number(form.soCho),
++        ngayKhoiHanh: form.ngayKhoiHanh ? new Date(form.ngayKhoiHanh).toISOString() : null,
++        ngayKetThuc: form.ngayKetThuc ? new Date(form.ngayKetThuc).toISOString() : null,
++      };
++      if (payload.ngayKetThuc && payload.ngayKetThuc < payload.ngayKhoiHanh) throw Error('Ngày kết thúc phải sau ngày khởi hành.');
++      if (editing) await api.updateDeparture(editing, payload);
++      else await api.createDeparture(payload);
++      setEditing(''); setForm(emptyDeparture(defaultCapacity)); setRefresh((x) => x + 1);
++      setOk(editing ? 'Đã lưu lịch khởi hành.' : 'Đã thêm lịch khởi hành.');
++    } catch (e) { setError(e.response ? api.errorMessage(e) : e.message); }
++    finally { setBusy(false); }
+   };
+-  const blocked=busy||disabled;
+-  return <section className="panel" style={{marginBottom:24,overflowWrap:'anywhere'}}>
+-    <header className="panel-head"><h2>Lịch khởi hành và khách</h2><button disabled={blocked} onClick={()=>setRefresh(x=>x+1)}>Tải lại chỗ và khách</button></header>
+-    <Notice error={error}/>
+-    {!dates.length&&!busy&&<p>Chưa có lịch khởi hành.</p>}
+-    <div className="table">{dates.map(d=><div className="row" key={d.maKhoiHanh} style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+-      <button disabled={blocked} onClick={()=>{setBookingId('');setProfile(null);setRoster(null);setDepartureId(d.maKhoiHanh);setRefresh(x=>x+1);}}>{stamp(d.ngayKhoiHanh)}</button>
+-      <span>Sức chứa {d.sucChua} · Đã đặt {d.daDat} · Còn trống {d.conTrong}</span>
+-      <b>{d.soTaiKhoan} tài khoản · {d.daDat}/{d.sucChua} chỗ</b>
+-      <button disabled={blocked} onClick={()=>{setEditing(d.maKhoiHanh);setForm({...d,ngayKhoiHanh:inputDate(d.ngayKhoiHanh),ngayKetThuc:inputDate(d.ngayKetThuc),soCho:d.soCho??defaultCapacity});}}>Sửa lịch / số chỗ</button>
+-    </div>)}</div>
+-    <form onSubmit={save}><fieldset disabled={blocked} style={{border:0,padding:0}}>
+-      <h3>{editing?'Sửa lịch '+editing:'Thêm lịch khởi hành'}</h3>
+-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12}}>
+-        <label>Mã lịch<input required maxLength={20} readOnly={!!editing} value={form.maKhoiHanh} onChange={e=>setForm({...form,maKhoiHanh:e.target.value})}/></label>
+-        <label>Khởi hành<input type="datetime-local" required value={form.ngayKhoiHanh} onChange={e=>setForm({...form,ngayKhoiHanh:e.target.value})}/></label>
+-        <label>Kết thúc<input type="datetime-local" value={form.ngayKetThuc} onChange={e=>setForm({...form,ngayKetThuc:e.target.value})}/></label>
+-        <label>Địa điểm<input maxLength={100} value={form.diaDiem||''} onChange={e=>setForm({...form,diaDiem:e.target.value})}/></label>
+-        <label>Số chỗ<input type="number" min="0" max="2147483647" step="1" value={form.soCho} onChange={e=>setForm({...form,soCho:e.target.value})}/><small>Để trống: theo tour ({defaultCapacity}).</small></label>
+-      </div><button>Lưu lịch</button>{editing&&<button type="button" onClick={()=>{setEditing('');setForm(empty());}}>Thêm lịch khác</button>}
+-    </fieldset></form>
+-    {roster&&<><h3>{stamp(roster.ngayKhoiHanh)} · {roster.soTaiKhoan} tài khoản · {roster.daDat}/{roster.sucChua} chỗ</h3>
+-      <div style={{overflowX:'auto'}}><table style={{width:'100%',textAlign:'left'}}><thead><tr><th>SĐT</th><th>Họ tên</th><th>Số chỗ</th><th>Mã vé</th><th>Trạng thái</th></tr></thead>
+-        <tbody>{roster.bookings.map(b=><tr key={b.maBooking} tabIndex={0} style={{cursor:'pointer'}}
+-          onClick={()=>!blocked&&setBookingId(b.maBooking)} onKeyDown={e=>{if(e.key==='Enter'&&!blocked)setBookingId(b.maBooking);}}>
+-          <td>{b.soDienThoai||'—'}</td><td>{b.hoTen||'Chưa có hồ sơ'}</td><td>{b.soCho} = {b.slnguoiLon} NL + {b.sltreEm} TE</td>
+-          <td><button disabled={blocked} onClick={()=>setBookingId(b.maBooking)}>{b.maBooking}</button></td><td>{status[b.trangThai]||b.trangThai}</td>
+-        </tr>)}</tbody></table></div>{!roster.bookings.length&&<p>Không có vé còn giữ chỗ.</p>}
+-    </>}
+-    {profile&&<aside className="panel"><h3>Hồ sơ khách — {profile.maBooking}</h3>
+-      {!profile.maKhachHang?<p>Vé/tài khoản chưa có hồ sơ.</p>:<>
+-        <p>{profile.ho} {profile.ten} · {profile.soDienThoai} · {profile.email||'Chưa có email'}</p>
+-        <p>Ngày sinh: {day(profile.ngaySinh)} · Quốc tịch: {profile.quocTich||'—'}</p><h4>Giấy tờ</h4>
+-        {!profile.giayTo.length&&<p>Chưa có giấy tờ.</p>}
+-        {profile.giayTo.map((g,i)=><div key={i}><b>{g.loaiGiayTo} · {g.soTrenGiayTo}</b><p>Cấp: {day(g.ngayCap)} · Hết hạn: {day(g.ngayHetHan)} · Nơi cấp: {g.noiCap}</p></div>)}
+-      </>}
+-    </aside>}
+-  </section>;
++  const saveProfile = async (event) => {
++    event.preventDefault();
++    if (blocked || !bookingId) return;
++    setBusy(true); setError(''); setOk('');
++    try {
++      const response = await api.updateGuestProfile(bookingId, {
++        ho: profileForm.ho.trim(), ten: profileForm.ten.trim(), hoGiayTo: profileForm.hoGiayTo.trim() || null,
++        tenGiayTo: profileForm.tenGiayTo.trim() || null, quocTich: profileForm.quocTich.trim() || null,
++        danhXung: profileForm.danhXung.trim() || null, gioiTinh: profileForm.gioiTinh.trim() || null,
++        ngaySinh: profileForm.ngaySinh || null, email: profileForm.email.trim() || null,
++      });
++      setProfile(response.data);
++      setOk('Đã lưu hồ sơ khách. Không đổi trạng thái vé hay số chỗ.');
++    } catch (e) { setError(api.errorMessage(e, 'Không lưu được hồ sơ khách.')); }
++    finally { setBusy(false); }
++  };
++  const saveDoc = async (event) => {
++    event.preventDefault();
++    if (blocked || !bookingId) return;
++    setBusy(true); setError(''); setOk('');
++    try {
++      const payload = {
++        loaiGiayTo: docForm.loaiGiayTo, soTrenGiayTo: docForm.soTrenGiayTo.trim(),
++        ngayCap: docForm.ngayCap, ngayHetHan: docForm.ngayHetHan, noiCap: docForm.noiCap.trim(),
++      };
++      const response = editingDoc
++        ? await api.updateGuestDocument(bookingId, editingDoc, payload)
++        : await api.addGuestDocument(bookingId, payload);
++      setProfile(response.data);
++      setDocForm(emptyDoc()); setEditingDoc('');
++      setOk(editingDoc ? 'Đã cập nhật giấy tờ.' : 'Đã thêm giấy tờ.');
++    } catch (e) { setError(api.errorMessage(e, 'Không lưu được giấy tờ.')); }
++    finally { setBusy(false); }
++  };
++  const removeDoc = async (id) => {
++    if (blocked || !window.confirm('Xóa giấy tờ này khỏi hồ sơ khách?')) return;
++    setBusy(true); setError(''); setOk('');
++    try {
++      const response = await api.deleteGuestDocument(bookingId, id);
++      setProfile(response.data);
++      if (editingDoc === id) { setEditingDoc(''); setDocForm(emptyDoc()); }
++      setOk('Đã xóa giấy tờ.');
++    } catch (e) { setError(api.errorMessage(e, 'Không xóa được giấy tờ.')); }
++    finally { setBusy(false); }
++  };
++
++  return (
++    <section className="panel" style={{ marginBottom: 24, overflowWrap: 'anywhere' }}>
++      <header className="panel-head">
++        <h2>Lịch khởi hành đang vận hành</h2>
++        <button type="button" disabled={blocked} onClick={() => setRefresh((x) => x + 1)}>Tải lại chỗ và khách</button>
++      </header>
++      <p className="muted">Chọn một lịch để xem khách đã giữ chỗ / đã thanh toán. Chỉ được sửa hồ sơ và giấy tờ, không sửa vé hay thanh toán tại đây.</p>
++      <Notice error={error} />
++      {ok && <div className="notice ok" role="status">{ok}</div>}
++      <label className="inline" style={{ marginBottom: 12 }}>
++        <input type="checkbox" checked={paidOnly} onChange={(e) => setPaidOnly(e.target.checked)} /> Chỉ hiện vé đã thanh toán / hoàn thành
++      </label>
++      {!dates.length && !busy && <p>Chưa có lịch khởi hành. Thêm lịch bên dưới để mở bán chuyến.</p>}
++      <div className="table">
++        {dates.map((d) => {
++          const open = departureId === d.maKhoiHanh;
++          const fill = d.sucChua ? Math.round((Number(d.daDat || 0) / Number(d.sucChua)) * 100) : 0;
++          return (
++            <ExpandRecord key={d.maKhoiHanh} open={open} summary={
++              <div className="row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', cursor: 'pointer' }}
++                onClick={() => {
++                  if (blocked) return;
++                  if (open) { setDepartureId(''); setRoster(null); setBookingId(''); setProfile(null); }
++                  else { setBookingId(''); setProfile(null); setDepartureId(d.maKhoiHanh); setRefresh((x) => x + 1); }
++                }}>
++                <b>{stamp(d.ngayKhoiHanh)}</b>
++                <span>{d.diaDiem || '—'}</span>
++                <span>Sức chứa {d.sucChua} · Đã đặt {d.daDat} · Còn trống {d.conTrong}</span>
++                <span className="chart-track" style={{ width: 120 }} title={`${fill}%`}>
++                  <i style={{ width: `${fill}%`, background: fill >= 80 ? 'var(--coral)' : 'var(--jade)' }} />
++                </span>
++                <button type="button" disabled={blocked} onClick={(event) => {
++                  event.stopPropagation();
++                  setEditing(d.maKhoiHanh);
++                  setForm({ ...d, ngayKhoiHanh: inputDate(d.ngayKhoiHanh), ngayKetThuc: inputDate(d.ngayKetThuc), soCho: d.soCho ?? defaultCapacity });
++                }}>Sửa lịch / số chỗ</button>
++              </div>
++            }>
++              {open && roster && <>
++                <h3>{stamp(roster.ngayKhoiHanh)} · {roster.soTaiKhoan} tài khoản · {roster.daDat}/{roster.sucChua} chỗ</h3>
++                <div style={{ overflowX: 'auto' }}>
++                  <table style={{ width: '100%', textAlign: 'left' }}>
++                    <thead><tr><th>SĐT</th><th>Họ tên</th><th>Số chỗ</th><th>Mã vé</th><th>Trạng thái</th></tr></thead>
++                    <tbody>
++                      {guests.map((b) => (
++                        <tr key={b.maBooking} tabIndex={0} style={{ cursor: 'pointer', outline: bookingId === b.maBooking ? '3px solid var(--gold)' : undefined }}
++                          onClick={() => !blocked && setBookingId(b.maBooking)}
++                          onKeyDown={(e) => { if (e.key === 'Enter' && !blocked) setBookingId(b.maBooking); }}>
++                          <td>{b.soDienThoai || '—'}</td>
++                          <td>{b.hoTen || 'Chưa có hồ sơ'}</td>
++                          <td>{b.soCho} = {b.slnguoiLon} NL + {b.sltreEm} TE</td>
++                          <td><button type="button" disabled={blocked} onClick={() => setBookingId(b.maBooking)}>{b.maBooking}</button></td>
++                          <td><em className={`badge ${String(b.trangThai || '').trim()}`}>{STATUS[b.trangThai] || b.trangThai}</em></td>
++                        </tr>
++                      ))}
++                    </tbody>
++                  </table>
++                </div>
++                {!guests.length && <p>Không có vé {paidOnly ? 'đã thanh toán' : 'còn giữ chỗ'} trên lịch này.</p>}
++              </>}
++              {open && bookingId && profile && (
++                <form className="panel" style={{ marginTop: 16 }} onSubmit={saveProfile}>
++                  <h3>Hồ sơ khách — {profile.maBooking}</h3>
++                  <p className="muted">Vé {STATUS[profile.trangThai] || profile.trangThai || '—'}. Số điện thoại theo tài khoản, không sửa tại đây.</p>
++                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
++                    <label>Họ<input required maxLength={20} value={profileForm.ho} onChange={(e) => setProfileForm({ ...profileForm, ho: e.target.value })} /></label>
++                    <label>Tên<input required maxLength={50} value={profileForm.ten} onChange={(e) => setProfileForm({ ...profileForm, ten: e.target.value })} /></label>
++                    <label>Họ trên giấy tờ<input maxLength={20} value={profileForm.hoGiayTo} onChange={(e) => setProfileForm({ ...profileForm, hoGiayTo: e.target.value })} /></label>
++                    <label>Tên trên giấy tờ<input maxLength={50} value={profileForm.tenGiayTo} onChange={(e) => setProfileForm({ ...profileForm, tenGiayTo: e.target.value })} /></label>
++                    <label>Danh xưng<input maxLength={20} value={profileForm.danhXung} onChange={(e) => setProfileForm({ ...profileForm, danhXung: e.target.value })} /></label>
++                    <label>Giới tính<input maxLength={20} value={profileForm.gioiTinh} onChange={(e) => setProfileForm({ ...profileForm, gioiTinh: e.target.value })} /></label>
++                    <label>Ngày sinh<input type="date" value={profileForm.ngaySinh} onChange={(e) => setProfileForm({ ...profileForm, ngaySinh: e.target.value })} /></label>
++                    <label>Quốc tịch<input value={profileForm.quocTich} onChange={(e) => setProfileForm({ ...profileForm, quocTich: e.target.value })} /></label>
++                    <label>Email<input type="email" value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} /></label>
++                    <label>Điện thoại<input readOnly value={profile.soDienThoai || ''} /></label>
++                  </div>
++                  <button disabled={blocked} style={{ marginTop: 12 }}>{profile.maKhachHang ? 'Lưu hồ sơ' : 'Tạo hồ sơ khách'}</button>
++                  <h4>Giấy tờ</h4>
++                  {!(profile.giayTo || []).length && <p>Chưa có giấy tờ.</p>}
++                  {(profile.giayTo || []).map((g) => (
++                    <div key={g.maGiayTo} className="notice">
++                      <b>{g.loaiGiayTo} · {g.soTrenGiayTo}</b>
++                      <p>Cấp: {day(g.ngayCap)} · Hết hạn: {day(g.ngayHetHan)} · Nơi cấp: {g.noiCap}</p>
++                      <div className="inline" style={{ margin: 0 }}>
++                        <button type="button" disabled={blocked} onClick={() => {
++                          setEditingDoc(g.maGiayTo);
++                          setDocForm({
++                            loaiGiayTo: g.loaiGiayTo || 'CCCD', soTrenGiayTo: g.soTrenGiayTo || '',
++                            ngayCap: isoDay(g.ngayCap), ngayHetHan: isoDay(g.ngayHetHan), noiCap: g.noiCap || '',
++                          });
++                        }}>Sửa giấy tờ</button>
++                        <button type="button" className="danger" disabled={blocked} onClick={() => removeDoc(g.maGiayTo)}>Xóa</button>
++                      </div>
++                    </div>
++                  ))}
++                </form>
++              )}
++              {open && bookingId && profile && (
++                <form onSubmit={saveDoc} style={{ marginTop: 12 }}>
++                  <h4>{editingDoc ? 'Sửa giấy tờ' : 'Thêm giấy tờ'}</h4>
++                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
++                    <label>Loại<select value={docForm.loaiGiayTo} onChange={(e) => setDocForm({ ...docForm, loaiGiayTo: e.target.value })}>
++                      <option>CCCD</option><option>CMND</option><option>Passport</option><option>Khác</option>
++                    </select></label>
++                    <label>Số<input required maxLength={50} value={docForm.soTrenGiayTo} onChange={(e) => setDocForm({ ...docForm, soTrenGiayTo: e.target.value })} /></label>
++                    <label>Ngày cấp<input type="date" required value={docForm.ngayCap} onChange={(e) => setDocForm({ ...docForm, ngayCap: e.target.value })} /></label>
++                    <label>Hết hạn<input type="date" required value={docForm.ngayHetHan} onChange={(e) => setDocForm({ ...docForm, ngayHetHan: e.target.value })} /></label>
++                    <label>Nơi cấp<input required value={docForm.noiCap} onChange={(e) => setDocForm({ ...docForm, noiCap: e.target.value })} /></label>
++                  </div>
++                  <div className="inline" style={{ marginTop: 12 }}>
++                    <button disabled={blocked || !profile.maKhachHang}>{editingDoc ? 'Lưu giấy tờ' : 'Thêm giấy tờ'}</button>
++                    {editingDoc && <button type="button" disabled={blocked} onClick={() => { setEditingDoc(''); setDocForm(emptyDoc()); }}>Hủy sửa</button>}
++                  </div>
++                </form>
++              )}
++            </ExpandRecord>
++          );
++        })}
++      </div>
++      <form onSubmit={saveDeparture}>
++        <fieldset disabled={blocked} style={{ border: 0, padding: 0 }}>
++          <h3>{editing ? 'Sửa lịch ' + editing : 'Thêm lịch khởi hành'}</h3>
++          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
++            <label>Mã lịch<input required maxLength={20} readOnly={!!editing} value={form.maKhoiHanh} onChange={(e) => setForm({ ...form, maKhoiHanh: e.target.value })} /></label>
++            <label>Khởi hành<input type="datetime-local" required value={form.ngayKhoiHanh} onChange={(e) => setForm({ ...form, ngayKhoiHanh: e.target.value })} /></label>
++            <label>Kết thúc<input type="datetime-local" value={form.ngayKetThuc} onChange={(e) => setForm({ ...form, ngayKetThuc: e.target.value })} /></label>
++            <label>Địa điểm<input maxLength={100} value={form.diaDiem || ''} onChange={(e) => setForm({ ...form, diaDiem: e.target.value })} /></label>
++            <label>Số chỗ<input type="number" min="0" max="2147483647" step="1" value={form.soCho} onChange={(e) => setForm({ ...form, soCho: e.target.value })} /><small>Để trống: theo tour ({defaultCapacity}).</small></label>
++          </div>
++          <button>Lưu lịch</button>
++          {editing && <button type="button" onClick={() => { setEditing(''); setForm(emptyDeparture(defaultCapacity)); }}>Thêm lịch khác</button>}
++        </fieldset>
++      </form>
++    </section>
++  );
+ }
+diff --git a/frontend-admin/app/src/api.js b/frontend-admin/app/src/api.js
+index ea115db..1c46f9a 100644
+--- a/frontend-admin/app/src/api.js
++++ b/frontend-admin/app/src/api.js
+@@ -59,4 +59,9 @@ export const createDeparture=data=>api.post('/api/LichKhoiHanh',data);
+ export const updateDeparture=(id,data)=>api.put('/api/LichKhoiHanh/'+encodeURIComponent(id),data);
+ export const departureGuests=id=>api.get('/api/LichKhoiHanh/'+encodeURIComponent(id)+'/khach');
+ export const guestProfile=id=>api.get('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach');
++export const updateGuestProfile=(id,data)=>api.put('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach',data);
++export const addGuestDocument=(id,data)=>api.post('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach/giay-to',data);
++export const updateGuestDocument=(id,docId,data)=>api.put('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach/giay-to/'+encodeURIComponent(docId),data);
++export const deleteGuestDocument=(id,docId)=>api.delete('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach/giay-to/'+encodeURIComponent(docId));
++export const overview=()=>api.get('/api/BaoCao/tong-quan');
+ export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');
+diff --git a/frontend-admin/app/src/components.jsx b/frontend-admin/app/src/components.jsx
+index 4b9dd03..3be290a 100644
+--- a/frontend-admin/app/src/components.jsx
++++ b/frontend-admin/app/src/components.jsx
+@@ -41,3 +41,50 @@ export function ExpandRecord({ open, summary, children }) {
+     </article>
+   );
+ }
++
++export function BarList({ rows, empty = 'Chưa có dữ liệu.' }) {
++  const max = Math.max(1, ...rows.map((row) => Number(row.value || 0)));
++  if (!rows.length) return <p className="muted">{empty}</p>;
++  return (
++    <div className="chart-bars">
++      {rows.map((row) => (
++        <div className="chart-row" key={row.id || row.label}>
++          <span className="chart-label">{row.label}</span>
++          <div className="chart-track" title={row.hint || row.display}>
++            <i style={{ width: `${Math.round((Number(row.value || 0) / max) * 100)}%`, background: row.color }} />
++          </div>
++          <b>{row.display}</b>
++        </div>
++      ))}
++    </div>
++  );
++}
++
++const MIX = {
++  ChoXacNhan: '#ffe08a', DaXacNhan: '#7aa7d9', DaThanhToan: '#1e5c45',
++  HoanThanh: '#163041', DaHuy: '#b33a1a', ChoHoanTien: '#c49a3c',
++};
++
++export function StatusMix({ items, labels = {} }) {
++  const total = items.reduce((sum, item) => sum + Number(item.soLuong || 0), 0);
++  if (!total) return <p className="muted">Chưa có booking để thống kê.</p>;
++  let acc = 0;
++  const stops = items.map((item) => {
++    const start = acc;
++    acc += (Number(item.soLuong || 0) / total) * 360;
++    return `${MIX[item.trangThai] || '#c49a3c'} ${start}deg ${acc}deg`;
++  });
++  return (
++    <div className="status-mix">
++      <div className="donut" style={{ background: `conic-gradient(${stops.join(',')})` }} />
++      <ul>
++        {items.map((item) => (
++          <li key={item.trangThai}>
++            <i style={{ background: MIX[item.trangThai] || '#c49a3c' }} />
++            {labels[item.trangThai] || item.trangThai}: {item.soLuong}
++          </li>
++        ))}
++      </ul>
++    </div>
++  );
++}
+diff --git a/frontend-admin/app/src/pages.jsx b/frontend-admin/app/src/pages.jsx
+index bfcd54e..03fd811 100644
+--- a/frontend-admin/app/src/pages.jsx
++++ b/frontend-admin/app/src/pages.jsx
+@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
+ import * as api from './api';
+ import DepartureGuests from './DepartureGuests';
+ import { useAuth } from './context';
+-import { ExpandRecord, Notice } from './components';
++import { ExpandRecord, Notice, BarList, StatusMix } from './components';
+ export { DesignRequests } from './DesignRequests';
+ 
+ const v = (o, ...ks) => ks.map((k) => o?.[k]).find((x) => x !== undefined && x !== null);
+@@ -62,33 +62,76 @@ export function Login() {
+ export function Dashboard() {
+   const [tours, setTours] = useState([]);
+   const [bookings, setBookings] = useState([]);
++  const [stats, setStats] = useState(null);
+   const [error, setError] = useState('');
+ 
+   useEffect(() => {
+     Promise.allSettled([
+       api.tours({ pageSize: 50 }),
+       api.bookings({ pageSize: 50 }),
+-    ]).then(([tourRes, bookRes]) => {
++      api.overview(),
++    ]).then(([tourRes, bookRes, overviewRes]) => {
+       if (tourRes.status === 'fulfilled') setTours(itemsOf(tourRes.value));
+       else setError(api.errorMessage(tourRes.reason, 'Không tải được tour.'));
+       if (bookRes.status === 'fulfilled') setBookings(itemsOf(bookRes.value));
+       else setError((prev) => prev || api.errorMessage(bookRes.reason, 'Không tải được booking. Đăng nhập lại bằng tài khoản Admin/Sale.'));
++      if (overviewRes.status === 'fulfilled') setStats(overviewRes.value.data);
++      else setError((prev) => prev || api.errorMessage(overviewRes.reason, 'Không tải được biểu đồ thống kê.'));
+     });
+   }, []);
+ 
+   const pending = bookings.filter((x) => String(x.trangThai || '').trim() === 'ChoXacNhan');
+   const paid = bookings.filter((x) => /DaThanhToan|HoanThanh/.test(String(x.trangThai || '').trim()));
+-  const revenue = paid.reduce((sum, x) => sum + Number(x.thanhTien || 0), 0);
++  const revenue = stats?.daThu ?? paid.reduce((sum, x) => sum + Number(x.thanhTien || 0), 0);
++  const percent = (value) => `${Math.round(Number(value || 0) * 1000) / 10}%`;
+ 
+   return (
+     <>
+       <h1>Tổng quan vận hành</h1>
++      <p className="muted">Số liệu gộp từ vé, thanh toán đã xác nhận và lịch khởi hành sắp chạy — dùng để định hướng chỗ, giá và tour đẩy mạnh.</p>
+       <Notice error={error} />
+       <div className="stats">
+-        <div><b>{tours.length}</b><span>Tour đang bán</span></div>
+-        <div><b>{bookings.length}</b><span>Booking gần đây</span></div>
+-        <div><b>{pending.length}</b><span>Chờ xác nhận</span></div>
+-        <div><b>{money(revenue)}</b><span>Đã thu (đã TT / hoàn thành)</span></div>
++        <div><b>{stats?.toursDangBan ?? tours.length}</b><span>Tour đang bán</span></div>
++        <div><b>{stats?.tongBooking ?? bookings.length}</b><span>Tổng booking</span></div>
++        <div><b>{stats?.choXacNhan ?? pending.length}</b><span>Chờ xác nhận</span></div>
++        <div><b>{money(revenue)}</b><span>Đã thu (thanh toán xác nhận)</span></div>
++        <div><b>{money(stats?.conPhaiThu)}</b><span>Còn phải thu</span></div>
++        <div><b>{percent(stats?.tyLeHuy)}</b><span>Tỷ lệ hủy / hoàn tiền</span></div>
++      </div>
++      <div className="charts">
++        <section className="panel">
++          <h2>Doanh thu 6 tháng</h2>
++          <p className="muted">Chỉ cộng giao dịch đã xác nhận. Tháng trống = chưa thu.</p>
++          <BarList rows={(stats?.doanhThuTheoThang || []).map((row) => ({
++            id: row.nhan, label: row.nhan, value: row.daThu, display: money(row.daThu),
++            hint: `${row.soGiaoDich} giao dịch`, color: 'var(--coral)',
++          }))} empty="Chưa có thanh toán xác nhận." />
++        </section>
++        <section className="panel">
++          <h2>Booking theo trạng thái</h2>
++          <StatusMix items={stats?.theoTrangThai || []} labels={STATUS} />
++        </section>
++        <section className="panel">
++          <h2>Tour đóng góp doanh thu</h2>
++          <p className="muted">Ưu tiên đẩy tour thu tốt, giảm tour hủy nhiều.</p>
++          <BarList rows={(stats?.topTour || []).map((row) => ({
++            id: row.maTour, label: row.tenTour, value: row.daThu, display: money(row.daThu),
++            hint: `${row.soBooking} vé · hủy ${percent(row.tyLeHuy)} · ${row.diemTrungBinh || 'chưa có'}★`,
++            color: 'var(--navy)',
++          }))} empty="Chưa có doanh thu theo tour." />
++        </section>
++        <section className="panel">
++          <h2>Lấp đầy lịch sắp khởi hành</h2>
++          <p className="muted">Lịch gần đầy: cân nhắc đóng bán hoặc mở thêm chuyến.</p>
++          <BarList rows={(stats?.lichSapKhoiHanh || []).map((row) => ({
++            id: row.maKhoiHanh,
++            label: `${row.tenTour} · ${dateText(row.ngayKhoiHanh)}`,
++            value: Number(row.tyLeLapDay || 0) * 100,
++            display: `${row.daDat}/${row.sucChua}`,
++            hint: `Còn ${row.conTrong} chỗ`,
++            color: Number(row.tyLeLapDay) >= 0.8 ? 'var(--coral)' : 'var(--jade)',
++          }))} empty="Chưa có lịch khởi hành trong tương lai." />
++        </section>
+       </div>
+       <section className="panel">
+         <header className="panel-head">
+diff --git a/frontend-admin/app/src/styles.css b/frontend-admin/app/src/styles.css
+index 47a7c33..81a6232 100644
+--- a/frontend-admin/app/src/styles.css
++++ b/frontend-admin/app/src/styles.css
+@@ -58,7 +58,7 @@ button {
+ }
+ .table { display: grid; gap: 10px; }
+ .row { display: grid; grid-template-columns: 1.3fr 2fr 1fr auto auto auto; gap: 12px; align-items: center; }
+-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 24px; }
++.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 18px; margin-bottom: 24px; }
+ .stats > div { display: flex; flex-direction: column; gap: 10px; }
+ .stats b { font-family: Fraunces, serif; font-size: 1.5rem; }
+ .stats span { color: var(--muted); }
+@@ -108,3 +108,23 @@ button {
+ .create-slot { margin: 12px 0 18px; }
+ .create-slot .record-body { border-top: 2px solid var(--ink); }
+ 
++.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 24px; }
++.charts h2 { font-family: Fraunces, serif; margin: 0 0 8px; }
++.chart-bars { display: grid; gap: 8px; }
++.chart-row { display: grid; grid-template-columns: minmax(90px, 1.5fr) 3fr auto; gap: 10px; align-items: center; }
++.chart-label { font-size: 0.85rem; overflow-wrap: anywhere; }
++.chart-track { height: 14px; background: #efe4d4; border: 2px solid var(--ink); overflow: hidden; }
++.chart-track i { display: block; height: 100%; background: var(--coral); min-width: 0; }
++.chart-row b { font-size: 0.82rem; white-space: nowrap; }
++.status-mix { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
++.donut { width: 140px; height: 140px; border-radius: 50%; border: 2px solid var(--ink); flex: 0 0 auto; }
++.status-mix ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
++.status-mix li { display: flex; gap: 8px; align-items: center; }
++.status-mix i { width: 12px; height: 12px; border: 2px solid var(--ink); display: inline-block; }
++
++@media (max-width: 800px) {
++  .charts { grid-template-columns: 1fr; }
++  .chart-row { grid-template-columns: 1fr; }
++}
++
++
+diff --git a/powerbi/CHECKLIST_DONG_BO_BI.md b/powerbi/CHECKLIST_DONG_BO_BI.md
+index ed751a6..b34aa79 100644
+--- a/powerbi/CHECKLIST_DONG_BO_BI.md
++++ b/powerbi/CHECKLIST_DONG_BO_BI.md
+@@ -6,6 +6,8 @@ SQL Server là nguồn chân lý. Dùng các view trong `database/schema/005_Vie
+ - Công nợ: dùng `vw_ThanhToanTheoBooking.DaThanhToan`, `DangCho`, `ConLai`; dòng `ChoXacNhan` không phải doanh thu.
+ - Tỷ lệ hủy: dùng `vw_TyLeHuyBooking.TyLeHuy`.
+ - Điểm đánh giá: dùng `vw_DanhGiaTrungBinhTour`.
+-- Tỷ lệ lấp đầy và chuyển đổi gợi ý chưa có view chuẩn; chỉ bổ sung sau khi thống nhất mẫu số nghiệp vụ với backend.
++- Tỷ lệ lấp đầy lịch khởi hành: dùng `vw_ChoTrongTheoLich.TyLeLapDay` (mẫu số = chỗ đang giữ, loại `DaHuy` / `ChoHoanTien`).
++- Doanh thu theo tháng: `vw_DoanhThuTheoThang.DaThu`.
++- Phân bổ booking: `vw_BookingTheoTrangThai`.
+ - Dữ liệu đối tác là dữ liệu mock/giả lập nếu chưa tích hợp đối tác thật; gắn disclaimer trên dashboard.
+ - Khi refresh dashboard, kiểm tra `GET /api/ai-jobs/gan-nhat` bằng tài khoản Admin và tuổi `latestRecommendationAgeSeconds` của `/health`; SLA là không quá 420 giây.
+-- 
+2.39.5
+

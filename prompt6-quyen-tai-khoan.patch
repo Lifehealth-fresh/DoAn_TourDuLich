@@ -1,0 +1,2640 @@
+From 361a49527bf1742b72295d2711afa194514a325a Mon Sep 17 00:00:00 2001
+From: Lifehealth-fresh <khaitran.160505@gmail.com>
+Date: Sun, 13 Sep 2026 23:01:01 +0000
+Subject: [PATCH] feat: per-account admin permissions for add/edit/delete/full
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Staff accounts get a checkbox matrix (Them/Sua/Xoa/ToanQuyen) per module. Unticked actions return 403 "Bạn bị hạn chế quyền" and the admin UI hides those buttons. Super Admin remains unrestricted; existing Sale without rows keep previous ops except account management.
+---
+ .../Authorization/IPermissionService.cs       |  23 ++
+ .../Authorization/PermissionCatalog.cs        |  59 ++++
+ .../Authorization/PermissionService.cs        | 108 +++++++
+ .../RequirePermissionAttribute.cs             |  37 +++
+ .../Controllers/AdminController.cs            | 297 ++++++++++++++----
+ .../Controllers/AnhTourController.cs          |   7 +
+ .../Controllers/AuthController.cs             |  38 ++-
+ .../Controllers/BaoCaoController.cs           |   2 +
+ .../Controllers/DatDichVuController.cs        |   9 +
+ .../Controllers/DiemThamQuanController.cs     |   4 +
+ .../Controllers/DoiTacController.cs           |   4 +
+ .../Controllers/KhuyenMaiController.cs        |   5 +
+ .../Controllers/LichKhoiHanhController.cs     |   5 +
+ .../Controllers/LichTrinhController.cs        |   4 +
+ .../Controllers/SanPhamDoiTacController.cs    |   4 +
+ .../Controllers/TourController.cs             |   4 +
+ .../Controllers/YeuCauThietKeController.cs    |   7 +
+ .../DTOs/AdminCreateAccountDto.cs             |  23 ++
+ backend/src/TourDuLich.API/Program.cs         |   2 +
+ .../TourDuLich.Infrastructure/AppDbContext.cs |  21 ++
+ .../Entities/NguoiSuDung.cs                   |   2 +
+ .../Entities/QuyenNhanVien.cs                 |  14 +
+ .../QuyenTaiKhoanTests.cs                     | 187 +++++++++++
+ .../TestApiFactory.cs                         |   1 +
+ database/schema/020_QuyenTaiKhoan.sql         |  74 +++++
+ database/schema/README.md                     |   3 +-
+ frontend-admin/app/src/AccountsManagement.jsx | 230 ++++++++++++++
+ frontend-admin/app/src/App.jsx                |  18 +-
+ frontend-admin/app/src/DepartureGuests.jsx    |  22 +-
+ frontend-admin/app/src/DesignRequests.jsx     |   9 +-
+ frontend-admin/app/src/PartnersManagement.jsx |  17 +-
+ .../app/src/PromotionsManagement.jsx          |  19 +-
+ .../app/src/SightseeingManagement.jsx         |  11 +-
+ frontend-admin/app/src/api.js                 |   7 +
+ frontend-admin/app/src/components.jsx         |  21 +-
+ frontend-admin/app/src/context.jsx            | 124 +++++++-
+ frontend-admin/app/src/pages.jsx              |  42 +--
+ frontend-admin/app/src/styles.css             |  44 +++
+ 38 files changed, 1384 insertions(+), 124 deletions(-)
+ create mode 100644 backend/src/TourDuLich.API/Authorization/IPermissionService.cs
+ create mode 100644 backend/src/TourDuLich.API/Authorization/PermissionCatalog.cs
+ create mode 100644 backend/src/TourDuLich.API/Authorization/PermissionService.cs
+ create mode 100644 backend/src/TourDuLich.API/Authorization/RequirePermissionAttribute.cs
+ create mode 100644 backend/src/TourDuLich.API/DTOs/AdminCreateAccountDto.cs
+ create mode 100644 backend/src/TourDuLich.Infrastructure/Entities/QuyenNhanVien.cs
+ create mode 100644 backend/src/TourDuLich.IntegrationTests/QuyenTaiKhoanTests.cs
+ create mode 100644 database/schema/020_QuyenTaiKhoan.sql
+ create mode 100644 frontend-admin/app/src/AccountsManagement.jsx
+
+diff --git a/backend/src/TourDuLich.API/Authorization/IPermissionService.cs b/backend/src/TourDuLich.API/Authorization/IPermissionService.cs
+new file mode 100644
+index 0000000..249917d
+--- /dev/null
++++ b/backend/src/TourDuLich.API/Authorization/IPermissionService.cs
+@@ -0,0 +1,23 @@
++using System.Security.Claims;
++
++namespace TourDuLich.API.Authorization;
++
++public interface IPermissionService
++{
++    Task<bool> CanAsync(ClaimsPrincipal user, string chucNang, string hanhDong, CancellationToken cancellationToken = default);
++
++    Task<IReadOnlyList<PermissionGrant>> GetEffectiveGrantsAsync(
++        string maUser,
++        string? tenVaiTro,
++        CancellationToken cancellationToken = default);
++}
++
++public sealed class PermissionGrant
++{
++    public string ChucNang { get; init; } = null!;
++    public string TenChucNang { get; init; } = null!;
++    public bool Them { get; init; }
++    public bool Sua { get; init; }
++    public bool Xoa { get; init; }
++    public bool ToanQuyen { get; init; }
++}
+diff --git a/backend/src/TourDuLich.API/Authorization/PermissionCatalog.cs b/backend/src/TourDuLich.API/Authorization/PermissionCatalog.cs
+new file mode 100644
+index 0000000..bedb8b1
+--- /dev/null
++++ b/backend/src/TourDuLich.API/Authorization/PermissionCatalog.cs
+@@ -0,0 +1,59 @@
++namespace TourDuLich.API.Authorization;
++
++public static class PermissionCatalog
++{
++    public const string Them = "Them";
++    public const string Sua = "Sua";
++    public const string Xoa = "Xoa";
++    public const string Xem = "Xem";
++
++    public const string TongQuan = "TongQuan";
++    public const string Tour = "Tour";
++    public const string Booking = "Booking";
++    public const string UuDai = "UuDai";
++    public const string DiemThamQuan = "DiemThamQuan";
++    public const string DoiTac = "DoiTac";
++    public const string ThietKe = "ThietKe";
++    public const string TaiKhoan = "TaiKhoan";
++
++    public static readonly IReadOnlyList<PermissionModule> Modules =
++    [
++        new(TongQuan, "Tổng quan"),
++        new(Tour, "Quản lý tour"),
++        new(Booking, "Quản lý booking"),
++        new(UuDai, "Quản lý ưu đãi"),
++        new(DiemThamQuan, "Điểm tham quan"),
++        new(DoiTac, "Đối tác"),
++        new(ThietKe, "Thiết kế"),
++        new(TaiKhoan, "Tài khoản")
++    ];
++
++    public static bool IsKnown(string? chucNang) =>
++        Modules.Any(module => string.Equals(module.Ma, chucNang, StringComparison.OrdinalIgnoreCase));
++
++    public static string DeniedMessage(string chucNang, string hanhDong)
++    {
++        var noun = chucNang switch
++        {
++            Tour => "tour",
++            Booking => "booking",
++            UuDai => "ưu đãi",
++            DiemThamQuan => "điểm tham quan",
++            DoiTac => "đối tác",
++            ThietKe => "yêu cầu thiết kế",
++            TaiKhoan => "tài khoản",
++            TongQuan => "trang tổng quan",
++            _ => chucNang.ToLowerInvariant()
++        };
++        var verb = hanhDong switch
++        {
++            Them => "thêm",
++            Sua => "sửa",
++            Xoa => "xóa",
++            _ => "sử dụng"
++        };
++        return $"Bạn bị hạn chế quyền: không được {verb} {noun}.";
++    }
++}
++
++public sealed record PermissionModule(string Ma, string Ten);
+diff --git a/backend/src/TourDuLich.API/Authorization/PermissionService.cs b/backend/src/TourDuLich.API/Authorization/PermissionService.cs
+new file mode 100644
+index 0000000..600d3c6
+--- /dev/null
++++ b/backend/src/TourDuLich.API/Authorization/PermissionService.cs
+@@ -0,0 +1,108 @@
++using System.Security.Claims;
++using Microsoft.EntityFrameworkCore;
++using TourDuLich.Application.Helpers;
++using TourDuLich.Infrastructure;
++using TourDuLich.Infrastructure.Entities;
++
++namespace TourDuLich.API.Authorization;
++
++public sealed class PermissionService : IPermissionService
++{
++    private readonly AppDbContext _context;
++
++    public PermissionService(AppDbContext context) => _context = context;
++
++    public async Task<bool> CanAsync(
++        ClaimsPrincipal user,
++        string chucNang,
++        string hanhDong,
++        CancellationToken cancellationToken = default)
++    {
++        var role = user.FindFirst(ClaimTypes.Role)?.Value?.Trim();
++        if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
++            return true;
++
++        var maUser = user.FindFirst("MaUser")?.Value;
++        if (string.IsNullOrWhiteSpace(maUser))
++            return false;
++
++        var grants = await GetEffectiveGrantsAsync(maUser, role, cancellationToken);
++        var row = grants.FirstOrDefault(item =>
++            string.Equals(item.ChucNang, chucNang, StringComparison.OrdinalIgnoreCase));
++        if (row is null)
++            return false;
++        if (row.ToanQuyen)
++            return true;
++
++        return hanhDong switch
++        {
++            PermissionCatalog.Them => row.Them,
++            PermissionCatalog.Sua => row.Sua,
++            PermissionCatalog.Xoa => row.Xoa,
++            PermissionCatalog.Xem => row.Them || row.Sua || row.Xoa,
++            _ => false
++        };
++    }
++
++    public async Task<IReadOnlyList<PermissionGrant>> GetEffectiveGrantsAsync(
++        string maUser,
++        string? tenVaiTro,
++        CancellationToken cancellationToken = default)
++    {
++        var role = tenVaiTro?.Trim();
++        if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
++            return FullGrants();
++
++        var maUserDb = FixedLengthHelper.PadTo20(maUser);
++        var rows = await _context.QuyenNhanViens
++            .AsNoTracking()
++            .Where(item => item.MaUser == maUserDb)
++            .ToListAsync(cancellationToken);
++
++        var legacySale = rows.Count == 0
++            && string.Equals(role, "Sale", StringComparison.OrdinalIgnoreCase);
++
++        return PermissionCatalog.Modules.Select(module =>
++        {
++            if (legacySale && module.Ma != PermissionCatalog.TaiKhoan)
++                return Grant(module, them: true, sua: true, xoa: true, toanQuyen: true);
++
++            var row = rows.FirstOrDefault(item =>
++                string.Equals(item.ChucNang.Trim(), module.Ma, StringComparison.OrdinalIgnoreCase));
++            if (row is null)
++                return Grant(module, false, false, false, false);
++            if (row.ToanQuyen)
++                return Grant(module, true, true, true, true);
++            return Grant(module, row.Them, row.Sua, row.Xoa, false);
++        }).ToList();
++    }
++
++    public static IReadOnlyList<PermissionGrant> FullGrants() =>
++        PermissionCatalog.Modules.Select(module => Grant(module, true, true, true, true)).ToList();
++
++    public static IReadOnlyList<PermissionGrant> MergeStored(IEnumerable<QuyenNhanVien> rows)
++    {
++        var stored = rows.ToList();
++        return PermissionCatalog.Modules.Select(module =>
++        {
++            var row = stored.FirstOrDefault(item =>
++                string.Equals(item.ChucNang.Trim(), module.Ma, StringComparison.OrdinalIgnoreCase));
++            if (row is null)
++                return Grant(module, false, false, false, false);
++            if (row.ToanQuyen)
++                return Grant(module, true, true, true, true);
++            return Grant(module, row.Them, row.Sua, row.Xoa, false);
++        }).ToList();
++    }
++
++    private static PermissionGrant Grant(
++        PermissionModule module, bool them, bool sua, bool xoa, bool toanQuyen) => new()
++    {
++        ChucNang = module.Ma,
++        TenChucNang = module.Ten,
++        Them = them || toanQuyen,
++        Sua = sua || toanQuyen,
++        Xoa = xoa || toanQuyen,
++        ToanQuyen = toanQuyen
++    };
++}
+diff --git a/backend/src/TourDuLich.API/Authorization/RequirePermissionAttribute.cs b/backend/src/TourDuLich.API/Authorization/RequirePermissionAttribute.cs
+new file mode 100644
+index 0000000..fb3cff6
+--- /dev/null
++++ b/backend/src/TourDuLich.API/Authorization/RequirePermissionAttribute.cs
+@@ -0,0 +1,37 @@
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.Mvc.Filters;
++using Microsoft.Extensions.DependencyInjection;
++
++namespace TourDuLich.API.Authorization;
++
++[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
++public sealed class RequirePermissionAttribute : Attribute, IAsyncAuthorizationFilter
++{
++    public RequirePermissionAttribute(string chucNang, string hanhDong)
++    {
++        ChucNang = chucNang;
++        HanhDong = hanhDong;
++    }
++
++    public string ChucNang { get; }
++    public string HanhDong { get; }
++
++    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
++    {
++        var user = context.HttpContext.User;
++        if (user.Identity?.IsAuthenticated != true)
++            return;
++
++        var service = context.HttpContext.RequestServices.GetRequiredService<IPermissionService>();
++        if (await service.CanAsync(user, ChucNang, HanhDong, context.HttpContext.RequestAborted))
++            return;
++
++        context.Result = new ObjectResult(new
++        {
++            message = PermissionCatalog.DeniedMessage(ChucNang, HanhDong)
++        })
++        {
++            StatusCode = StatusCodes.Status403Forbidden
++        };
++    }
++}
+diff --git a/backend/src/TourDuLich.API/Controllers/AdminController.cs b/backend/src/TourDuLich.API/Controllers/AdminController.cs
+index ff8f9ed..6d840e3 100644
+--- a/backend/src/TourDuLich.API/Controllers/AdminController.cs
++++ b/backend/src/TourDuLich.API/Controllers/AdminController.cs
+@@ -1,6 +1,7 @@
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
++using TourDuLich.API.Authorization;
+ using TourDuLich.API.DTOs;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Infrastructure;
+@@ -10,7 +11,7 @@ namespace TourDuLich.API.Controllers;
+ 
+ [ApiController]
+ [Route("api/[controller]")]
+-[Authorize(Roles = "Admin")]
++[Authorize(Roles = "Sale,Admin")]
+ public class AdminController : ControllerBase
+ {
+     private readonly AppDbContext _context;
+@@ -20,7 +21,16 @@ public class AdminController : ControllerBase
+         _context = context;
+     }
+ 
++    [HttpGet("chuc-nang")]
++    [RequirePermission(PermissionCatalog.TaiKhoan, PermissionCatalog.Xem)]
++    public ActionResult GetModules() => Ok(PermissionCatalog.Modules.Select(module => new
++    {
++        ma = module.Ma,
++        ten = module.Ten
++    }));
++
+     [HttpGet("tai-khoan")]
++    [RequirePermission(PermissionCatalog.TaiKhoan, PermissionCatalog.Xem)]
+     public async Task<ActionResult> GetAccounts(
+         [FromQuery] string? tenVaiTro,
+         [FromQuery] string? soDienThoai)
+@@ -36,6 +46,11 @@ public class AdminController : ControllerBase
+             query = query.Where(user =>
+                 user.MaVaiTroNavigation.TenVaiTro.Trim().ToLower() == roleName);
+         }
++        else
++        {
++            query = query.Where(user =>
++                user.MaVaiTroNavigation.TenVaiTro.Trim() != "KhachHang");
++        }
+ 
+         if (!string.IsNullOrWhiteSpace(soDienThoai))
+         {
+@@ -48,16 +63,36 @@ public class AdminController : ControllerBase
+             .OrderBy(user => user.SoDienThoai)
+             .Select(user => new
+             {
+-                maUser = FixedLengthHelper.TrimSafe(user.MaUser),
+-                soDienThoai = FixedLengthHelper.TrimSafe(user.SoDienThoai),
+-                tenVaiTro = user.MaVaiTroNavigation.TenVaiTro.Trim()
++                maUser = user.MaUser,
++                soDienThoai = user.SoDienThoai,
++                tenVaiTro = user.MaVaiTroNavigation.TenVaiTro
+             })
+             .ToListAsync();
+ 
+-        return Ok(accounts);
++        var ids = accounts.Select(item => item.maUser).ToList();
++        var stored = await _context.QuyenNhanViens
++            .AsNoTracking()
++            .Where(item => ids.Contains(item.MaUser))
++            .ToListAsync();
++
++        var payload = accounts.Select(account =>
++        {
++            var role = account.tenVaiTro.Trim();
++            var rows = stored.Where(item => item.MaUser == account.maUser);
++            return new
++            {
++                maUser = FixedLengthHelper.TrimSafe(account.maUser),
++                soDienThoai = FixedLengthHelper.TrimSafe(account.soDienThoai),
++                tenVaiTro = role,
++                quyen = MapGrants(role, rows)
++            };
++        });
++
++        return Ok(payload);
+     }
+ 
+     [HttpGet("tai-khoan/{maUser}")]
++    [RequirePermission(PermissionCatalog.TaiKhoan, PermissionCatalog.Xem)]
+     public async Task<ActionResult> GetAccount(string maUser)
+     {
+         var maUserDb = FixedLengthHelper.PadTo20(maUser);
+@@ -65,22 +100,132 @@ public class AdminController : ControllerBase
+         var account = await _context.NguoiSuDungs
+             .AsNoTracking()
+             .Include(user => user.MaVaiTroNavigation)
+-            .Where(user => user.MaUser == maUserDb)
+-            .Select(user => new
+-            {
+-                maUser = FixedLengthHelper.TrimSafe(user.MaUser),
+-                soDienThoai = FixedLengthHelper.TrimSafe(user.SoDienThoai),
+-                tenVaiTro = user.MaVaiTroNavigation.TenVaiTro.Trim()
+-            })
+-            .FirstOrDefaultAsync();
++            .FirstOrDefaultAsync(user => user.MaUser == maUserDb);
++
++        if (account is null)
++            return NotFound(new { message = "Không tìm thấy tài khoản." });
++
++        var rows = await _context.QuyenNhanViens
++            .AsNoTracking()
++            .Where(item => item.MaUser == maUserDb)
++            .ToListAsync();
+ 
+-        return account is null
+-            ? NotFound(new { message = "Không tìm thấy tài khoản." })
+-            : Ok(account);
++        var role = account.MaVaiTroNavigation.TenVaiTro.Trim();
++        return Ok(new
++        {
++            maUser = FixedLengthHelper.TrimSafe(account.MaUser),
++            soDienThoai = FixedLengthHelper.TrimSafe(account.SoDienThoai),
++            tenVaiTro = role,
++            quyen = MapGrants(role, rows)
++        });
+     }
+ 
++    [HttpPost("tai-khoan")]
++    [RequirePermission(PermissionCatalog.TaiKhoan, PermissionCatalog.Them)]
++    public async Task<ActionResult> CreateAccount(AdminCreateAccountDto request)
++        => await CreateStaffAsync(request);
++
+     [HttpPost("tai-khoan/sale")]
++    [RequirePermission(PermissionCatalog.TaiKhoan, PermissionCatalog.Them)]
+     public async Task<ActionResult> CreateSale(AdminCreateSaleDto request)
++        => await CreateStaffAsync(new AdminCreateAccountDto
++        {
++            SoDienThoai = request.SoDienThoai,
++            MatKhau = request.MatKhau,
++            TenVaiTro = "Sale"
++        });
++
++    [HttpPut("tai-khoan/{maUser}/quyen")]
++    [RequirePermission(PermissionCatalog.TaiKhoan, PermissionCatalog.Sua)]
++    public async Task<ActionResult> UpdateGrants(string maUser, AdminUpdateQuyenDto request)
++    {
++        var targetUserDb = FixedLengthHelper.PadTo20(maUser);
++        var account = await _context.NguoiSuDungs
++            .Include(user => user.MaVaiTroNavigation)
++            .FirstOrDefaultAsync(user => user.MaUser == targetUserDb);
++
++        if (account is null)
++            return NotFound(new { message = "Không tìm thấy tài khoản." });
++
++        var role = account.MaVaiTroNavigation.TenVaiTro.Trim();
++        if (string.Equals(role, "KhachHang", StringComparison.OrdinalIgnoreCase))
++            return BadRequest(new { message = "Không gán quyền nghiệp vụ cho tài khoản khách hàng." });
++
++        var error = GuardSelfTaiKhoan(account.MaUser, request.Quyen);
++        if (error is not null)
++            return BadRequest(new { message = error });
++
++        await ReplaceGrantsAsync(account.MaUser, request.Quyen);
++        await _context.SaveChangesAsync();
++
++        var rows = await _context.QuyenNhanViens
++            .AsNoTracking()
++            .Where(item => item.MaUser == account.MaUser)
++            .ToListAsync();
++
++        return Ok(new
++        {
++            maUser = FixedLengthHelper.TrimSafe(account.MaUser),
++            soDienThoai = FixedLengthHelper.TrimSafe(account.SoDienThoai),
++            tenVaiTro = role,
++            quyen = MapGrants(role, rows)
++        });
++    }
++
++    [HttpPut("tai-khoan/{maUser}/vai-tro")]
++    [RequirePermission(PermissionCatalog.TaiKhoan, PermissionCatalog.Sua)]
++    public async Task<ActionResult> ChangeRole(
++        string maUser,
++        AdminChangeRoleDto request)
++    {
++        var currentUser = User.FindFirst("MaUser")?.Value;
++        var targetUserDb = FixedLengthHelper.PadTo20(maUser);
++
++        if (currentUser is not null &&
++            FixedLengthHelper.PadTo20(currentUser) == targetUserDb)
++        {
++            return BadRequest(new
++            {
++                message = "Admin không được tự thay đổi vai trò của chính mình."
++            });
++        }
++
++        if (string.IsNullOrWhiteSpace(request.TenVaiTro))
++        {
++            return BadRequest(new { message = "Tên vai trò không được để trống." });
++        }
++
++        var account = await _context.NguoiSuDungs
++            .FirstOrDefaultAsync(user => user.MaUser == targetUserDb);
++
++        if (account is null)
++        {
++            return NotFound(new { message = "Không tìm thấy tài khoản." });
++        }
++
++        var role = await FindRoleAsync(request.TenVaiTro);
++
++        if (role is null)
++        {
++            return BadRequest(new { message = "Vai trò không tồn tại." });
++        }
++
++        if (string.Equals(role.TenVaiTro.Trim(), "KhachHang", StringComparison.OrdinalIgnoreCase))
++        {
++            return BadRequest(new { message = "Không chuyển tài khoản quản trị thành khách hàng." });
++        }
++
++        account.MaVaiTro = role.MaVaiTro;
++        await _context.SaveChangesAsync();
++
++        return Ok(new
++        {
++            maUser = FixedLengthHelper.TrimSafe(account.MaUser),
++            tenVaiTro = role.TenVaiTro.Trim()
++        });
++    }
++
++    private async Task<ActionResult> CreateStaffAsync(AdminCreateAccountDto request)
+     {
+         var phone = request.SoDienThoai?.Trim();
+         var password = request.MatKhau?.Trim();
+@@ -105,82 +250,113 @@ public class AdminController : ControllerBase
+             });
+         }
+ 
+-        var saleRole = await FindRoleAsync("Sale");
++        var roleName = string.IsNullOrWhiteSpace(request.TenVaiTro) ? "Sale" : request.TenVaiTro.Trim();
++        if (!string.Equals(roleName, "Sale", StringComparison.OrdinalIgnoreCase) &&
++            !string.Equals(roleName, "Admin", StringComparison.OrdinalIgnoreCase))
++        {
++            return BadRequest(new { message = "Chỉ tạo được tài khoản Sale hoặc Admin." });
++        }
+ 
+-        if (saleRole is null)
++        var role = await FindRoleAsync(roleName);
++        if (role is null)
+         {
+             return BadRequest(new
+             {
+-                message = "Chưa cấu hình vai trò Sale trong hệ thống."
++                message = $"Chưa cấu hình vai trò {roleName} trong hệ thống."
+             });
+         }
+ 
+         var maUserDb = await GenerateUserIdAsync();
+-
+         var account = new NguoiSuDung
+         {
+             MaUser = maUserDb,
+             SoDienThoai = phoneDb,
+             MatKhau = BCrypt.Net.BCrypt.HashPassword(password),
+-            MaVaiTro = saleRole.MaVaiTro
++            MaVaiTro = role.MaVaiTro
+         };
+ 
+         _context.NguoiSuDungs.Add(account);
++        await ReplaceGrantsAsync(maUserDb, request.Quyen);
+         await _context.SaveChangesAsync();
+ 
++        var rows = await _context.QuyenNhanViens
++            .AsNoTracking()
++            .Where(item => item.MaUser == maUserDb)
++            .ToListAsync();
++
+         return StatusCode(StatusCodes.Status201Created, new
+         {
+             maUser = FixedLengthHelper.TrimSafe(account.MaUser),
+             soDienThoai = FixedLengthHelper.TrimSafe(account.SoDienThoai),
+-            tenVaiTro = saleRole.TenVaiTro.Trim()
++            tenVaiTro = role.TenVaiTro.Trim(),
++            quyen = MapGrants(role.TenVaiTro.Trim(), rows)
+         });
+     }
+ 
+-    [HttpPut("tai-khoan/{maUser}/vai-tro")]
+-    public async Task<ActionResult> ChangeRole(
+-        string maUser,
+-        AdminChangeRoleDto request)
++    private async Task ReplaceGrantsAsync(string maUserDb, IEnumerable<QuyenChucNangDto>? incoming)
+     {
+-        var currentUser = User.FindFirst("MaUser")?.Value;
+-        var targetUserDb = FixedLengthHelper.PadTo20(maUser);
++        var byModule = (incoming ?? [])
++            .Where(item => PermissionCatalog.IsKnown(item.ChucNang))
++            .GroupBy(item => item.ChucNang.Trim(), StringComparer.OrdinalIgnoreCase)
++            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
+ 
+-        if (currentUser is not null &&
+-            FixedLengthHelper.PadTo20(currentUser) == targetUserDb)
++        var existing = await _context.QuyenNhanViens
++            .Where(item => item.MaUser == maUserDb)
++            .ToListAsync();
++        _context.QuyenNhanViens.RemoveRange(existing);
++
++        foreach (var module in PermissionCatalog.Modules)
+         {
+-            return BadRequest(new
++            byModule.TryGetValue(module.Ma, out var dto);
++            var toanQuyen = dto?.ToanQuyen == true;
++            _context.QuyenNhanViens.Add(new QuyenNhanVien
+             {
+-                message = "Admin không được tự thay đổi vai trò của chính mình."
++                MaQuyen = await GenerateGrantIdAsync(),
++                MaUser = maUserDb,
++                ChucNang = module.Ma,
++                Them = toanQuyen || dto?.Them == true,
++                Sua = toanQuyen || dto?.Sua == true,
++                Xoa = toanQuyen || dto?.Xoa == true,
++                ToanQuyen = toanQuyen
+             });
+         }
++    }
+ 
+-        if (string.IsNullOrWhiteSpace(request.TenVaiTro))
+-        {
+-            return BadRequest(new { message = "Tên vai trò không được để trống." });
+-        }
+-
+-        var account = await _context.NguoiSuDungs
+-            .FirstOrDefaultAsync(user => user.MaUser == targetUserDb);
+-
+-        if (account is null)
+-        {
+-            return NotFound(new { message = "Không tìm thấy tài khoản." });
+-        }
++    private string? GuardSelfTaiKhoan(string targetUserDb, IEnumerable<QuyenChucNangDto>? incoming)
++    {
++        var currentUser = User.FindFirst("MaUser")?.Value;
++        if (currentUser is null || FixedLengthHelper.PadTo20(currentUser) != targetUserDb)
++            return null;
++
++        var taiKhoan = incoming?.FirstOrDefault(item =>
++            string.Equals(item.ChucNang, PermissionCatalog.TaiKhoan, StringComparison.OrdinalIgnoreCase));
++        var keepsAccess = taiKhoan is not null &&
++            (taiKhoan.ToanQuyen || taiKhoan.Them || taiKhoan.Sua || taiKhoan.Xoa);
++        return keepsAccess
++            ? null
++            : "Không được gỡ quyền quản lý tài khoản của chính mình.";
++    }
+ 
+-        var role = await FindRoleAsync(request.TenVaiTro);
++    private IReadOnlyList<PermissionGrant> MapGrants(string role, IEnumerable<QuyenNhanVien> rows)
++    {
++        if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
++            return PermissionService.FullGrants();
+ 
+-        if (role is null)
++        var stored = rows.ToList();
++        if (stored.Count == 0 && string.Equals(role, "Sale", StringComparison.OrdinalIgnoreCase))
+         {
+-            return BadRequest(new { message = "Vai trò không tồn tại." });
++            return PermissionCatalog.Modules.Select(module => new PermissionGrant
++            {
++                ChucNang = module.Ma,
++                TenChucNang = module.Ten,
++                Them = module.Ma != PermissionCatalog.TaiKhoan,
++                Sua = module.Ma != PermissionCatalog.TaiKhoan,
++                Xoa = module.Ma != PermissionCatalog.TaiKhoan,
++                ToanQuyen = module.Ma != PermissionCatalog.TaiKhoan
++            }).ToList();
+         }
+ 
+-        account.MaVaiTro = role.MaVaiTro;
+-        await _context.SaveChangesAsync();
+-
+-        return Ok(new
+-        {
+-            maUser = FixedLengthHelper.TrimSafe(account.MaUser),
+-            tenVaiTro = role.TenVaiTro.Trim()
+-        });
++        return PermissionService.MergeStored(stored);
+     }
+ 
+     private async Task<VaiTro?> FindRoleAsync(string roleName)
+@@ -206,4 +382,15 @@ public class AdminController : ControllerBase
+ 
+         return maUserDb;
+     }
++
++    private async Task<string> GenerateGrantIdAsync()
++    {
++        string id;
++        do
++        {
++            id = FixedLengthHelper.PadTo20(Guid.NewGuid().ToString("N")[..20].ToUpperInvariant());
++        }
++        while (await _context.QuyenNhanViens.AnyAsync(item => item.MaQuyen == id));
++        return id;
++    }
+ }
+diff --git a/backend/src/TourDuLich.API/Controllers/AnhTourController.cs b/backend/src/TourDuLich.API/Controllers/AnhTourController.cs
+index 6545be9..35f7d23 100644
+--- a/backend/src/TourDuLich.API/Controllers/AnhTourController.cs
++++ b/backend/src/TourDuLich.API/Controllers/AnhTourController.cs
+@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
+ using TourDuLich.API.DTOs;
++using TourDuLich.API.Authorization;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.API.Services;
+ using TourDuLich.Infrastructure;
+@@ -50,6 +51,7 @@ public class AnhTourController : ControllerBase
+ 
+     [HttpPost]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     public async Task<ActionResult> Create(AnhTourCreateDto request)
+     {
+         return StatusCode(StatusCodes.Status410Gone, new
+@@ -60,6 +62,7 @@ public class AnhTourController : ControllerBase
+ 
+     [HttpPost("theo-tour/{maTour}/upload")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     [RequestSizeLimit(104_857_600)]
+     public async Task<ActionResult> Upload(string maTour, [FromForm] AnhTourUploadDto request, CancellationToken cancellationToken)
+     {
+@@ -117,6 +120,7 @@ public class AnhTourController : ControllerBase
+ 
+     [HttpPut("{maAnhTour}/dai-dien")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     public async Task<ActionResult> SetAvatar(string maAnhTour, CancellationToken cancellationToken)
+     {
+         var key = FixedLengthHelper.PadTo20(maAnhTour);
+@@ -134,6 +138,7 @@ public class AnhTourController : ControllerBase
+ 
+     [HttpPut("{maAnhTour}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     public async Task<ActionResult> Update(string maAnhTour, AnhTourUpdateDto request)
+     {
+         return StatusCode(StatusCodes.Status410Gone, new
+@@ -144,6 +149,7 @@ public class AnhTourController : ControllerBase
+ 
+     [HttpPut("{maAnhTour}/upload")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     [RequestSizeLimit(104_857_600)]
+     public async Task<ActionResult> ReplaceUpload(string maAnhTour, [FromForm] AnhTourUploadDto request, CancellationToken cancellationToken)
+     {
+@@ -191,6 +197,7 @@ public class AnhTourController : ControllerBase
+ 
+     [HttpDelete("{maAnhTour}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Xoa)]
+     public async Task<IActionResult> Delete(string maAnhTour)
+     {
+         var key = FixedLengthHelper.PadTo20(maAnhTour);
+diff --git a/backend/src/TourDuLich.API/Controllers/AuthController.cs b/backend/src/TourDuLich.API/Controllers/AuthController.cs
+index 07a71d1..775606a 100644
+--- a/backend/src/TourDuLich.API/Controllers/AuthController.cs
++++ b/backend/src/TourDuLich.API/Controllers/AuthController.cs
+@@ -1,6 +1,7 @@
+ ﻿using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
+ using Microsoft.AspNetCore.Authorization;
++using TourDuLich.API.Authorization;
+ using TourDuLich.API.DTOs;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Application.Services;
+@@ -15,11 +16,16 @@ public class AuthController : ControllerBase
+ {
+     private readonly AppDbContext _context;
+     private readonly JwtTokenService _jwtTokenService;
++    private readonly IPermissionService _permissions;
+ 
+-    public AuthController(AppDbContext context, JwtTokenService jwtTokenService)
++    public AuthController(
++        AppDbContext context,
++        JwtTokenService jwtTokenService,
++        IPermissionService permissions)
+     {
+         _context = context;
+         _jwtTokenService = jwtTokenService;
++        _permissions = permissions;
+     }
+ 
+     [HttpPost("register")]
+@@ -85,7 +91,11 @@ public class AuthController : ControllerBase
+             token,
+             maUser = FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser),
+             soDienThoai = FixedLengthHelper.TrimSafe(nguoiSuDung.SoDienThoai),
+-            maVaiTro = nguoiSuDung.MaVaiTro
++            maVaiTro = nguoiSuDung.MaVaiTro,
++            tenVaiTro = vaiTroKhachHang.TenVaiTro.Trim(),
++            quyen = await _permissions.GetEffectiveGrantsAsync(
++                FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!,
++                vaiTroKhachHang.TenVaiTro.Trim())
+         });
+     }
+ 
+@@ -114,16 +124,36 @@ public class AuthController : ControllerBase
+         }
+ 
+         var maUser = FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!;
++        var tenVaiTro = nguoiSuDung.MaVaiTroNavigation.TenVaiTro.Trim();
+         var token = _jwtTokenService.GenerateToken(
+             maUser,
+             nguoiSuDung.MaVaiTro,
+-            nguoiSuDung.MaVaiTroNavigation.TenVaiTro.Trim());
++            tenVaiTro);
+ 
+         return Ok(new
+         {
+             token,
+             maUser,
+-            maVaiTro = nguoiSuDung.MaVaiTro
++            maVaiTro = nguoiSuDung.MaVaiTro,
++            tenVaiTro,
++            quyen = await _permissions.GetEffectiveGrantsAsync(maUser, tenVaiTro)
++        });
++    }
++
++    [HttpGet("toi")]
++    [Authorize]
++    public async Task<ActionResult> Me()
++    {
++        var maUser = User.FindFirst("MaUser")?.Value;
++        var tenVaiTro = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
++        if (string.IsNullOrWhiteSpace(maUser))
++            return Unauthorized(new { message = "Phiên đăng nhập không hợp lệ." });
++
++        return Ok(new
++        {
++            maUser,
++            tenVaiTro,
++            quyen = await _permissions.GetEffectiveGrantsAsync(maUser, tenVaiTro)
+         });
+     }
+ }
+diff --git a/backend/src/TourDuLich.API/Controllers/BaoCaoController.cs b/backend/src/TourDuLich.API/Controllers/BaoCaoController.cs
+index 7217977..9808524 100644
+--- a/backend/src/TourDuLich.API/Controllers/BaoCaoController.cs
++++ b/backend/src/TourDuLich.API/Controllers/BaoCaoController.cs
+@@ -1,6 +1,7 @@
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
++using TourDuLich.API.Authorization;
+ using TourDuLich.API.Services;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Infrastructure;
+@@ -17,6 +18,7 @@ public class BaoCaoController : ControllerBase
+     public BaoCaoController(AppDbContext context) => _context = context;
+ 
+     [HttpGet("tong-quan")]
++    [RequirePermission(PermissionCatalog.TongQuan, PermissionCatalog.Xem)]
+     public async Task<ActionResult> TongQuan(CancellationToken cancellationToken)
+     {
+         var daHuy = FixedLengthHelper.PadTo20("DaHuy");
+diff --git a/backend/src/TourDuLich.API/Controllers/DatDichVuController.cs b/backend/src/TourDuLich.API/Controllers/DatDichVuController.cs
+index 25ca4cf..8085e13 100644
+--- a/backend/src/TourDuLich.API/Controllers/DatDichVuController.cs
++++ b/backend/src/TourDuLich.API/Controllers/DatDichVuController.cs
+@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
+ using TourDuLich.API.DTOs;
++using TourDuLich.API.Authorization;
+ using TourDuLich.API.Services;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Application.Services;
+@@ -70,6 +71,7 @@ public class DatDichVuController : ControllerBase
+ 
+     [HttpGet("danh-sach")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Xem)]
+     public async Task<ActionResult> GetAllForStaff(
+         [FromQuery] string? trangThai = null,
+         [FromQuery] int page = 1,
+@@ -192,6 +194,7 @@ public class DatDichVuController : ControllerBase
+ 
+     [HttpGet("{maBooking}/ho-so-khach")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Xem)]
+     public async Task<ActionResult> GetGuestProfile(string maBooking)
+     {
+         var booking = await FindBookingAsync(maBooking);
+@@ -202,6 +205,7 @@ public class DatDichVuController : ControllerBase
+ 
+     [HttpPut("{maBooking}/ho-so-khach")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
+     public async Task<ActionResult> UpdateGuestProfile(string maBooking, KhachHangUpdateDto request)
+     {
+         if (string.IsNullOrWhiteSpace(request.Ho) || string.IsNullOrWhiteSpace(request.Ten))
+@@ -245,6 +249,7 @@ public class DatDichVuController : ControllerBase
+ 
+     [HttpPost("{maBooking}/ho-so-khach/giay-to")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
+     public async Task<ActionResult> AddGuestDocument(string maBooking, GiayToCreateDto request)
+     {
+         var documentError = ValidateGuestDocument(request.LoaiGiayTo, request.SoTrenGiayTo, request.NoiCap, request.NgayCap, request.NgayHetHan);
+@@ -272,6 +277,7 @@ public class DatDichVuController : ControllerBase
+ 
+     [HttpPut("{maBooking}/ho-so-khach/giay-to/{maGiayTo}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
+     public async Task<ActionResult> UpdateGuestDocument(string maBooking, string maGiayTo, GiayToUpdateDto request)
+     {
+         var documentError = ValidateGuestDocument(request.LoaiGiayTo, request.SoTrenGiayTo, request.NoiCap, request.NgayCap, request.NgayHetHan);
+@@ -294,6 +300,7 @@ public class DatDichVuController : ControllerBase
+ 
+     [HttpDelete("{maBooking}/ho-so-khach/giay-to/{maGiayTo}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Xoa)]
+     public async Task<ActionResult> DeleteGuestDocument(string maBooking, string maGiayTo)
+     {
+         var booking = await FindBookingAsync(maBooking);
+@@ -507,6 +514,7 @@ public class DatDichVuController : ControllerBase
+ 
+     [HttpPut("{maBooking}/trang-thai")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
+     public async Task<ActionResult> UpdateStatus(
+         string maBooking,
+         DatDichVuTrangThaiDto request)
+@@ -669,6 +677,7 @@ public class DatDichVuController : ControllerBase
+ 
+     [HttpPut("{maBooking}/xac-nhan-hoan-tien")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Booking, PermissionCatalog.Sua)]
+     public async Task<ActionResult> ConfirmRefund(string maBooking)
+     {
+         var maBookingDb = FixedLengthHelper.PadTo20(maBooking);
+diff --git a/backend/src/TourDuLich.API/Controllers/DiemThamQuanController.cs b/backend/src/TourDuLich.API/Controllers/DiemThamQuanController.cs
+index 157981e..3ab517e 100644
+--- a/backend/src/TourDuLich.API/Controllers/DiemThamQuanController.cs
++++ b/backend/src/TourDuLich.API/Controllers/DiemThamQuanController.cs
+@@ -1,6 +1,7 @@
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
++using TourDuLich.API.Authorization;
+ using TourDuLich.API.DTOs;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Infrastructure;
+@@ -80,6 +81,7 @@ public class DiemThamQuanController : ControllerBase
+     // POST /api/DiemThamQuan
+     [HttpPost]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.DiemThamQuan, PermissionCatalog.Them)]
+     public async Task<ActionResult> CreateDiemThamQuan([FromBody] DiemThamQuanCreateDto dto)
+     {
+         var maDthamQuan = string.IsNullOrWhiteSpace(dto.MaDthamQuan)
+@@ -126,6 +128,7 @@ public class DiemThamQuanController : ControllerBase
+     // PUT /api/DiemThamQuan/{maDthamQuan}
+     [HttpPut("{maDthamQuan}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.DiemThamQuan, PermissionCatalog.Sua)]
+     public async Task<IActionResult> UpdateDiemThamQuan(string maDthamQuan, [FromBody] DiemThamQuanUpdateDto dto)
+     {
+         var existing = await _context.DiemThamQuans.FindAsync(FixedLengthHelper.PadTo20(maDthamQuan));
+@@ -146,6 +149,7 @@ public class DiemThamQuanController : ControllerBase
+     // DELETE /api/DiemThamQuan/{maDthamQuan}
+     [HttpDelete("{maDthamQuan}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.DiemThamQuan, PermissionCatalog.Xoa)]
+     public async Task<IActionResult> DeleteDiemThamQuan(string maDthamQuan)
+     {
+         var key = FixedLengthHelper.PadTo20(maDthamQuan);
+diff --git a/backend/src/TourDuLich.API/Controllers/DoiTacController.cs b/backend/src/TourDuLich.API/Controllers/DoiTacController.cs
+index 3e2b054..1c5f041 100644
+--- a/backend/src/TourDuLich.API/Controllers/DoiTacController.cs
++++ b/backend/src/TourDuLich.API/Controllers/DoiTacController.cs
+@@ -1,6 +1,7 @@
+ ﻿using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
+ using TourDuLich.API.DTOs;
++using TourDuLich.API.Authorization;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Application.Services;
+ using TourDuLich.Infrastructure;
+@@ -117,6 +118,7 @@ public class DoiTacController : ControllerBase
+ 
+     [HttpPost]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.DoiTac, PermissionCatalog.Them)]
+     public async Task<ActionResult> CreateDoiTac(DoiTacCreateDto request)
+     {
+         if (string.IsNullOrWhiteSpace(request.TenDoiTac) ||
+@@ -204,6 +206,7 @@ public class DoiTacController : ControllerBase
+ 
+     [HttpPut("{maDoiTac}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.DoiTac, PermissionCatalog.Sua)]
+     public async Task<IActionResult> UpdateDoiTac(
+         string maDoiTac,
+         DoiTacUpdateDto request)
+@@ -278,6 +281,7 @@ public class DoiTacController : ControllerBase
+ 
+     [HttpDelete("{maDoiTac}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.DoiTac, PermissionCatalog.Xoa)]
+     public async Task<IActionResult> DeleteDoiTac(string maDoiTac)
+     {
+         var maDoiTacDb = FixedLengthHelper.PadTo20(maDoiTac);
+diff --git a/backend/src/TourDuLich.API/Controllers/KhuyenMaiController.cs b/backend/src/TourDuLich.API/Controllers/KhuyenMaiController.cs
+index 48e3843..696a94e 100644
+--- a/backend/src/TourDuLich.API/Controllers/KhuyenMaiController.cs
++++ b/backend/src/TourDuLich.API/Controllers/KhuyenMaiController.cs
+@@ -1,6 +1,7 @@
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
++using TourDuLich.API.Authorization;
+ using TourDuLich.API.DTOs;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Infrastructure;
+@@ -67,6 +68,7 @@ public class KhuyenMaiController : ControllerBase
+ 
+     [HttpPost]
+     [Authorize(Roles = "Admin,Sale")]
++    [RequirePermission(PermissionCatalog.UuDai, PermissionCatalog.Them)]
+     public async Task<ActionResult> Create(KhuyenMaiCreateDto request)
+     {
+         var error = ValidateFields(request.TenKm, request.MaCode, request.NgayBd, request.NgayKt,
+@@ -105,6 +107,7 @@ public class KhuyenMaiController : ControllerBase
+ 
+     [HttpPut("{maKm}")]
+     [Authorize(Roles = "Admin,Sale")]
++    [RequirePermission(PermissionCatalog.UuDai, PermissionCatalog.Sua)]
+     public async Task<IActionResult> Update(string maKm, KhuyenMaiUpdateDto request)
+     {
+         var key = FixedLengthHelper.PadTo20(maKm);
+@@ -143,6 +146,7 @@ public class KhuyenMaiController : ControllerBase
+ 
+     [HttpDelete("{maKm}")]
+     [Authorize(Roles = "Admin,Sale")]
++    [RequirePermission(PermissionCatalog.UuDai, PermissionCatalog.Xoa)]
+     public async Task<IActionResult> Delete(string maKm)
+     {
+         var key = FixedLengthHelper.PadTo20(maKm);
+@@ -167,6 +171,7 @@ public class KhuyenMaiController : ControllerBase
+ 
+     [HttpPost("{maKm}/dieu-kien")]
+     [Authorize(Roles = "Admin,Sale")]
++    [RequirePermission(PermissionCatalog.UuDai, PermissionCatalog.Sua)]
+     public async Task<ActionResult> AddCondition(string maKm, DieuKienKmCreateDto request)
+     {
+         var error = ValidateCondition(request);
+diff --git a/backend/src/TourDuLich.API/Controllers/LichKhoiHanhController.cs b/backend/src/TourDuLich.API/Controllers/LichKhoiHanhController.cs
+index daba848..88fb45e 100644
+--- a/backend/src/TourDuLich.API/Controllers/LichKhoiHanhController.cs
++++ b/backend/src/TourDuLich.API/Controllers/LichKhoiHanhController.cs
+@@ -1,6 +1,7 @@
+ ﻿using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
+ using TourDuLich.API.Services;
++using TourDuLich.API.Authorization;
+ using TourDuLich.API.DTOs;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Infrastructure;
+@@ -58,6 +59,7 @@ public class LichKhoiHanhController : ControllerBase
+     // POST /api/LichKhoiHanh
+     [HttpPost]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     public async Task<ActionResult> CreateLichKhoiHanh([FromBody] LichKhoiHanhCreateDto dto)
+     {
+         var maKhoiHanh = FixedLengthHelper.PadTo20(dto.MaKhoiHanh);
+@@ -96,6 +98,7 @@ public class LichKhoiHanhController : ControllerBase
+     // PUT /api/LichKhoiHanh/{maKhoiHanh}
+     [HttpPut("{maKhoiHanh}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     public async Task<IActionResult> UpdateLichKhoiHanh(string maKhoiHanh, [FromBody] LichKhoiHanhUpdateDto dto)
+     {
+         var key = FixedLengthHelper.PadTo20(maKhoiHanh);
+@@ -136,6 +139,7 @@ public class LichKhoiHanhController : ControllerBase
+ 
+     [HttpGet("{maKhoiHanh}/khach")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Xem)]
+     public async Task<ActionResult> GetGuests(string maKhoiHanh)
+     {
+         var key = FixedLengthHelper.PadTo20(maKhoiHanh);
+@@ -158,6 +162,7 @@ public class LichKhoiHanhController : ControllerBase
+     // DELETE /api/LichKhoiHanh/{maKhoiHanh}
+     [HttpDelete("{maKhoiHanh}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Xoa)]
+     public async Task<IActionResult> DeleteLichKhoiHanh(string maKhoiHanh)
+     {
+         var key = FixedLengthHelper.PadTo20(maKhoiHanh);
+diff --git a/backend/src/TourDuLich.API/Controllers/LichTrinhController.cs b/backend/src/TourDuLich.API/Controllers/LichTrinhController.cs
+index 39d0c5f..55c59da 100644
+--- a/backend/src/TourDuLich.API/Controllers/LichTrinhController.cs
++++ b/backend/src/TourDuLich.API/Controllers/LichTrinhController.cs
+@@ -2,6 +2,7 @@
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
+ using TourDuLich.API.DTOs;
++using TourDuLich.API.Authorization;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Application.Services;
+ using TourDuLich.Infrastructure;
+@@ -85,6 +86,7 @@ public class LichTrinhController : ControllerBase
+     // POST /api/LichTrinh
+     [HttpPost]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     public async Task<ActionResult> Create(LichTrinhCreateDto request)
+     {
+         var maTourDb = FixedLengthHelper.PadTo20(request.MaTour);
+@@ -199,6 +201,7 @@ public class LichTrinhController : ControllerBase
+     // PUT /api/LichTrinh/{maLichTrinh}
+     [HttpPut("{maLichTrinh}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     public async Task<IActionResult> Update(
+         string maLichTrinh,
+         LichTrinhUpdateDto request)
+@@ -316,6 +319,7 @@ public class LichTrinhController : ControllerBase
+     // DELETE /api/LichTrinh/{maLichTrinh}
+     [HttpDelete("{maLichTrinh}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Xoa)]
+     public async Task<IActionResult> Delete(string maLichTrinh)
+     {
+         var maLichTrinhDb = FixedLengthHelper.PadTo20(maLichTrinh);
+diff --git a/backend/src/TourDuLich.API/Controllers/SanPhamDoiTacController.cs b/backend/src/TourDuLich.API/Controllers/SanPhamDoiTacController.cs
+index 73f70b0..2a7abfc 100644
+--- a/backend/src/TourDuLich.API/Controllers/SanPhamDoiTacController.cs
++++ b/backend/src/TourDuLich.API/Controllers/SanPhamDoiTacController.cs
+@@ -1,6 +1,7 @@
+ ﻿using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
+ using TourDuLich.API.DTOs;
++using TourDuLich.API.Authorization;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Application.Services;
+ using TourDuLich.Infrastructure;
+@@ -119,6 +120,7 @@ public class SanPhamDoiTacController : ControllerBase
+ 
+     [HttpPost]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.DoiTac, PermissionCatalog.Them)]
+     public async Task<ActionResult> CreateProduct(
+         SanPhamDoiTacCreateDto request)
+     {
+@@ -215,6 +217,7 @@ public class SanPhamDoiTacController : ControllerBase
+ 
+     [HttpPut("{maSanPham}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.DoiTac, PermissionCatalog.Sua)]
+     public async Task<IActionResult> UpdateProduct(
+         string maSanPham,
+         SanPhamDoiTacUpdateDto request)
+@@ -293,6 +296,7 @@ public class SanPhamDoiTacController : ControllerBase
+ 
+     [HttpDelete("{maSanPham}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.DoiTac, PermissionCatalog.Xoa)]
+     public async Task<IActionResult> DeleteProduct(string maSanPham)
+     {
+         var maSanPhamDb = FixedLengthHelper.PadTo20(maSanPham);
+diff --git a/backend/src/TourDuLich.API/Controllers/TourController.cs b/backend/src/TourDuLich.API/Controllers/TourController.cs
+index b2a7559..262726e 100644
+--- a/backend/src/TourDuLich.API/Controllers/TourController.cs
++++ b/backend/src/TourDuLich.API/Controllers/TourController.cs
+@@ -1,4 +1,5 @@
+ ﻿using Microsoft.AspNetCore.Authorization;
++using TourDuLich.API.Authorization;
+ using TourDuLich.API.DTOs;
+ using TourDuLich.API.Services;
+ using TourDuLich.Application.Services;
+@@ -227,6 +228,7 @@ public class TourController : ControllerBase
+     // POST /api/Tour
+     [HttpPost]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Them)]
+     public async Task<ActionResult> CreateTour([FromBody] TourCreateDto dto)
+     {
+         var maTour = FixedLengthHelper.PadTo20(dto.MaTour);
+@@ -269,6 +271,7 @@ public class TourController : ControllerBase
+     // PUT /api/Tour/{maTour} — chặn sửa GiaTour/DieuKhoan khi đã có HopDong DaKy (snapshot bất biến sau ký)
+     [HttpPut("{maTour}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
+     public async Task<IActionResult> UpdateTour(string maTour, [FromBody] TourUpdateDto dto)
+     {
+         var key = FixedLengthHelper.PadTo20(maTour);
+@@ -316,6 +319,7 @@ public class TourController : ControllerBase
+     // DELETE /api/Tour/{maTour}
+     [HttpDelete("{maTour}")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Xoa)]
+     public async Task<IActionResult> DeleteTour(string maTour)
+     {
+         var existing = await _context.Tours.FindAsync(FixedLengthHelper.PadTo20(maTour));
+diff --git a/backend/src/TourDuLich.API/Controllers/YeuCauThietKeController.cs b/backend/src/TourDuLich.API/Controllers/YeuCauThietKeController.cs
+index de353dc..b5b37e0 100644
+--- a/backend/src/TourDuLich.API/Controllers/YeuCauThietKeController.cs
++++ b/backend/src/TourDuLich.API/Controllers/YeuCauThietKeController.cs
+@@ -2,6 +2,7 @@
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.EntityFrameworkCore;
+ using TourDuLich.API.DTOs;
++using TourDuLich.API.Authorization;
+ using TourDuLich.Application.Helpers;
+ using TourDuLich.Application.Services;
+ using TourDuLich.Infrastructure;
+@@ -260,6 +261,7 @@ public class YeuCauThietKeController : ControllerBase
+ 
+     [HttpPost("{maYeuCau}/sinh-de-xuat")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
+     public async Task<ActionResult> GenerateProposals(string maYeuCau, CancellationToken cancellationToken)
+     {
+         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
+@@ -383,6 +385,7 @@ public class YeuCauThietKeController : ControllerBase
+ 
+     [HttpPut("{maYeuCau}/tu-choi-boi-sale")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
+     public async Task<ActionResult> RejectBySale(
+         string maYeuCau, LyDoTuChoiBoiSaleDto request, CancellationToken cancellationToken)
+     {
+@@ -410,6 +413,7 @@ public class YeuCauThietKeController : ControllerBase
+ 
+     [HttpPut("{maYeuCau}/sua-lich-trinh")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
+     public async Task<ActionResult> EditSchedule(
+         string maYeuCau, SuaLichTrinhDto request, CancellationToken cancellationToken)
+     {
+@@ -642,6 +646,7 @@ public class YeuCauThietKeController : ControllerBase
+ 
+     [HttpGet("danh-sach")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Xem)]
+     public async Task<ActionResult> GetAllForStaff(CancellationToken cancellationToken)
+     {
+         var requests = await _context.YeuCauThietKes
+@@ -655,6 +660,7 @@ public class YeuCauThietKeController : ControllerBase
+     // PUT /api/YeuCauThietKe/{maYeuCau}/gui-duyet
+     [HttpPut("{maYeuCau}/gui-duyet")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
+     public async Task<ActionResult> SubmitForApproval(string maYeuCau)
+     {
+         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
+@@ -736,6 +742,7 @@ public class YeuCauThietKeController : ControllerBase
+     // PUT /api/YeuCauThietKe/{maYeuCau}/duyet
+     [HttpPut("{maYeuCau}/duyet")]
+     [Authorize(Roles = "Sale,Admin")]
++    [RequirePermission(PermissionCatalog.ThietKe, PermissionCatalog.Sua)]
+     public async Task<ActionResult> Approve(string maYeuCau)
+     {
+         var maYeuCauDb = FixedLengthHelper.PadTo20(maYeuCau);
+diff --git a/backend/src/TourDuLich.API/DTOs/AdminCreateAccountDto.cs b/backend/src/TourDuLich.API/DTOs/AdminCreateAccountDto.cs
+new file mode 100644
+index 0000000..90e0c77
+--- /dev/null
++++ b/backend/src/TourDuLich.API/DTOs/AdminCreateAccountDto.cs
+@@ -0,0 +1,23 @@
++namespace TourDuLich.API.DTOs;
++
++public class AdminCreateAccountDto
++{
++    public string SoDienThoai { get; set; } = null!;
++    public string MatKhau { get; set; } = null!;
++    public string? TenVaiTro { get; set; }
++    public List<QuyenChucNangDto>? Quyen { get; set; }
++}
++
++public class AdminUpdateQuyenDto
++{
++    public List<QuyenChucNangDto> Quyen { get; set; } = [];
++}
++
++public class QuyenChucNangDto
++{
++    public string ChucNang { get; set; } = null!;
++    public bool Them { get; set; }
++    public bool Sua { get; set; }
++    public bool Xoa { get; set; }
++    public bool ToanQuyen { get; set; }
++}
+diff --git a/backend/src/TourDuLich.API/Program.cs b/backend/src/TourDuLich.API/Program.cs
+index 2c8a51c..1712e32 100644
+--- a/backend/src/TourDuLich.API/Program.cs
++++ b/backend/src/TourDuLich.API/Program.cs
+@@ -8,6 +8,7 @@ using TourDuLich.Infrastructure;
+ using TourDuLich.Application.Services;
+ using Microsoft.OpenApi;
+ using TourDuLich.API.Swagger;
++using TourDuLich.API.Authorization;
+ using TourDuLich.API.Services;
+ 
+ var builder = WebApplication.CreateBuilder(args);
+@@ -72,6 +73,7 @@ builder.Services.AddSwaggerGen(options =>
+ builder.Services.AddDbContext<AppDbContext>(options =>
+     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+ builder.Services.AddScoped<JwtTokenService>();
++builder.Services.AddScoped<IPermissionService, PermissionService>();
+ builder.Services.AddScoped<IHanhViLogger, HanhViLogger>();
+ builder.Services.AddScoped<IDeXuatLichTrinhService, DeXuatLichTrinhService>();
+ builder.Services.AddHttpContextAccessor();
+diff --git a/backend/src/TourDuLich.Infrastructure/AppDbContext.cs b/backend/src/TourDuLich.Infrastructure/AppDbContext.cs
+index 13012db..d1cf34d 100644
+--- a/backend/src/TourDuLich.Infrastructure/AppDbContext.cs
++++ b/backend/src/TourDuLich.Infrastructure/AppDbContext.cs
+@@ -69,6 +69,8 @@ public partial class AppDbContext : DbContext
+ 
+     public virtual DbSet<NguoiSuDung> NguoiSuDungs { get; set; }
+ 
++    public virtual DbSet<QuyenNhanVien> QuyenNhanViens { get; set; }
++
+     public virtual DbSet<NhomKhuyenMai> NhomKhuyenMais { get; set; }
+ 
+     public virtual DbSet<Quyen> Quyens { get; set; }
+@@ -850,6 +852,25 @@ public partial class AppDbContext : DbContext
+                 .HasConstraintName("FK_NguoiSuDung_VaiTro");
+         });
+ 
++        modelBuilder.Entity<QuyenNhanVien>(entity =>
++        {
++            entity.HasKey(e => e.MaQuyen);
++            entity.ToTable("QuyenNhanVien");
++            entity.HasIndex(e => new { e.MaUser, e.ChucNang }).IsUnique();
++            entity.HasIndex(e => e.MaUser);
++            entity.Property(e => e.MaQuyen)
++                .HasMaxLength(20)
++                .IsFixedLength();
++            entity.Property(e => e.MaUser)
++                .HasMaxLength(20)
++                .IsFixedLength();
++            entity.Property(e => e.ChucNang).HasMaxLength(40);
++            entity.HasOne(d => d.MaUserNavigation).WithMany(p => p.QuyenNhanViens)
++                .HasForeignKey(d => d.MaUser)
++                .OnDelete(DeleteBehavior.ClientSetNull)
++                .HasConstraintName("FK_QuyenNhanVien_NguoiSuDung");
++        });
++
+         modelBuilder.Entity<NhomKhuyenMai>(entity =>
+         {
+             entity.HasKey(e => e.MaNhomKm).HasName("PK__NhomKhuy__5A1F657AAC1B49E4");
+diff --git a/backend/src/TourDuLich.Infrastructure/Entities/NguoiSuDung.cs b/backend/src/TourDuLich.Infrastructure/Entities/NguoiSuDung.cs
+index 324d9f1..87fab7d 100644
+--- a/backend/src/TourDuLich.Infrastructure/Entities/NguoiSuDung.cs
++++ b/backend/src/TourDuLich.Infrastructure/Entities/NguoiSuDung.cs
+@@ -33,6 +33,8 @@ public partial class NguoiSuDung
+ 
+     public virtual VaiTro MaVaiTroNavigation { get; set; } = null!;
+ 
++    public virtual ICollection<QuyenNhanVien> QuyenNhanViens { get; set; } = new List<QuyenNhanVien>();
++
+     public virtual ICollection<ThongBao> ThongBaos { get; set; } = new List<ThongBao>();
+ 
+     public virtual ICollection<YeuCauThietKe> YeuCauThietKes { get; set; } = new List<YeuCauThietKe>();
+diff --git a/backend/src/TourDuLich.Infrastructure/Entities/QuyenNhanVien.cs b/backend/src/TourDuLich.Infrastructure/Entities/QuyenNhanVien.cs
+new file mode 100644
+index 0000000..0a87898
+--- /dev/null
++++ b/backend/src/TourDuLich.Infrastructure/Entities/QuyenNhanVien.cs
+@@ -0,0 +1,14 @@
++namespace TourDuLich.Infrastructure.Entities;
++
++public class QuyenNhanVien
++{
++    public string MaQuyen { get; set; } = null!;
++    public string MaUser { get; set; } = null!;
++    public string ChucNang { get; set; } = null!;
++    public bool Them { get; set; }
++    public bool Sua { get; set; }
++    public bool Xoa { get; set; }
++    public bool ToanQuyen { get; set; }
++
++    public virtual NguoiSuDung MaUserNavigation { get; set; } = null!;
++}
+diff --git a/backend/src/TourDuLich.IntegrationTests/QuyenTaiKhoanTests.cs b/backend/src/TourDuLich.IntegrationTests/QuyenTaiKhoanTests.cs
+new file mode 100644
+index 0000000..ad0df57
+--- /dev/null
++++ b/backend/src/TourDuLich.IntegrationTests/QuyenTaiKhoanTests.cs
+@@ -0,0 +1,187 @@
++using System.Net;
++using System.Net.Http.Json;
++using System.Text.Json;
++using FluentAssertions;
++
++namespace TourDuLich.IntegrationTests;
++
++public sealed class QuyenTaiKhoanTests : ApiTestBase
++{
++    [Fact]
++    public async Task Login_Staff_ReturnsPermissionMatrix()
++    {
++        SkipIfNoConnection();
++        var login = await Client.PostAsJsonAsync("/api/Auth/login", new
++        {
++            soDienThoai = TestSettings.AdminPhone,
++            matKhau = TestSettings.AdminPassword
++        });
++        login.EnsureSuccessStatusCode();
++        var body = await login.Content.ReadFromJsonAsync<JsonElement>();
++        body.GetProperty("tenVaiTro").GetString().Should().Be("Admin");
++        var quyen = body.GetProperty("quyen");
++        quyen.GetArrayLength().Should().BeGreaterThanOrEqualTo(8);
++        quyen.EnumerateArray().Should().Contain(item =>
++            item.GetProperty("chucNang").GetString() == "Tour"
++            && item.GetProperty("toanQuyen").GetBoolean());
++    }
++
++    [Fact]
++    public async Task StaffWithoutTourThem_IsForbiddenToCreateTour()
++    {
++        SkipIfNoConnection();
++        var staff = await CreateStaffAsync(TourGrant(them: false));
++        UseToken(staff);
++
++        var response = await Client.PostAsJsonAsync("/api/Tour", new
++        {
++            maTour = Unique("IT"),
++            tenTour = "Bị hạn chế thêm",
++            giaTour = 100000,
++            slkhach = 10,
++            loaiTour = "Chuan",
++            trangThai = "HoatDong"
++        });
++
++        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
++        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
++        body.GetProperty("message").GetString().Should()
++            .Be("Bạn bị hạn chế quyền: không được thêm tour.");
++    }
++
++    [Fact]
++    public async Task StaffWithTourThem_CanCreateTour()
++    {
++        SkipIfNoConnection();
++        var staff = await CreateStaffAsync(TourGrant(them: true));
++        UseToken(staff);
++
++        var response = await Client.PostAsJsonAsync("/api/Tour", new
++        {
++            maTour = Unique("IT"),
++            tenTour = "Được thêm tour",
++            giaTour = 100000,
++            slkhach = 10,
++            loaiTour = "Chuan",
++            trangThai = "HoatDong"
++        });
++
++        response.StatusCode.Should().Be(HttpStatusCode.Created);
++    }
++
++    [Fact]
++    public async Task StaffWithoutTourSuaOrXoa_CannotEditOrDelete()
++    {
++        SkipIfNoConnection();
++        var admin = await LoginAdminAsync();
++        var tour = await CreateTourAsync(admin);
++        var staff = await CreateStaffAsync(TourGrant(them: true));
++        UseToken(staff);
++
++        var update = await Client.PutAsJsonAsync($"/api/Tour/{tour}", new
++        {
++            tenTour = "Không được sửa",
++            giaTour = 1,
++            slkhach = 10,
++            loaiTour = "Chuan",
++            trangThai = "HoatDong"
++        });
++        update.StatusCode.Should().Be(HttpStatusCode.Forbidden);
++        (await update.Content.ReadFromJsonAsync<JsonElement>())
++            .GetProperty("message").GetString().Should()
++            .Be("Bạn bị hạn chế quyền: không được sửa tour.");
++
++        var delete = await Client.DeleteAsync($"/api/Tour/{tour}");
++        delete.StatusCode.Should().Be(HttpStatusCode.Forbidden);
++        (await delete.Content.ReadFromJsonAsync<JsonElement>())
++            .GetProperty("message").GetString().Should()
++            .Be("Bạn bị hạn chế quyền: không được xóa tour.");
++    }
++
++    [Fact]
++    public async Task EmptyCheckboxes_BlockEveryAdminModule()
++    {
++        SkipIfNoConnection();
++        var staff = await CreateStaffAsync();
++        UseToken(staff);
++
++        (await Client.GetAsync("/api/BaoCao/tong-quan")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
++        (await Client.GetAsync("/api/DatDichVu/danh-sach")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
++        (await Client.GetAsync("/api/Admin/tai-khoan")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
++        (await Client.PostAsJsonAsync("/api/KhuyenMai", new
++        {
++            tenKm = "BLOCK", maCode = "BLK1", ngayBd = DateTime.UtcNow, ngayKt = DateTime.UtcNow.AddDays(1),
++            donVi = "%", giamGia = 10, trangThai = "HoatDong"
++        })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
++    }
++
++    [Fact]
++    public async Task Admin_CannotStripOwnAccountPermission()
++    {
++        SkipIfNoConnection();
++        var admin = await LoginAdminAsync();
++        UseToken(admin);
++
++        var response = await Client.PutAsJsonAsync($"/api/Admin/tai-khoan/{admin.MaUser}/quyen", new
++        {
++            quyen = new[]
++            {
++                new { chucNang = "Tour", them = true, sua = true, xoa = true, toanQuyen = true },
++                new { chucNang = "TaiKhoan", them = false, sua = false, xoa = false, toanQuyen = false }
++            }
++        });
++
++        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
++        (await response.Content.ReadFromJsonAsync<JsonElement>())
++            .GetProperty("message").GetString().Should()
++            .Be("Không được gỡ quyền quản lý tài khoản của chính mình.");
++    }
++
++    [Fact]
++    public async Task Admin_CreatesAccountWithSelectedGrants()
++    {
++        SkipIfNoConnection();
++        UseToken(await LoginAdminAsync());
++        var phone = "0777" + Random.Shared.Next(10000000, 99999999);
++        var created = await Client.PostAsJsonAsync("/api/Admin/tai-khoan", new
++        {
++            soDienThoai = phone,
++            matKhau = "Test@123456",
++            tenVaiTro = "Sale",
++            quyen = new[]
++            {
++                new { chucNang = "Tour", them = true, sua = false, xoa = false, toanQuyen = false },
++                new { chucNang = "UuDai", them = false, sua = true, xoa = true, toanQuyen = false }
++            }
++        });
++        created.StatusCode.Should().Be(HttpStatusCode.Created);
++        var body = await created.Content.ReadFromJsonAsync<JsonElement>();
++        body.GetProperty("tenVaiTro").GetString().Should().Be("Sale");
++        Grant(body, "Tour").GetProperty("them").GetBoolean().Should().BeTrue();
++        Grant(body, "Tour").GetProperty("sua").GetBoolean().Should().BeFalse();
++        Grant(body, "UuDai").GetProperty("sua").GetBoolean().Should().BeTrue();
++        Grant(body, "TaiKhoan").GetProperty("toanQuyen").GetBoolean().Should().BeFalse();
++    }
++
++    private async Task<AuthResult> CreateStaffAsync(params object[] grants)
++    {
++        UseToken(await LoginAdminAsync());
++        var phone = "0777" + Random.Shared.Next(10000000, 99999999);
++        var response = await Client.PostAsJsonAsync("/api/Admin/tai-khoan", new
++        {
++            soDienThoai = phone,
++            matKhau = "Test@123456",
++            tenVaiTro = "Sale",
++            quyen = grants
++        });
++        response.EnsureSuccessStatusCode();
++        return await LoginAsync(phone, "Test@123456");
++    }
++
++    private static object TourGrant(bool them = false, bool sua = false, bool xoa = false, bool toanQuyen = false) =>
++        new { chucNang = "Tour", them, sua, xoa, toanQuyen };
++
++    private static JsonElement Grant(JsonElement body, string chucNang) =>
++        body.GetProperty("quyen").EnumerateArray()
++            .Single(item => item.GetProperty("chucNang").GetString() == chucNang);
++}
+diff --git a/backend/src/TourDuLich.IntegrationTests/TestApiFactory.cs b/backend/src/TourDuLich.IntegrationTests/TestApiFactory.cs
+index c052d36..9c2855f 100644
+--- a/backend/src/TourDuLich.IntegrationTests/TestApiFactory.cs
++++ b/backend/src/TourDuLich.IntegrationTests/TestApiFactory.cs
+@@ -190,6 +190,7 @@ public abstract class ApiTestBase : IAsyncLifetime
+             DELETE FROM dbo.LichTrinh WHERE MaTour LIKE N'IT%';
+             DELETE FROM dbo.LichKhoiHanh WHERE MaTour LIKE N'IT%';
+             DELETE FROM dbo.Tour WHERE MaTour LIKE N'IT%';
++            DELETE FROM dbo.QuyenNhanVien WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%');
+             DELETE FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%';
+             """);
+     }
+diff --git a/database/schema/020_QuyenTaiKhoan.sql b/database/schema/020_QuyenTaiKhoan.sql
+new file mode 100644
+index 0000000..7828881
+--- /dev/null
++++ b/database/schema/020_QuyenTaiKhoan.sql
+@@ -0,0 +1,74 @@
++/* Phân quyền theo từng tài khoản nhân viên (Sale/Admin).
++   Mỗi dòng = một chức năng: Them / Sua / Xoa / ToanQuyen.
++   Không tích ô nào = không được dùng chức năng đó.
++   Script idempotent: tạo bảng nếu chưa có, bổ sung quyền cho tài khoản sẵn có. */
++
++IF OBJECT_ID(N'dbo.QuyenNhanVien', N'U') IS NULL
++BEGIN
++    CREATE TABLE dbo.QuyenNhanVien
++    (
++        MaQuyen nchar(20) NOT NULL CONSTRAINT PK_QuyenNhanVien PRIMARY KEY,
++        MaUser nchar(20) NOT NULL,
++        ChucNang nvarchar(40) NOT NULL,
++        Them bit NOT NULL CONSTRAINT DF_QuyenNhanVien_Them DEFAULT (0),
++        Sua bit NOT NULL CONSTRAINT DF_QuyenNhanVien_Sua DEFAULT (0),
++        Xoa bit NOT NULL CONSTRAINT DF_QuyenNhanVien_Xoa DEFAULT (0),
++        ToanQuyen bit NOT NULL CONSTRAINT DF_QuyenNhanVien_ToanQuyen DEFAULT (0),
++        CONSTRAINT UQ_QuyenNhanVien_User_ChucNang UNIQUE (MaUser, ChucNang),
++        CONSTRAINT FK_QuyenNhanVien_NguoiSuDung FOREIGN KEY (MaUser)
++            REFERENCES dbo.NguoiSuDung (MaUser),
++        CONSTRAINT CK_QuyenNhanVien_ChucNang CHECK (RTRIM(ChucNang) IN (
++            N'TongQuan', N'Tour', N'Booking', N'UuDai',
++            N'DiemThamQuan', N'DoiTac', N'ThietKe', N'TaiKhoan'))
++    );
++END
++GO
++
++IF OBJECT_ID(N'dbo.QuyenNhanVien', N'U') IS NOT NULL
++   AND NOT EXISTS (
++        SELECT 1 FROM sys.indexes
++        WHERE name = N'IX_QuyenNhanVien_MaUser'
++          AND object_id = OBJECT_ID(N'dbo.QuyenNhanVien'))
++BEGIN
++    CREATE INDEX IX_QuyenNhanVien_MaUser ON dbo.QuyenNhanVien (MaUser);
++END
++GO
++
++DECLARE @Modules TABLE (ChucNang nvarchar(40) NOT NULL PRIMARY KEY);
++INSERT INTO @Modules (ChucNang)
++VALUES (N'TongQuan'), (N'Tour'), (N'Booking'), (N'UuDai'),
++       (N'DiemThamQuan'), (N'DoiTac'), (N'ThietKe'), (N'TaiKhoan');
++
++/* Admin sẵn có: toàn quyền mọi chức năng. */
++INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
++SELECT
++    CONVERT(nchar(20), LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 20)),
++    u.MaUser,
++    m.ChucNang,
++    1, 1, 1, 1
++FROM dbo.NguoiSuDung u
++INNER JOIN dbo.VaiTro v ON v.MaVaiTro = u.MaVaiTro
++CROSS JOIN @Modules m
++WHERE RTRIM(v.TenVaiTro) = N'Admin'
++  AND NOT EXISTS (
++        SELECT 1 FROM dbo.QuyenNhanVien q
++        WHERE q.MaUser = u.MaUser AND q.ChucNang = m.ChucNang);
++
++/* Sale sẵn có: toàn quyền nghiệp vụ, không quản lý tài khoản. */
++INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
++SELECT
++    CONVERT(nchar(20), LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 20)),
++    u.MaUser,
++    m.ChucNang,
++    CASE WHEN m.ChucNang = N'TaiKhoan' THEN 0 ELSE 1 END,
++    CASE WHEN m.ChucNang = N'TaiKhoan' THEN 0 ELSE 1 END,
++    CASE WHEN m.ChucNang = N'TaiKhoan' THEN 0 ELSE 1 END,
++    CASE WHEN m.ChucNang = N'TaiKhoan' THEN 0 ELSE 1 END
++FROM dbo.NguoiSuDung u
++INNER JOIN dbo.VaiTro v ON v.MaVaiTro = u.MaVaiTro
++CROSS JOIN @Modules m
++WHERE RTRIM(v.TenVaiTro) = N'Sale'
++  AND NOT EXISTS (
++        SELECT 1 FROM dbo.QuyenNhanVien q
++        WHERE q.MaUser = u.MaUser AND q.ChucNang = m.ChucNang);
++GO
+diff --git a/database/schema/README.md b/database/schema/README.md
+index 8b63cca..8b9ca98 100644
+--- a/database/schema/README.md
++++ b/database/schema/README.md
+@@ -19,9 +19,10 @@ database. Không có `CREATE DATABASE` hoặc `USE`; hãy mở đúng database t
+ 12. `012_AnhTour_Cloudinary.sql` — lưu Cloudinary public ID để thay thế/xóa media an toàn.
+ 
+ 21. `019_BaoCaoAdmin.sql` — view doanh thu theo tháng, booking theo trạng thái, chỗ trống theo lịch khởi hành (trang tổng quan admin + Power BI).
++22. `020_QuyenTaiKhoan.sql` — bảng `QuyenNhanVien`: phân quyền Thêm/Sửa/Xóa/Toàn quyền theo từng tài khoản và từng chức năng admin.
+ 
+ Thứ tự chạy thực tế là `001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012`.
+-Các file 013–019 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.
++Các file 013–020 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.
+ 
+ Tất cả tài khoản test trong bước 3 dùng mật khẩu `Test@123456`. Mật khẩu được lưu
+ bằng BCrypt hash cố định được tạo bằng package `BCrypt.Net-Next` phiên bản `4.2.0`
+diff --git a/frontend-admin/app/src/AccountsManagement.jsx b/frontend-admin/app/src/AccountsManagement.jsx
+new file mode 100644
+index 0000000..1ecba59
+--- /dev/null
++++ b/frontend-admin/app/src/AccountsManagement.jsx
+@@ -0,0 +1,230 @@
++import { useEffect, useState } from 'react';
++import * as api from './api';
++import { ExpandRecord, Notice } from './components';
++import { MODULES, useAuth } from './context';
++
++const emptyGrant = () => MODULES.map((module) => ({
++  chucNang: module.ma, tenChucNang: module.ten, them: false, sua: false, xoa: false, toanQuyen: false,
++}));
++
++const mergeGrants = (incoming) => {
++  const byId = Object.fromEntries((incoming || []).map((item) => [item.chucNang, item]));
++  return MODULES.map((module) => {
++    const row = byId[module.ma] || {};
++    const toanQuyen = Boolean(row.toanQuyen);
++    return {
++      chucNang: module.ma,
++      tenChucNang: module.ten,
++      them: toanQuyen || Boolean(row.them),
++      sua: toanQuyen || Boolean(row.sua),
++      xoa: toanQuyen || Boolean(row.xoa),
++      toanQuyen,
++    };
++  });
++};
++
++const summary = (grants) => {
++  const parts = mergeGrants(grants)
++    .filter((row) => row.them || row.sua || row.xoa || row.toanQuyen)
++    .map((row) => {
++      if (row.toanQuyen) return `${row.tenChucNang}: toàn quyền`;
++      const flags = [row.them && 'thêm', row.sua && 'sửa', row.xoa && 'xóa'].filter(Boolean);
++      return `${row.tenChucNang}: ${flags.join(', ')}`;
++    });
++  return parts.length ? parts.join(' · ') : 'Chưa gán quyền';
++};
++
++function GrantGrid({ value, onChange, locked }) {
++  const setFlag = (chucNang, key, checked) => {
++    onChange(value.map((row) => {
++      if (row.chucNang !== chucNang) return row;
++      if (key === 'toanQuyen') {
++        return { ...row, toanQuyen: checked, them: checked, sua: checked, xoa: checked };
++      }
++      const next = { ...row, [key]: checked };
++      if (!checked) next.toanQuyen = false;
++      if (next.them && next.sua && next.xoa) next.toanQuyen = true;
++      return next;
++    }));
++  };
++
++  return (
++    <div className="perm-grid" role="table" aria-label="Phân quyền theo chức năng">
++      <div className="perm-head" role="row">
++        <span>Chức năng</span><span>Thêm</span><span>Sửa</span><span>Xóa</span><span>Toàn quyền</span>
++      </div>
++      {value.map((row) => (
++        <label className="perm-row" role="row" key={row.chucNang}>
++          <span>{row.tenChucNang}</span>
++          {['them', 'sua', 'xoa', 'toanQuyen'].map((key) => (
++            <input
++              key={key}
++              type="checkbox"
++              aria-label={`${row.tenChucNang} ${key}`}
++              checked={Boolean(row[key])}
++              disabled={locked || (key !== 'toanQuyen' && row.toanQuyen)}
++              onChange={(event) => setFlag(row.chucNang, key, event.target.checked)}
++            />
++          ))}
++        </label>
++      ))}
++    </div>
++  );
++}
++
++export default function AccountsManagement() {
++  const { can, user } = useAuth();
++  const selfId = user?.MaUser || user?.maUser;
++  const [items, setItems] = useState([]);
++  const [selected, setSelected] = useState('');
++  const [creating, setCreating] = useState(false);
++  const [form, setForm] = useState({ soDienThoai: '', matKhau: '', tenVaiTro: 'Sale' });
++  const [grants, setGrants] = useState(emptyGrant);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState('');
++  const [message, setMessage] = useState('');
++  const canThem = can('TaiKhoan', 'Them');
++  const canSua = can('TaiKhoan', 'Sua');
++
++  const load = async () => {
++    const response = await api.accounts();
++    setItems(Array.isArray(response.data) ? response.data : []);
++  };
++
++  const run = async (action, fallback) => {
++    if (busy) return;
++    setBusy(true);
++    setError('');
++    setMessage('');
++    try {
++      await action();
++    } catch (err) {
++      setError(api.errorMessage(err, fallback));
++    } finally {
++      setBusy(false);
++    }
++  };
++
++  useEffect(() => {
++    run(load, 'Không tải được danh sách tài khoản.');
++  }, []);
++
++  const open = (item) => {
++    setCreating(false);
++    setSelected(item.maUser);
++    setForm({ soDienThoai: item.soDienThoai, matKhau: '', tenVaiTro: item.tenVaiTro });
++    setGrants(mergeGrants(item.quyen));
++  };
++
++  const fresh = () => {
++    setSelected('');
++    setCreating(true);
++    setForm({ soDienThoai: '', matKhau: '', tenVaiTro: 'Sale' });
++    setGrants(emptyGrant());
++    requestAnimationFrame(() => document.getElementById('account-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
++  };
++
++  const saveNew = (event) => {
++    event.preventDefault();
++    run(async () => {
++      const response = await api.createAccount({
++        soDienThoai: form.soDienThoai.trim(),
++        matKhau: form.matKhau,
++        tenVaiTro: form.tenVaiTro,
++        quyen: grants,
++      });
++      setMessage(`Đã tạo tài khoản ${response.data.soDienThoai}.`);
++      setCreating(false);
++      setSelected(response.data.maUser);
++      setForm({ soDienThoai: response.data.soDienThoai, matKhau: '', tenVaiTro: response.data.tenVaiTro });
++      setGrants(mergeGrants(response.data.quyen));
++      await load();
++    }, 'Không tạo được tài khoản.');
++  };
++
++  const saveGrants = (event) => {
++    event.preventDefault();
++    if (!selected) return;
++    run(async () => {
++      if (form.tenVaiTro) {
++        const current = items.find((item) => item.maUser === selected);
++        if (current && current.tenVaiTro !== form.tenVaiTro) {
++          await api.changeAccountRole(selected, form.tenVaiTro);
++        }
++      }
++      const response = await api.updateAccountGrants(selected, { quyen: grants });
++      setMessage('Đã lưu phân quyền.');
++      setGrants(mergeGrants(response.data.quyen));
++      await load();
++    }, 'Không lưu được phân quyền.');
++  };
++
++  const editor = (isCreate) => (
++    <form onSubmit={isCreate ? saveNew : saveGrants}>
++      <fieldset disabled={busy} className="account-form">
++        {isCreate ? (
++          <>
++            <label>Số điện thoại
++              <input required value={form.soDienThoai} maxLength={20}
++                onChange={(event) => setForm({ ...form, soDienThoai: event.target.value })} />
++            </label>
++            <label>Mật khẩu
++              <input required type="password" value={form.matKhau}
++                onChange={(event) => setForm({ ...form, matKhau: event.target.value })} />
++            </label>
++          </>
++        ) : (
++          <p className="muted">SĐT {form.soDienThoai} · mã {selected}</p>
++        )}
++        <label>Vai trò
++          <select value={form.tenVaiTro} disabled={!isCreate && (!canSua || selected === selfId)}
++            onChange={(event) => setForm({ ...form, tenVaiTro: event.target.value })}>
++            <option value="Sale">Sale (nhân viên admin)</option>
++            <option value="Admin">Admin (toàn quyền)</option>
++          </select>
++        </label>
++        <p className="muted">
++          Không tích ô nào = tài khoản không dùng được chức năng đó. Ví dụ bỏ «Thêm» ở quản lý tour thì bấm thêm tour sẽ báo «Bạn bị hạn chế quyền».
++          {form.tenVaiTro === 'Admin' ? ' Vai trò Admin luôn có toàn quyền, ô chọn chỉ lưu để hiển thị.' : ''}
++        </p>
++        <GrantGrid value={grants} onChange={setGrants} locked={!isCreate && !canSua} />
++        {isCreate
++          ? canThem && <button type="submit" disabled={busy}>Tạo tài khoản</button>
++          : canSua && <button type="submit" disabled={busy}>Lưu phân quyền</button>}
++      </fieldset>
++    </form>
++  );
++
++  return (
++    <div>
++      <h1>Quản lý tài khoản</h1>
++      <p className="muted">Danh sách tài khoản phía admin, tạo nhân viên mới và gán Thêm / Sửa / Xóa / Toàn quyền theo từng chức năng.</p>
++      <Notice error={error} />
++      {message && <div className="notice ok" role="status">{message}</div>}
++      <div className="inline">
++        {canThem && <button type="button" disabled={busy} onClick={fresh}>Thêm tài khoản</button>}
++        <button type="button" disabled={busy} onClick={() => run(load, 'Không tải được danh sách tài khoản.')}>Tải lại</button>
++      </div>
++      {creating && <div id="account-create" className="create-slot record open"><div className="record-body">
++        <h2>Tạo tài khoản nhân viên</h2>
++        {editor(true)}
++      </div></div>}
++      <div className="table" aria-label="Danh sách tài khoản">
++        {items.map((item) => (
++          <ExpandRecord key={item.maUser} open={selected === item.maUser && !creating} summary={
++            <div className="row" style={{ gridTemplateColumns: '1fr 1fr 2fr auto', cursor: busy ? 'wait' : 'pointer' }}
++              onClick={() => { if (!busy) (selected === item.maUser ? setSelected('') : open(item)); }}>
++              <b>{item.soDienThoai}</b>
++              <span className="badge">{item.tenVaiTro}</span>
++              <span className="muted">{summary(item.quyen)}</span>
++              <button type="button" disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa quyền</button>
++            </div>
++          }>
++            {editor(false)}
++          </ExpandRecord>
++        ))}
++        {!items.length && !busy && <p className="muted">Chưa có tài khoản quản trị.</p>}
++      </div>
++    </div>
++  );
++}
+diff --git a/frontend-admin/app/src/App.jsx b/frontend-admin/app/src/App.jsx
+index 5061620..ace119e 100644
+--- a/frontend-admin/app/src/App.jsx
++++ b/frontend-admin/app/src/App.jsx
+@@ -1,10 +1,11 @@
+ import { BrowserRouter, Routes, Route } from 'react-router-dom';
+ import { AuthProvider } from './context';
+-import { Layout, Protected } from './components';
++import { Layout, Protected, ModuleGate } from './components';
+ import { Login, Dashboard, TourAdminPage, BookingManagement, DesignRequests } from './pages';
+ import PromotionsManagement from './PromotionsManagement.jsx';
+ import SightseeingManagement from './SightseeingManagement.jsx';
+ import PartnersManagement from './PartnersManagement.jsx';
++import AccountsManagement from './AccountsManagement.jsx';
+ 
+ export default function App() {
+   return (
+@@ -14,13 +15,14 @@ export default function App() {
+           <Route path="/dang-nhap" element={<Login />} />
+           <Route element={<Protected />}>
+             <Route element={<Layout />}>
+-              <Route path="/" element={<Dashboard />} />
+-              <Route path="/tours" element={<TourAdminPage />} />
+-              <Route path="/booking" element={<BookingManagement />} />
+-              <Route path="/uu-dai" element={<PromotionsManagement />} />
+-              <Route path="/diem-tham-quan" element={<SightseeingManagement />} />
+-              <Route path="/doi-tac" element={<PartnersManagement />} />
+-              <Route path="/thiet-ke" element={<DesignRequests />} />
++              <Route path="/" element={<ModuleGate module="TongQuan"><Dashboard /></ModuleGate>} />
++              <Route path="/tours" element={<ModuleGate module="Tour"><TourAdminPage /></ModuleGate>} />
++              <Route path="/booking" element={<ModuleGate module="Booking"><BookingManagement /></ModuleGate>} />
++              <Route path="/uu-dai" element={<ModuleGate module="UuDai"><PromotionsManagement /></ModuleGate>} />
++              <Route path="/diem-tham-quan" element={<ModuleGate module="DiemThamQuan"><SightseeingManagement /></ModuleGate>} />
++              <Route path="/doi-tac" element={<ModuleGate module="DoiTac"><PartnersManagement /></ModuleGate>} />
++              <Route path="/thiet-ke" element={<ModuleGate module="ThietKe"><DesignRequests /></ModuleGate>} />
++              <Route path="/tai-khoan" element={<ModuleGate module="TaiKhoan"><AccountsManagement /></ModuleGate>} />
+             </Route>
+           </Route>
+         </Routes>
+diff --git a/frontend-admin/app/src/DepartureGuests.jsx b/frontend-admin/app/src/DepartureGuests.jsx
+index b11e355..a0b7588 100644
+--- a/frontend-admin/app/src/DepartureGuests.jsx
++++ b/frontend-admin/app/src/DepartureGuests.jsx
+@@ -1,6 +1,7 @@
+ import { useEffect, useState } from 'react';
+ import * as api from './api';
+ import { ExpandRecord, Notice } from './components';
++import { useAuth } from './context';
+ 
+ const instant = (value) => value ? new Date(/(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? value : value + 'Z') : null;
+ const stamp = (value) => instant(value)?.toLocaleString('vi-VN') || 'Chưa xác định';
+@@ -22,6 +23,11 @@ const emptyProfile = () => ({
+ const emptyDoc = () => ({ loaiGiayTo: 'CCCD', soTrenGiayTo: '', ngayCap: '', ngayHetHan: '', noiCap: '' });
+ 
+ export default function DepartureGuests({ tourId, defaultCapacity, disabled = false }) {
++  const { can } = useAuth();
++  const canSuaTour = can('Tour', 'Sua');
++  const canXoaTour = can('Tour', 'Xoa');
++  const canSuaBooking = can('Booking', 'Sua');
++  const canXoaBooking = can('Booking', 'Xoa');
+   const [dates, setDates] = useState([]);
+   const [roster, setRoster] = useState(null);
+   const [profile, setProfile] = useState(null);
+@@ -176,11 +182,11 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
+                 <span className="chart-track" style={{ width: 120 }} title={`${fill}%`}>
+                   <i style={{ width: `${fill}%`, background: fill >= 80 ? 'var(--coral)' : 'var(--jade)' }} />
+                 </span>
+-                <button type="button" disabled={blocked} onClick={(event) => {
++                {canSuaTour && <button type="button" disabled={blocked} onClick={(event) => {
+                   event.stopPropagation();
+                   setEditing(d.maKhoiHanh);
+                   setForm({ ...d, ngayKhoiHanh: inputDate(d.ngayKhoiHanh), ngayKetThuc: inputDate(d.ngayKetThuc), soCho: d.soCho ?? defaultCapacity });
+-                }}>Sửa lịch / số chỗ</button>
++                }}>Sửa lịch / số chỗ</button>}
+               </div>
+             }>
+               {open && roster && <>
+@@ -221,7 +227,7 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
+                     <label>Email<input type="email" value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} /></label>
+                     <label>Điện thoại<input readOnly value={profile.soDienThoai || ''} /></label>
+                   </div>
+-                  <button disabled={blocked} style={{ marginTop: 12 }}>{profile.maKhachHang ? 'Lưu hồ sơ' : 'Tạo hồ sơ khách'}</button>
++                  <button disabled={blocked || !canSuaBooking} style={{ marginTop: 12 }}>{profile.maKhachHang ? 'Lưu hồ sơ' : 'Tạo hồ sơ khách'}</button>
+                   <h4>Giấy tờ</h4>
+                   {!(profile.giayTo || []).length && <p>Chưa có giấy tờ.</p>}
+                   {(profile.giayTo || []).map((g) => (
+@@ -229,14 +235,14 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
+                       <b>{g.loaiGiayTo} · {g.soTrenGiayTo}</b>
+                       <p>Cấp: {day(g.ngayCap)} · Hết hạn: {day(g.ngayHetHan)} · Nơi cấp: {g.noiCap}</p>
+                       <div className="inline" style={{ margin: 0 }}>
+-                        <button type="button" disabled={blocked} onClick={() => {
++                        {canSuaBooking && <button type="button" disabled={blocked} onClick={() => {
+                           setEditingDoc(g.maGiayTo);
+                           setDocForm({
+                             loaiGiayTo: g.loaiGiayTo || 'CCCD', soTrenGiayTo: g.soTrenGiayTo || '',
+                             ngayCap: isoDay(g.ngayCap), ngayHetHan: isoDay(g.ngayHetHan), noiCap: g.noiCap || '',
+                           });
+-                        }}>Sửa giấy tờ</button>
+-                        <button type="button" className="danger" disabled={blocked} onClick={() => removeDoc(g.maGiayTo)}>Xóa</button>
++                        }}>Sửa giấy tờ</button>}
++                        {canXoaBooking && <button type="button" className="danger" disabled={blocked} onClick={() => removeDoc(g.maGiayTo)}>Xóa</button>}
+                       </div>
+                     </div>
+                   ))}
+@@ -255,7 +261,7 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
+                     <label>Nơi cấp<input required value={docForm.noiCap} onChange={(e) => setDocForm({ ...docForm, noiCap: e.target.value })} /></label>
+                   </div>
+                   <div className="inline" style={{ marginTop: 12 }}>
+-                    <button disabled={blocked || !profile.maKhachHang}>{editingDoc ? 'Lưu giấy tờ' : 'Thêm giấy tờ'}</button>
++                    <button disabled={blocked || !profile.maKhachHang || !canSuaBooking}>{editingDoc ? 'Lưu giấy tờ' : 'Thêm giấy tờ'}</button>
+                     {editingDoc && <button type="button" disabled={blocked} onClick={() => { setEditingDoc(''); setDocForm(emptyDoc()); }}>Hủy sửa</button>}
+                   </div>
+                 </form>
+@@ -265,7 +271,7 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
+         })}
+       </div>
+       <form onSubmit={saveDeparture}>
+-        <fieldset disabled={blocked} style={{ border: 0, padding: 0 }}>
++        <fieldset disabled={blocked || !canSuaTour} style={{ border: 0, padding: 0 }}>
+           <h3>{editing ? 'Sửa lịch ' + editing : 'Thêm lịch khởi hành'}</h3>
+           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+             <label>Mã lịch<input required maxLength={20} readOnly={!!editing} value={form.maKhoiHanh} onChange={(e) => setForm({ ...form, maKhoiHanh: e.target.value })} /></label>
+diff --git a/frontend-admin/app/src/DesignRequests.jsx b/frontend-admin/app/src/DesignRequests.jsx
+index 4523f3c..9c01c98 100644
+--- a/frontend-admin/app/src/DesignRequests.jsx
++++ b/frontend-admin/app/src/DesignRequests.jsx
+@@ -1,6 +1,7 @@
+ import { useEffect, useState } from 'react';
+ import * as api from './api';
+ import { ExpandRecord, Notice } from './components';
++import { useAuth } from './context';
+ 
+ const trim = (value) => String(value ?? '').trim();
+ const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
+@@ -12,6 +13,8 @@ const statusLabel = (value) => labels[trim(value)] || trim(value) || '—';
+ const toRow = (item = {}) => ({ ngayThu: item.ngayThu ?? 1, thuTuTrongNgay: item.thuTuTrongNgay ?? 1, maDthamQuan: trim(item.maDthamQuan), maSanPham: trim(item.maSanPham), soLuong: item.soLuong ?? 1, mota: item.mota || '' });
+ 
+ export function DesignRequests() {
++  const { can } = useAuth();
++  const allowed = can('ThietKe', 'Sua');
+   const [items, setItems] = useState([]);
+   const [selectedId, setSelectedId] = useState('');
+   const [plans, setPlans] = useState([]);
+@@ -34,10 +37,10 @@ export function DesignRequests() {
+   const state = trim(schedule?.trangThai ?? selected?.trangThai);
+   const blocked = Boolean(busy || loading || loadingDetails || listError || detailError);
+   const revision = schedule || selected;
+-  const canGenerate = !blocked && !editing && state === 'Moi';
+-  const canEdit = !blocked && Boolean(tourId) && ['DangThietKe', 'CanChinhSua'].includes(state);
++  const canGenerate = allowed && !blocked && !editing && state === 'Moi';
++  const canEdit = allowed && !blocked && Boolean(tourId) && ['DangThietKe', 'CanChinhSua'].includes(state);
+   const canSubmit = canEdit && !editing;
+-  const canApprove = !blocked && !editing && Boolean(tourId) && state === 'ChoDuyet';
++  const canApprove = allowed && !blocked && !editing && Boolean(tourId) && state === 'ChoDuyet';
+ 
+   useEffect(() => {
+     api.sightseeingPlaces().then((response) => setPlaces(rowsOf(response))).catch(() => {});
+diff --git a/frontend-admin/app/src/PartnersManagement.jsx b/frontend-admin/app/src/PartnersManagement.jsx
+index 37ed570..e755d74 100644
+--- a/frontend-admin/app/src/PartnersManagement.jsx
++++ b/frontend-admin/app/src/PartnersManagement.jsx
+@@ -1,6 +1,7 @@
+ import { useEffect, useState } from 'react';
+ import * as api from './api';
+ import { ExpandRecord, Notice } from './components';
++import { useAuth } from './context';
+ 
+ const types = [
+   { id: 'LuuTru', label: 'Khách sạn / lưu trú' },
+@@ -19,6 +20,10 @@ const fill = (item) => ({
+ });
+ 
+ export default function PartnersManagement() {
++  const { can } = useAuth();
++  const canThem = can('DoiTac', 'Them');
++  const canSua = can('DoiTac', 'Sua');
++  const canXoa = can('DoiTac', 'Xoa');
+   const [partners, setPartners] = useState([]);
+   const [products, setProducts] = useState([]);
+   const [regions, setRegions] = useState([]);
+@@ -111,7 +116,7 @@ export default function PartnersManagement() {
+     <h1>Đối tác và khách sạn</h1>
+     <p className="muted">Khách sạn (LuuTru) bắt buộc chọn khu vực để tự thiết kế ghép đúng vùng.</p>
+     <Notice error={error} />{message && <div className="notice ok">{message}</div>}
+-    <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(emptyPartner()); requestAnimationFrame(() => document.getElementById('partner-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm đối tác</button>
++    {canThem && <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(emptyPartner()); requestAnimationFrame(() => document.getElementById('partner-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm đối tác</button>}
+     {creating && <div id="partner-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
+     <div className="table">
+       {partners.map((item) => <ExpandRecord key={item.maDoiTac} open={selected === item.maDoiTac} summary={
+@@ -119,8 +124,8 @@ export default function PartnersManagement() {
+           <b>{item.tenDoiTac}</b><span>{types.find((t) => t.id === item.loaiDoiTac)?.label || item.loaiDoiTac}</span>
+           <span>{item.tenKhuVuc || item.maKhuVuc || '—'}</span>
+           <div className="inline" style={{ margin: 0 }}>
+-            <button disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa</button>
+-            <button className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item.maDoiTac); }}>Xóa</button>
++            {canSua && <button disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa</button>}
++            {canXoa && <button className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item.maDoiTac); }}>Xóa</button>}
+           </div>
+         </div>
+       }>
+@@ -129,15 +134,15 @@ export default function PartnersManagement() {
+           <h2>Sản phẩm / loại phòng của {selectedPartner.tenDoiTac}</h2>
+           <ul>{rooms.map((roomItem) => <li key={roomItem.maSanPham}>
+             <b>{roomItem.tenSanPham}</b> · {roomItem.donViTinh || '—'} · {money(roomItem.giaNiemYet)}
+-            <button className="danger" disabled={busy} onClick={() => removeProduct(roomItem.maSanPham)}>Xóa</button>
++            {canXoa && <button className="danger" disabled={busy} onClick={() => removeProduct(roomItem.maSanPham)}>Xóa</button>}
+           </li>)}</ul>
+-          <form onSubmit={saveRoom}>
++          {canSua && <form onSubmit={saveRoom}>
+             <h3>Thêm {selectedPartner.loaiDoiTac === 'LuuTru' ? 'loại phòng (giá 1 đêm)' : 'sản phẩm'}</h3>
+             <label>Tên / loại phòng<input required value={room.tenSanPham} onChange={(e) => setRoom({ ...room, tenSanPham: e.target.value })} /></label>
+             <label>Giá<input type="number" required min="1" value={room.giaNiemYet} onChange={(e) => setRoom({ ...room, giaNiemYet: e.target.value })} /></label>
+             <label>Mô tả<textarea rows={2} value={room.mota} onChange={(e) => setRoom({ ...room, mota: e.target.value })} /></label>
+             <button disabled={busy}>Thêm</button>
+-          </form>
++          </form>}
+         </section>}
+       </ExpandRecord>)}
+     </div>
+diff --git a/frontend-admin/app/src/PromotionsManagement.jsx b/frontend-admin/app/src/PromotionsManagement.jsx
+index 45a9163..08fd7a0 100644
+--- a/frontend-admin/app/src/PromotionsManagement.jsx
++++ b/frontend-admin/app/src/PromotionsManagement.jsx
+@@ -1,6 +1,7 @@
+ import { useEffect, useState } from 'react';
+ import * as api from './api';
+ import { ExpandRecord, Notice } from './components';
++import { useAuth } from './context';
+ 
+ const asUtc = (value) => value ? new Date(/[zZ]$|[+-]\d\d:\d\d$/.test(value) ? value : value + 'Z') : null;
+ const localInput = (date) => {
+@@ -29,6 +30,10 @@ const fromPromotion = (item) => {
+ };
+ 
+ export default function PromotionsManagement() {
++  const { can } = useAuth();
++  const canThem = can('UuDai', 'Them');
++  const canSua = can('UuDai', 'Sua');
++  const canXoa = can('UuDai', 'Xoa');
+   const [items, setItems] = useState([]);
+   const [tours, setTours] = useState([]);
+   const [selected, setSelected] = useState('');
+@@ -124,7 +129,7 @@ export default function PromotionsManagement() {
+   const editor = (
+     <form className="panel" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }} aria-label="Thông tin ưu đãi" onSubmit={save}>
+       <h2>{selected ? 'Sửa ưu đãi ' + selected : 'Thêm ưu đãi mới'}</h2>
+-      <fieldset disabled={busy} style={{ border: 0, padding: 0, minWidth: 0 }}>
++      <fieldset disabled={busy || (selected ? !canSua : !canThem)} style={{ border: 0, padding: 0, minWidth: 0 }}>
+         <div style={grid}>
+           <label style={label}>Tên ưu đãi<input required maxLength={50} style={fieldStyle} value={form.tenKm} onChange={field('tenKm')} /></label>
+           <label style={label}>Mã ưu đãi<input required maxLength={10} style={fieldStyle} value={form.maCode} onChange={field('maCode')} /></label>
+@@ -166,11 +171,11 @@ export default function PromotionsManagement() {
+     <div id="promotion-notice" aria-live="polite"><Notice error={error} />{message && <div className="notice ok" role="status">{message}</div>}</div>
+     {busy && <p role="status">Đang xử lý…</p>}
+     <div className="inline">
+-      <button disabled={busy} onClick={() => fresh()}>Thêm mới</button>
++      {canThem && <button disabled={busy} onClick={() => fresh()}>Thêm mới</button>}
+       <button disabled={busy} onClick={() => run(async () => {
+         await loadList(); if (selected) await loadDetail(selected);
+       }, 'Không tải lại được ưu đãi.')}>Tải lại ưu đãi</button>
+-      {!hasValidSeed && !hasDemo && <button disabled={busy} onClick={() => fresh(true)}>Điền mã DEMO10</button>}
++      {canThem && !hasValidSeed && !hasDemo && <button disabled={busy} onClick={() => fresh(true)}>Điền mã DEMO10</button>}
+     </div>
+     {creating && <div id="promo-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
+     <div className="table" aria-label="Danh sách ưu đãi">
+@@ -181,10 +186,10 @@ export default function PromotionsManagement() {
+           <span>{item.trangThai === 'HoatDong' ? 'Hoạt động' : 'Ngừng hoạt động'}</span>
+           <span>Hết hạn: {asUtc(item.ngayKt)?.toLocaleString('vi-VN') || '—'}</span>
+           <div className="inline" style={{ margin: 0 }}>
+-            <button disabled={busy} aria-label={'Sửa ưu đãi ' + item.maCode}
+-              onClick={(event) => { event.stopPropagation(); openRow(item.maKm); }}>Sửa</button>
+-            <button className="danger" disabled={busy} aria-label={'Xóa ưu đãi ' + item.maCode}
+-              onClick={(event) => { event.stopPropagation(); remove(item.maKm); }}>Xóa</button>
++            {canSua && <button disabled={busy} aria-label={'Sửa ưu đãi ' + item.maCode}
++              onClick={(event) => { event.stopPropagation(); openRow(item.maKm); }}>Sửa</button>}
++            {canXoa && <button className="danger" disabled={busy} aria-label={'Xóa ưu đãi ' + item.maCode}
++              onClick={(event) => { event.stopPropagation(); remove(item.maKm); }}>Xóa</button>}
+           </div>
+         </div>
+       }>{editor}</ExpandRecord>)}
+diff --git a/frontend-admin/app/src/SightseeingManagement.jsx b/frontend-admin/app/src/SightseeingManagement.jsx
+index 1db30d4..7df65b6 100644
+--- a/frontend-admin/app/src/SightseeingManagement.jsx
++++ b/frontend-admin/app/src/SightseeingManagement.jsx
+@@ -1,6 +1,7 @@
+ import { useEffect, useState } from 'react';
+ import * as api from './api';
+ import { ExpandRecord, Notice } from './components';
++import { useAuth } from './context';
+ 
+ const rows = (response) => Array.isArray(response.data) ? response.data : response.data.items || [];
+ const empty = () => ({ tenDiaDanh: '', diaChi: '', maKhuVuc: '', mota: '' });
+@@ -9,6 +10,10 @@ const fill = (item) => ({
+ });
+ 
+ export default function SightseeingManagement() {
++  const { can } = useAuth();
++  const canThem = can('DiemThamQuan', 'Them');
++  const canSua = can('DiemThamQuan', 'Sua');
++  const canXoa = can('DiemThamQuan', 'Xoa');
+   const [items, setItems] = useState([]);
+   const [regions, setRegions] = useState([]);
+   const [form, setForm] = useState(empty);
+@@ -69,15 +74,15 @@ export default function SightseeingManagement() {
+   return <div>
+     <h1>Điểm tham quan</h1>
+     <Notice error={error} />{message && <div className="notice ok">{message}</div>}
+-    <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(empty()); requestAnimationFrame(() => document.getElementById('sight-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm mới</button>
++    {canThem && <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(empty()); requestAnimationFrame(() => document.getElementById('sight-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm mới</button>}
+     {creating && <div id="sight-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
+     <div className="table">
+       {items.map((item) => <ExpandRecord key={item.maDthamQuan} open={selected === item.maDthamQuan} summary={
+         <div className="row" style={{ cursor: busy ? 'wait' : 'pointer' }} onClick={() => { if (!busy) toggle(item); }}>
+           <b>{item.tenDiaDanh}</b><span>{item.tenKhuVuc || item.maKhuVuc || '—'}</span><span>{item.diaChi || '—'}</span>
+           <div className="inline" style={{ margin: 0 }}>
+-            <button disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa</button>
+-            <button className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item.maDthamQuan); }}>Xóa</button>
++            {canSua && <button disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa</button>}
++            {canXoa && <button className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item.maDthamQuan); }}>Xóa</button>}
+           </div>
+         </div>
+       }>{editor}</ExpandRecord>)}
+diff --git a/frontend-admin/app/src/api.js b/frontend-admin/app/src/api.js
+index 1c46f9a..c00eef4 100644
+--- a/frontend-admin/app/src/api.js
++++ b/frontend-admin/app/src/api.js
+@@ -65,3 +65,10 @@ export const updateGuestDocument=(id,docId,data)=>api.put('/api/DatDichVu/'+enco
+ export const deleteGuestDocument=(id,docId)=>api.delete('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach/giay-to/'+encodeURIComponent(docId));
+ export const overview=()=>api.get('/api/BaoCao/tong-quan');
+ export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');
++export const me=()=>api.get('/api/Auth/toi');
++export const accounts=(params)=>api.get('/api/Admin/tai-khoan',{params});
++export const account=id=>api.get('/api/Admin/tai-khoan/'+encodeURIComponent(id));
++export const createAccount=data=>api.post('/api/Admin/tai-khoan',data);
++export const updateAccountGrants=(id,data)=>api.put('/api/Admin/tai-khoan/'+encodeURIComponent(id)+'/quyen',data);
++export const changeAccountRole=(id,tenVaiTro)=>api.put('/api/Admin/tai-khoan/'+encodeURIComponent(id)+'/vai-tro',{tenVaiTro});
++
+diff --git a/frontend-admin/app/src/components.jsx b/frontend-admin/app/src/components.jsx
+index 3be290a..c5cff1a 100644
+--- a/frontend-admin/app/src/components.jsx
++++ b/frontend-admin/app/src/components.jsx
+@@ -7,19 +7,13 @@ export function Protected() {
+ }
+ 
+ export function Layout() {
+-  const { logout } = useAuth();
++  const { logout, navItems } = useAuth();
+   const nav = useNavigate();
+   return (
+     <div className="shell">
+       <aside>
+         <Link className="brand" to="/">ANAM Admin<small>Vận hành lữ hành</small></Link>
+-        <Link to="/">Tổng quan</Link>
+-        <Link to="/tours">Quản lý tour</Link>
+-        <Link to="/booking">Booking</Link>
+-        <Link to="/uu-dai">Ưu đãi</Link>
+-        <Link to="/diem-tham-quan">Điểm tham quan</Link>
+-        <Link to="/doi-tac">Đối tác</Link>
+-        <Link to="/thiet-ke">Thiết kế</Link>
++        {navItems.map((item) => <Link key={item.to} to={item.to}>{item.label}</Link>)}
+         <button onClick={() => { logout(); nav('/dang-nhap'); }}>Đăng xuất</button>
+       </aside>
+       <main><Outlet /></main>
+@@ -27,6 +21,17 @@ export function Layout() {
+   );
+ }
+ 
++export function ModuleGate({ module, children }) {
++  const { can } = useAuth();
++  if (can(module, 'Xem')) return children;
++  return (
++    <section className="panel">
++      <h1>Bị hạn chế quyền</h1>
++      <p>Bạn bị hạn chế quyền: không được sử dụng chức năng này.</p>
++    </section>
++  );
++}
++
+ export const Notice = ({ error }) => (error ? <div className="notice error">{error}</div> : null);
+ 
+ export function ExpandRecord({ open, summary, children }) {
+diff --git a/frontend-admin/app/src/context.jsx b/frontend-admin/app/src/context.jsx
+index 58d7093..fca4b46 100644
+--- a/frontend-admin/app/src/context.jsx
++++ b/frontend-admin/app/src/context.jsx
+@@ -1,3 +1,121 @@
+-import {createContext,useContext,useMemo,useState} from 'react';import {login as loginApi} from './api';
+-const C=createContext(null);const decode=t=>{try{return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))}catch{return {}}};
+-export function AuthProvider({children}){const [token,setToken]=useState(localStorage.getItem('admin_token'));const user=token?decode(token):null;const login=async d=>{const r=(await loginApi(d)).data;const claims=decode(r.token);const role=claims.role||claims['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];if(!['Admin','Sale'].includes(role))throw new Error('Tài khoản này không có quyền quản trị.');localStorage.setItem('admin_token',r.token);setToken(r.token);return r};const logout=()=>{localStorage.removeItem('admin_token');setToken(null)};return <C.Provider value={useMemo(()=>({token,user,login,logout,isStaff:Boolean(token&&['Admin','Sale'].includes(user?.role||user?.['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']))}),[token,user])}>{children}</C.Provider>};export const useAuth=()=>useContext(C);
++import { createContext, useContext, useEffect, useMemo, useState } from 'react';
++import { login as loginApi, me as meApi } from './api';
++
++const C = createContext(null);
++const ROLE_CLAIM = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
++
++const decode = (token) => {
++  try {
++    return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
++  } catch {
++    return {};
++  }
++};
++
++export const roleOf = (user) => user?.role || user?.[ROLE_CLAIM] || '';
++
++export const MODULES = [
++  { ma: 'TongQuan', ten: 'Tổng quan' },
++  { ma: 'Tour', ten: 'Quản lý tour' },
++  { ma: 'Booking', ten: 'Quản lý booking' },
++  { ma: 'UuDai', ten: 'Quản lý ưu đãi' },
++  { ma: 'DiemThamQuan', ten: 'Điểm tham quan' },
++  { ma: 'DoiTac', ten: 'Đối tác' },
++  { ma: 'ThietKe', ten: 'Thiết kế' },
++  { ma: 'TaiKhoan', ten: 'Tài khoản' },
++];
++
++const NAV = [
++  { module: 'TongQuan', to: '/', label: 'Tổng quan' },
++  { module: 'Tour', to: '/tours', label: 'Quản lý tour' },
++  { module: 'Booking', to: '/booking', label: 'Booking' },
++  { module: 'UuDai', to: '/uu-dai', label: 'Ưu đãi' },
++  { module: 'DiemThamQuan', to: '/diem-tham-quan', label: 'Điểm tham quan' },
++  { module: 'DoiTac', to: '/doi-tac', label: 'Đối tác' },
++  { module: 'ThietKe', to: '/thiet-ke', label: 'Thiết kế' },
++  { module: 'TaiKhoan', to: '/tai-khoan', label: 'Tài khoản' },
++];
++
++const readQuyen = () => {
++  try {
++    return JSON.parse(localStorage.getItem('admin_quyen') || '[]');
++  } catch {
++    return [];
++  }
++};
++
++export function canGrant(grants, role, module, action) {
++  if (role === 'Admin') return true;
++  const list = Array.isArray(grants) ? grants : [];
++  const row = list.find((item) => item.chucNang === module);
++  if (!row) {
++    return Boolean(!list.length && role === 'Sale' && module !== 'TaiKhoan');
++  }
++  if (row.toanQuyen) return true;
++  if (action === 'Xem') return Boolean(row.them || row.sua || row.xoa);
++  if (action === 'Them') return Boolean(row.them);
++  if (action === 'Sua') return Boolean(row.sua);
++  if (action === 'Xoa') return Boolean(row.xoa);
++  return false;
++}
++
++export function firstAllowedPath(grants, role) {
++  return NAV.find((item) => canGrant(grants, role, item.module, 'Xem'))?.to || '/';
++}
++
++export function AuthProvider({ children }) {
++  const [token, setToken] = useState(localStorage.getItem('admin_token'));
++  const [quyen, setQuyen] = useState(readQuyen);
++  const user = token ? decode(token) : null;
++  const role = roleOf(user);
++
++  const persist = (nextToken, nextQuyen) => {
++    localStorage.setItem('admin_token', nextToken);
++    localStorage.setItem('admin_quyen', JSON.stringify(nextQuyen || []));
++    setToken(nextToken);
++    setQuyen(nextQuyen || []);
++  };
++
++  const login = async (data) => {
++    const response = (await loginApi(data)).data;
++    const claims = decode(response.token);
++    const nextRole = roleOf(claims);
++    if (!['Admin', 'Sale'].includes(nextRole)) {
++      throw new Error('Tài khoản này không có quyền quản trị.');
++    }
++    persist(response.token, response.quyen || []);
++    return { ...response, home: firstAllowedPath(response.quyen || [], nextRole) };
++  };
++
++  const logout = () => {
++    localStorage.removeItem('admin_token');
++    localStorage.removeItem('admin_quyen');
++    setToken(null);
++    setQuyen([]);
++  };
++
++  useEffect(() => {
++    if (!token) return;
++    meApi().then((response) => {
++      if (Array.isArray(response.data?.quyen)) {
++        localStorage.setItem('admin_quyen', JSON.stringify(response.data.quyen));
++        setQuyen(response.data.quyen);
++      }
++    }).catch(() => {});
++  }, [token]);
++
++  const can = (module, action) => canGrant(quyen, role, module, action);
++  const navItems = NAV.filter((item) => can(item.module, 'Xem'));
++
++  return (
++    <C.Provider value={useMemo(() => ({
++      token, user, quyen, login, logout, can, navItems, role,
++      isStaff: Boolean(token && ['Admin', 'Sale'].includes(role)),
++      isAdmin: role === 'Admin',
++    }), [token, user, quyen, role])}>
++      {children}
++    </C.Provider>
++  );
++}
++
++export const useAuth = () => useContext(C);
+diff --git a/frontend-admin/app/src/pages.jsx b/frontend-admin/app/src/pages.jsx
+index 03fd811..717962a 100644
+--- a/frontend-admin/app/src/pages.jsx
++++ b/frontend-admin/app/src/pages.jsx
+@@ -38,8 +38,8 @@ export function Login() {
+   const submit = async (x) => {
+     x.preventDefault();
+     try {
+-      await login(f);
+-      nav('/');
++      const result = await login(f);
++      nav(result.home || '/');
+     } catch (err) {
+       setE(err.message || api.errorMessage(err, 'Đăng nhập thất bại.'));
+     }
+@@ -159,6 +159,8 @@ export function Dashboard() {
+ }
+ 
+ export function BookingManagement() {
++  const { can } = useAuth();
++  const canSua = can('Booking', 'Sua');
+   const [items, setItems] = useState([]);
+   const [filter, setFilter] = useState('');
+   const [id, setId] = useState('');
+@@ -287,7 +289,7 @@ export function BookingManagement() {
+                 {next.map((s) => {
+                   const cancelLocked = s === 'DaHuy' && paid > 0;
+                   const paymentLocked = (s === 'DaXacNhan' && paid <= 0) || (s === 'DaThanhToan' && remaining > 0) || cancelLocked;
+-                  const disabled = busy || paymentLocked;
++                  const disabled = busy || paymentLocked || !canSua;
+                   return <button key={s} className={s === 'DaHuy' ? 'danger' : undefined} disabled={disabled}
+                     style={{ opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+                     title={cancelLocked ? 'Khách đã thanh toán. Chờ yêu cầu hủy rồi xác nhận hoàn tiền.' : undefined}
+@@ -296,7 +298,7 @@ export function BookingManagement() {
+                   </button>;
+                 })}
+                 {state === 'ChoHoanTien' && (
+-                  <button type="button" disabled={busy} onClick={refund}>Xác nhận hoàn tiền</button>
++                  <button type="button" disabled={busy || !canSua} onClick={refund}>Xác nhận hoàn tiền</button>
+                 )}
+                 {!next.length && state !== 'ChoHoanTien' && <span className="muted">Không còn bước tiếp theo.</span>}
+               </div>
+@@ -310,6 +312,10 @@ export function BookingManagement() {
+ }
+ 
+ export function TourAdminPage() {
++  const { can } = useAuth();
++  const canThem = can('Tour', 'Them');
++  const canSua = can('Tour', 'Sua');
++  const canXoa = can('Tour', 'Xoa');
+   const emptyTour = () => ({
+     MaTour: '', TenTour: '', Mota: '', ThoiGian: 1, GiaTour: 0, Slkhach: 1,
+     SlhuongDanVien: 1, LoaiTour: 'Chuan', TrangThai: 'HoatDong', DieuKhoan: '',
+@@ -527,7 +533,7 @@ export function TourAdminPage() {
+       </div>
+       {busy && <p role="status">Đang xử lý…</p>}
+       <div className="inline">
+-        <button type="button" disabled={busy} onClick={newTour}>Thêm tour mới</button>
++        {canThem && <button type="button" disabled={busy} onClick={newTour}>Thêm tour mới</button>}
+         <button type="button" disabled={busy} onClick={() => run(async () => {
+           if (selected) await loadDetails(selected);
+           await loadList();
+@@ -546,7 +552,7 @@ export function TourAdminPage() {
+       <section className="panel" id="tour-create-form" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }}>
+         <h2>Thêm tour</h2>
+         <form onSubmit={save} aria-label="Thông tin tour">
+-          <fieldset disabled={busy} style={fieldset}>
++          <fieldset disabled={busy || !canThem} style={fieldset}>
+             <div style={grid}>
+               <label style={field}>Mã tour<input style={control} maxLength={20} required
+                 value={form.MaTour} onChange={setTourField('MaTour')} /></label>
+@@ -596,12 +602,12 @@ export function TourAdminPage() {
+                 <span>Số khách: {v(item, 'slkhach', 'Slkhach') ?? '—'}</span>
+                 <span className="badge">{stateNames[state] || state}</span>
+                 <div className="inline" style={{ margin: 0 }}>
+-                  <button type="button" disabled={busy} onClick={(event) => {
++                  {canSua && <button type="button" disabled={busy} onClick={(event) => {
+                     event.stopPropagation();
+                     selectTour(id);
+-                  }}>Sửa</button>
+-                  <button type="button" className="danger" disabled={busy}
+-                    onClick={(event) => { event.stopPropagation(); remove(id); }}>Xóa</button>
++                  }}>Sửa</button>}
++                  {canXoa && <button type="button" className="danger" disabled={busy}
++                    onClick={(event) => { event.stopPropagation(); remove(id); }}>Xóa</button>}
+                 </div>
+               </div>
+             }>
+@@ -609,7 +615,7 @@ export function TourAdminPage() {
+                 <section className="panel" id="tour-form" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }}>
+                   <h2>Chi tiết / sửa tour {selected}</h2>
+                   <form onSubmit={save} aria-label="Thông tin tour">
+-                    <fieldset disabled={busy || privateScheduleLocked} style={fieldset}>
++                    <fieldset disabled={busy || privateScheduleLocked || !canSua} style={fieldset}>
+                       <div style={grid}>
+                         <label style={field}>Mã tour<input style={control} maxLength={20} required readOnly
+                           value={form.MaTour} onChange={setTourField('MaTour')} /></label>
+@@ -652,15 +658,15 @@ export function TourAdminPage() {
+                   <span>{line.mota || '—'}</span>
+                   <span>SL: {line.soLuong ?? '—'} · Đơn giá: {money(line.donGia)}</span>
+                   <b>Thành tiền: {money(line.thanhTien)}</b>
+-                  <button type="button" className="danger" disabled={busy || scheduleLocked} aria-label={'Xóa lịch trình ' + line.maLichTrinh}
+-                    onClick={() => removeSchedule(line.maLichTrinh)}>Xóa dòng</button>
++                  {canXoa && <button type="button" className="danger" disabled={busy || scheduleLocked} aria-label={'Xóa lịch trình ' + line.maLichTrinh}
++                    onClick={() => removeSchedule(line.maLichTrinh)}>Xóa dòng</button>}
+                 </div>
+               ))}
+             </div>
+             {!schedule.length && <p>Chưa có dòng lịch trình.</p>}
+           </>}
+           <form onSubmit={addSchedule} aria-label="Thêm lịch trình" style={{ marginTop: 20 }}>
+-            <fieldset disabled={busy || scheduleLocked} style={fieldset}>
++            <fieldset disabled={busy || scheduleLocked || !canSua} style={fieldset}>
+               <div style={grid}>
+                 <label style={field}>Ngày thứ<input style={control} type="number" min="1" max={v(detail, 'thoiGian', 'ThoiGian') || 2147483647} required
+                   value={scheduleForm.NgayThu} onChange={setScheduleField('NgayThu')} /></label>
+@@ -683,7 +689,7 @@ export function TourAdminPage() {
+         <section className="panel">
+           <h2>Ảnh / video tour {selected}</h2>
+           <form onSubmit={addMedia} aria-label="Upload ảnh tour">
+-            <fieldset disabled={busy} style={fieldset}>
++            <fieldset disabled={busy || !canSua} style={fieldset}>
+               <div style={grid}>
+                 <label style={field}>File ảnh / video<input key={fileKey} style={control} type="file"
+                   accept=".jpg,.jpeg,.png,.webp,.mp4,.webm,image/jpeg,image/png,image/webp,video/mp4,video/webm" required
+@@ -705,9 +711,9 @@ export function TourAdminPage() {
+               <p>{item.loaiMedia} · Thứ tự: {item.thuTu ?? 0}{item.isAvatar ? ' · Ảnh đại diện' : ''}</p>
+               <div className="inline">
+                 <a href={item.url} target="_blank" rel="noreferrer">Xem media</a>
+-                <button type="button" className="danger" disabled={busy} aria-label={'Xóa ảnh ' + item.maAnhTour}
+-                  onClick={() => removeMedia(item.maAnhTour)}>Xóa ảnh/video</button>
+-                {item.loaiMedia !== 'Video' && <button type="button" disabled={busy || item.isAvatar}
++                {canXoa && <button type="button" className="danger" disabled={busy} aria-label={'Xóa ảnh ' + item.maAnhTour}
++                  onClick={() => removeMedia(item.maAnhTour)}>Xóa ảnh/video</button>}
++                {canSua && item.loaiMedia !== 'Video' && <button type="button" disabled={busy || item.isAvatar}
+                   onClick={() => run(async () => {
+                     await api.setTourCover(item.maAnhTour);
+                     setMessage('Đã đặt ảnh đại diện. Trang chủ khách dùng ảnh này.');
+diff --git a/frontend-admin/app/src/styles.css b/frontend-admin/app/src/styles.css
+index 81a6232..270a2e7 100644
+--- a/frontend-admin/app/src/styles.css
++++ b/frontend-admin/app/src/styles.css
+@@ -127,4 +127,48 @@ button {
+   .chart-row { grid-template-columns: 1fr; }
+ }
+ 
++.perm-grid {
++  display: grid;
++  gap: 0;
++  border: 2px solid var(--ink);
++  margin: 12px 0 18px;
++  background: #fffdf8;
++}
++.perm-head, .perm-row {
++  display: grid;
++  grid-template-columns: minmax(140px, 1.8fr) repeat(4, minmax(72px, 1fr));
++  align-items: center;
++  gap: 0;
++}
++.perm-head {
++  background: var(--navy);
++  color: #fff3d6;
++  font-weight: 800;
++  font-size: 0.78rem;
++  letter-spacing: 0.04em;
++}
++.perm-head span, .perm-row span, .perm-row input {
++  padding: 10px 12px;
++  border-right: 1px solid #e0c39a;
++}
++.perm-row { border-top: 1px solid #e0c39a; }
++.perm-row input {
++  width: 18px;
++  height: 18px;
++  justify-self: center;
++  accent-color: var(--jade);
++}
++.account-form {
++  display: grid;
++  gap: 12px;
++  border: 0;
++  padding: 0;
++  min-width: 0;
++}
++.account-form label { display: grid; gap: 6; }
++@media (max-width: 800px) {
++  .perm-head, .perm-row { grid-template-columns: 1fr 1fr; }
++}
++
++
+ 
+-- 
+2.39.5
+
