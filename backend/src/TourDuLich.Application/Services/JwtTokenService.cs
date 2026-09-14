@@ -39,9 +39,16 @@ public class JwtTokenService
             issuer: jwtIssuer,
             audience: jwtAudience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(12),
+            expires: DateTime.UtcNow.AddMinutes(AccessTokenMinutes),
             signingCredentials: signingCredentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    public int AccessTokenMinutes =>
+        int.TryParse(_configuration["Jwt:AccessTokenMinutes"], out var minutes) && minutes > 0
+            ? minutes
+            : 120;
+
+    public int AccessTokenSeconds => AccessTokenMinutes * 60;
 }

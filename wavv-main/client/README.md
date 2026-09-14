@@ -16,8 +16,9 @@ Mở URL Vite hiển thị trong terminal, thường là `http://localhost:5173`
 ## Các luồng giao diện đã có
 
 - Landing, danh sách tour, tìm kiếm, lọc khu vực/ngân sách và chi tiết tour.
-- Đăng nhập/đăng ký mô phỏng, route bảo vệ và đăng xuất.
-- Gợi ý cá nhân hóa mô phỏng.
+- Đăng nhập/đăng ký (SĐT 10 số, mật khẩu ≥ 8 ký tự gồm chữ và số). Tài khoản Admin/Sale bị chặn.
+- Access token 2 giờ; client tự refresh. Đăng xuất thu hồi refresh token.
+- Gợi ý cá nhân hóa (AI service + fallback).
 - Tự thiết kế tour, gửi yêu cầu và chọn phương án tiết kiệm/cân bằng/cao cấp.
 - Tạo booking, xem booking, thanh toán thủ công hoặc qua VNPay/MoMo sandbox và xem hợp đồng.
 - Hồ sơ cá nhân, khu vực giấy tờ hành khách, ưu đãi và danh sách yêu thích.

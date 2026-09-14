@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using TourDuLich.API.Authorization;
@@ -16,31 +17,34 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly JwtTokenService _jwtTokenService;
+    private readonly RefreshTokenService _refreshTokenService;
     private readonly IPermissionService _permissions;
 
     public AuthController(
         AppDbContext context,
         JwtTokenService jwtTokenService,
+        RefreshTokenService refreshTokenService,
         IPermissionService permissions)
     {
         _context = context;
         _jwtTokenService = jwtTokenService;
+        _refreshTokenService = refreshTokenService;
         _permissions = permissions;
     }
 
     [HttpPost("register")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult> Register(RegisterDto request)
     {
         var soDienThoai = request.SoDienThoai?.Trim();
         var matKhau = request.MatKhau?.Trim();
 
-        if (string.IsNullOrWhiteSpace(soDienThoai) || string.IsNullOrWhiteSpace(matKhau))
-        {
-            return BadRequest(new { message = "Số điện thoại và mật khẩu không được để trống." });
-        }
+        var credentialError = CredentialRules.Validate(soDienThoai, matKhau);
+        if (credentialError is not null)
+            return BadRequest(new { message = credentialError });
 
-        var soDienThoaiDb = FixedLengthHelper.PadTo20(soDienThoai);
+        var soDienThoaiDb = FixedLengthHelper.PadTo20(soDienThoai!);
 
         var daTonTai = await _context.NguoiSuDungs
             .AnyAsync(user => user.SoDienThoai == soDienThoaiDb);
@@ -81,32 +85,20 @@ public class AuthController : ControllerBase
         _context.NguoiSuDungs.Add(nguoiSuDung);
         await _context.SaveChangesAsync();
 
-        var token = _jwtTokenService.GenerateToken(
-            FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!,
-            nguoiSuDung.MaVaiTro,
-            vaiTroKhachHang.TenVaiTro.Trim());
-
-        return StatusCode(StatusCodes.Status201Created, new
-        {
-            token,
-            maUser = FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser),
-            soDienThoai = FixedLengthHelper.TrimSafe(nguoiSuDung.SoDienThoai),
-            maVaiTro = nguoiSuDung.MaVaiTro,
-            tenVaiTro = vaiTroKhachHang.TenVaiTro.Trim(),
-            quyen = await _permissions.GetEffectiveGrantsAsync(
-                FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!,
-                vaiTroKhachHang.TenVaiTro.Trim())
-        });
+        return StatusCode(StatusCodes.Status201Created, await ToSessionAsync(
+            nguoiSuDung,
+            vaiTroKhachHang.TenVaiTro.Trim()));
     }
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult> Login(LoginDto request)
     {
         var soDienThoai = request.SoDienThoai?.Trim();
         var matKhau = request.MatKhau?.Trim();
 
-        if (string.IsNullOrWhiteSpace(soDienThoai) || string.IsNullOrWhiteSpace(matKhau))
+        if (string.IsNullOrWhiteSpace(soDienThoai) || string.IsNullOrEmpty(matKhau))
         {
             return Unauthorized(new { message = "Sai số điện thoại hoặc mật khẩu" });
         }
@@ -123,21 +115,45 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Sai số điện thoại hoặc mật khẩu" });
         }
 
-        var maUser = FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!;
-        var tenVaiTro = nguoiSuDung.MaVaiTroNavigation.TenVaiTro.Trim();
-        var token = _jwtTokenService.GenerateToken(
-            maUser,
-            nguoiSuDung.MaVaiTro,
-            tenVaiTro);
+        return Ok(await ToSessionAsync(
+            nguoiSuDung,
+            nguoiSuDung.MaVaiTroNavigation.TenVaiTro.Trim()));
+    }
 
-        return Ok(new
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult> Refresh(RefreshTokenDto request)
+    {
+        var existing = await _refreshTokenService.FindActiveAsync(request.RefreshToken);
+        if (existing is null)
+            return Unauthorized(new { message = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
+
+        await _refreshTokenService.RevokeAsync(existing);
+        var user = existing.MaUserNavigation;
+        var tenVaiTro = user.MaVaiTroNavigation.TenVaiTro.Trim();
+        return Ok(await ToSessionAsync(user, tenVaiTro));
+    }
+
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    public async Task<ActionResult> Logout(RefreshTokenDto? request)
+    {
+        var maUser = User.FindFirst("MaUser")?.Value;
+        if (!string.IsNullOrWhiteSpace(maUser))
         {
-            token,
-            maUser,
-            maVaiTro = nguoiSuDung.MaVaiTro,
-            tenVaiTro,
-            quyen = await _permissions.GetEffectiveGrantsAsync(maUser, tenVaiTro)
-        });
+            await _refreshTokenService.RevokeAllForUserAsync(maUser);
+            return Ok(new { message = "Đã đăng xuất." });
+        }
+
+        if (!string.IsNullOrWhiteSpace(request?.RefreshToken))
+        {
+            var existing = await _refreshTokenService.FindActiveAsync(request.RefreshToken);
+            if (existing is not null)
+                await _refreshTokenService.RevokeAsync(existing);
+        }
+
+        return Ok(new { message = "Đã đăng xuất." });
     }
 
     [HttpGet("toi")]
@@ -155,5 +171,23 @@ public class AuthController : ControllerBase
             tenVaiTro,
             quyen = await _permissions.GetEffectiveGrantsAsync(maUser, tenVaiTro)
         });
+    }
+
+    private async Task<object> ToSessionAsync(NguoiSuDung nguoiSuDung, string tenVaiTro)
+    {
+        var maUser = FixedLengthHelper.TrimSafe(nguoiSuDung.MaUser)!;
+        var token = _jwtTokenService.GenerateToken(maUser, nguoiSuDung.MaVaiTro, tenVaiTro);
+        var refreshToken = await _refreshTokenService.IssueAsync(maUser);
+        return new
+        {
+            token,
+            refreshToken,
+            expiresIn = _jwtTokenService.AccessTokenSeconds,
+            maUser,
+            soDienThoai = FixedLengthHelper.TrimSafe(nguoiSuDung.SoDienThoai),
+            maVaiTro = nguoiSuDung.MaVaiTro,
+            tenVaiTro,
+            quyen = await _permissions.GetEffectiveGrantsAsync(maUser, tenVaiTro)
+        };
     }
 }

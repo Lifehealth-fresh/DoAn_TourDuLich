@@ -88,7 +88,7 @@ public class ThanhToanController : ControllerBase
     }
 
     [HttpGet("theo-booking/{maBooking}/tong-hop")]
-    [Authorize(Roles = "KhachHang")]
+    [Authorize(Roles = "KhachHang,Sale,Admin")]
     public async Task<ActionResult> GetSummary(string maBooking)
     {
         var maUser = GetCurrentMaUser();

@@ -20,13 +20,14 @@ database. Không có `CREATE DATABASE` hoặc `USE`; hãy mở đúng database t
 
 21. `019_BaoCaoAdmin.sql` — view doanh thu theo tháng, booking theo trạng thái, chỗ trống theo lịch khởi hành (trang tổng quan admin + Power BI).
 22. `020_QuyenTaiKhoan.sql` — bảng `QuyenNhanVien`: phân quyền Thêm/Sửa/Xóa/Toàn quyền theo từng tài khoản và từng chức năng admin.
+23. `021_RefreshToken.sql` — bảng phiên refresh token (thu hồi khi đăng xuất, xoay token khi gia hạn).
+24. `022_SeedCatalogMoRong.sql` — thêm tour đang bán TOUR010–TOUR018, lịch khởi hành có sức chứa, mã ưu đãi, đánh giá mẫu. Ảnh tour để trống, upload sau trên admin.
 
 Thứ tự chạy thực tế là `001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012`.
-Các file 013–020 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.
+Các file 013–022 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.
 
-Tất cả tài khoản test trong bước 3 dùng mật khẩu `Test@123456`. Mật khẩu được lưu
-bằng BCrypt hash cố định được tạo bằng package `BCrypt.Net-Next` phiên bản `4.2.0`
-đang dùng trong solution.
+Tất cả tài khoản test trong bước 3 dùng mật khẩu `Test@123456` **chỉ trên database local/dev**.
+Trên Azure production phải đổi mật khẩu seed ngay sau khi dựng, không để tài khoản demo công khai.
 
 ## Cảnh báo
 

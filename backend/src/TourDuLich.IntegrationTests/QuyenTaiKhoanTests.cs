@@ -142,7 +142,7 @@ public sealed class QuyenTaiKhoanTests : ApiTestBase
     {
         SkipIfNoConnection();
         UseToken(await LoginAdminAsync());
-        var phone = "0777" + Random.Shared.Next(10000000, 99999999);
+        var phone = "0777" + Random.Shared.Next(100000, 999999).ToString("D6");
         var created = await Client.PostAsJsonAsync("/api/Admin/tai-khoan", new
         {
             soDienThoai = phone,
@@ -166,7 +166,7 @@ public sealed class QuyenTaiKhoanTests : ApiTestBase
     private async Task<AuthResult> CreateStaffAsync(params object[] grants)
     {
         UseToken(await LoginAdminAsync());
-        var phone = "0777" + Random.Shared.Next(10000000, 99999999);
+        var phone = "0777" + Random.Shared.Next(100000, 999999).ToString("D6");
         var response = await Client.PostAsJsonAsync("/api/Admin/tai-khoan", new
         {
             soDienThoai = phone,

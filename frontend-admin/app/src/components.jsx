@@ -12,7 +12,7 @@ export function Layout() {
   return (
     <div className="shell">
       <aside>
-        <Link className="brand" to="/">ANAM Admin<small>Vận hành lữ hành</small></Link>
+        <Link className="brand" to="/">ANAM<small>Trang vận hành</small></Link>
         {navItems.map((item) => <Link key={item.to} to={item.to}>{item.label}</Link>)}
         <button onClick={() => { logout(); nav('/dang-nhap'); }}>Đăng xuất</button>
       </aside>

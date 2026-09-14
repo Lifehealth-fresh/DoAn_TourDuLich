@@ -100,7 +100,7 @@ public abstract class ApiTestBase : IAsyncLifetime
 
     protected async Task<AuthResult> RegisterAsync(string? phone = null)
     {
-        phone ??= "0777" + Random.Shared.Next(10000000, 99999999);
+        phone ??= "0777" + Random.Shared.Next(100000, 999999).ToString("D6");
         var response = await Client.PostAsJsonAsync("/api/Auth/register", new
         {
             soDienThoai = phone,
@@ -172,6 +172,8 @@ public abstract class ApiTestBase : IAsyncLifetime
             .GetService(typeof(IServiceScopeFactory))!).CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await context.Database.ExecuteSqlRawAsync("""
+            IF OBJECT_ID(N'dbo.RefreshToken', N'U') IS NOT NULL
+            DELETE FROM dbo.RefreshToken WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%');
             DELETE FROM dbo.ThanhToan WHERE MaBooking IN (SELECT MaBooking FROM dbo.DatDichVu WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));
             DELETE FROM dbo.HopDong WHERE MaBooking IN (SELECT MaBooking FROM dbo.DatDichVu WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));
             DELETE FROM dbo.MediaDanhGiaTour WHERE MaDanhGiaTour IN (SELECT MaDanhGiaTour FROM dbo.DanhGiaTour WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));

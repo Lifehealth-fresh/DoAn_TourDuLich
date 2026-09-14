@@ -76,6 +76,16 @@ Sao chép các tệp `.env.example` và
 
 Không commit mật khẩu, API key hoặc connection string thật.
 
+Trên Azure: đổi mật khẩu các tài khoản seed (`0900000001` / `0900000002` / `0900000003`)
+ngay sau khi dựng database. Không để `Test@123456` trên môi trường public.
+
+Access token sống 2 giờ; frontend tự gọi `/api/Auth/refresh`. Đăng xuất thu hồi refresh token.
+
+Sau khi pull code mới, chạy thêm:
+
+- `database/schema/021_RefreshToken.sql`
+- `database/schema/022_SeedCatalogMoRong.sql`
+
 
 
 \## Mục tiêu review

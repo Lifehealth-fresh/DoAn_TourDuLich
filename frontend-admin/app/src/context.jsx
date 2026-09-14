@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { login as loginApi, me as meApi } from './api';
+import { login as loginApi, me as meApi, logoutSession, clearAuth } from './api';
 
 const C = createContext(null);
 const ROLE_CLAIM = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
@@ -69,27 +69,41 @@ export function AuthProvider({ children }) {
   const user = token ? decode(token) : null;
   const role = roleOf(user);
 
-  const persist = (nextToken, nextQuyen) => {
+  const persist = (nextToken, nextQuyen, refreshToken) => {
     localStorage.setItem('admin_token', nextToken);
     localStorage.setItem('admin_quyen', JSON.stringify(nextQuyen || []));
+    if (refreshToken) localStorage.setItem('admin_refresh', refreshToken);
     setToken(nextToken);
     setQuyen(nextQuyen || []);
   };
 
   const login = async (data) => {
-    const response = (await loginApi(data)).data;
+    const phone = String(data.SoDienThoai || '').trim();
+    const password = String(data.MatKhau || '');
+    if (!/^0\d{9}$/.test(phone)) {
+      throw new Error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.');
+    }
+    if (password.length < 8) {
+      throw new Error('Mật khẩu phải có ít nhất 8 ký tự.');
+    }
+    const response = (await loginApi({ ...data, SoDienThoai: phone })).data;
     const claims = decode(response.token);
     const nextRole = roleOf(claims);
     if (!['Admin', 'Sale'].includes(nextRole)) {
+      try { await logoutSession(response.refreshToken); } catch { /* không giữ phiên khách trên trang vận hành */ }
       throw new Error('Tài khoản này không có quyền quản trị.');
     }
-    persist(response.token, response.quyen || []);
+    persist(response.token, response.quyen || [], response.refreshToken);
     return { ...response, home: firstAllowedPath(response.quyen || [], nextRole) };
   };
 
   const logout = () => {
+    const refreshToken = localStorage.getItem('admin_refresh');
+    logoutSession(refreshToken).catch(() => {});
+    clearAuth();
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_quyen');
+    localStorage.removeItem('admin_refresh');
     setToken(null);
     setQuyen([]);
   };

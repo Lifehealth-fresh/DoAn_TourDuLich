@@ -85,6 +85,15 @@ const TOUR_IMAGES = {
   TOUR007: [imgPhuQuoc, imgNhaTrang, imgHoiAn],
   TOUR008: [imgNinhBinh, imgHoiAn, imgDaNang],
   TOUR009: [imgDalat, imgSapa, imgNinhBinh],
+  TOUR010: [imgSapa, imgHaNoi, imgNinhBinh],
+  TOUR011: [imgNinhBinh, imgSapa, imgHaNoi],
+  TOUR012: [imgDaNang, imgHoiAn, imgHue],
+  TOUR013: [imgNhaTrang, imgDaNang, imgPhuQuoc],
+  TOUR014: [imgNhaTrang, imgPhuQuoc, imgDalat],
+  TOUR015: [imgNhaTrang, imgHoiAn, imgDaNang],
+  TOUR016: [imgDalat, imgHaNoi, imgNinhBinh],
+  TOUR017: [imgHoiAn, imgHaNoi, imgDaNang],
+  TOUR018: [imgDalat, imgSapa, imgNinhBinh],
 };
 
 const TOUR_EXTRA = {
@@ -97,6 +106,15 @@ const TOUR_EXTRA = {
   TOUR007: { tags: ['Đảo', 'Hoàng hôn', 'Nghỉ dưỡng'], highlights: ['Bãi Sao', 'Sunset Sanato', 'Chợ đêm Dương Đông'], includes: ['Khách sạn', 'Xe sân bay', 'Xe tham quan', 'Bữa chính'], excludes: ['Vé máy bay'] },
   TOUR008: { tags: ['Sông nước', 'Miền Tây', 'Chợ nổi'], highlights: ['Chợ nổi Cái Răng', 'Vườn trái Phong Điền', 'Đờn ca tài tử'], includes: ['Khách sạn', 'Thuyền', 'Vườn trái', 'Bữa chính'], excludes: ['Vé máy bay'] },
   TOUR009: { tags: ['Cao nguyên', 'Hoa', 'Se lạnh'], highlights: ['Hồ Xuân Hương', 'Đồi chè Cầu Đất', 'Đêm sương Đà Lạt'], includes: ['Khách sạn trung tâm', 'Xe', 'Điểm check-in', 'Bữa chính'], excludes: ['Vé máy bay'] },
+  TOUR010: { tags: ['Cao nguyên đá', 'Phượt nhẹ', 'Hà Giang'], highlights: ['Đèo Mã Pí Lèng', 'Sông Nho Quế', 'Nhà trình tường'], includes: ['Homestay/khách sạn', 'Xe', 'Bữa chính', 'Vé thắng cảnh'], excludes: ['Vé máy bay', 'Thuê xe máy'] },
+  TOUR011: { tags: ['Nhà sàn', 'Ruộng', 'Chậm'], highlights: ['Mai Châu', 'Pù Luông', 'Tối lửa nhà sàn'], includes: ['Homestay', 'Xe', 'Bữa chính'], excludes: ['Vé máy bay'] },
+  TOUR012: { tags: ['Bà Nà', 'Biển', 'Gia đình'], highlights: ['Bà Nà Hills', 'Sơn Trà', 'Biển Mỹ Khê'], includes: ['Khách sạn', 'Vé Bà Nà', 'Xe', 'Bữa chính'], excludes: ['Vé máy bay'] },
+  TOUR013: { tags: ['Biển', 'Kỳ Co', 'Bình Định'], highlights: ['Kỳ Co', 'Eo Gió', 'Tháp Chăm'], includes: ['Khách sạn', 'Cano Kỳ Co', 'Xe', 'Bữa chính'], excludes: ['Vé máy bay'] },
+  TOUR014: { tags: ['Đồi cát', 'Biển', 'Gia đình'], highlights: ['Mũi Né', 'Đồi cát bay', 'Hải sản đêm'], includes: ['Khách sạn', 'Xe', 'Điểm check-in', 'Bữa chính'], excludes: ['Vé máy bay'] },
+  TOUR015: { tags: ['Cuối tuần', 'Biển', 'Gần Sài Gòn'], highlights: ['Bãi Sau', 'Tượng Chúa', 'Hải sản'], includes: ['Khách sạn', 'Xe khứ hồi', 'Bữa chính'], excludes: ['Vé cáp treo'] },
+  TOUR016: { tags: ['Hành hương', 'Núi Bà', 'Tây Ninh'], highlights: ['Cáp treo Núi Bà Đen', 'Tòa Thánh', 'Bánh tráng phơi sương'], includes: ['Khách sạn', 'Xe', 'Vé cáp treo', 'Bữa chính'], excludes: ['Chi tiêu cá nhân'] },
+  TOUR017: { tags: ['Đô thị', 'Lịch sử', 'Sài Gòn'], highlights: ['Dinh Độc Lập', 'Chợ Bến Thành', 'Địa đạo Củ Chi'], includes: ['Khách sạn trung tâm', 'Xe', 'Vé điểm đến', 'Bữa chính'], excludes: ['Vé máy bay'] },
+  TOUR018: { tags: ['Cao nguyên', 'Hoa', 'Sữa'], highlights: ['Đồi chè Mộc Châu', 'Thác Dải Yếm', 'Chợ phiên'], includes: ['Khách sạn', 'Xe giường nằm', 'Bữa chính'], excludes: ['Áo ấm'] },
 };
 
 const pickImage = (item) => {
@@ -184,9 +202,10 @@ function Layout() {
   const [open, setOpen] = useState(false);
   const user = read('wavv_user');
   const navigate = useNavigate();
-  const logout = () => {
-    localStorage.removeItem('wavv_user');
-    localStorage.removeItem('wavv_token');
+  const logout = async () => {
+    const refreshToken = localStorage.getItem('wavv_refresh');
+    try { await api.logoutSession(refreshToken); } catch { /* phiên local vẫn phải xóa */ }
+    api.clearAuth();
     navigate('/');
   };
 
@@ -616,20 +635,30 @@ function AuthPage({ register = false }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    const phoneIssue = api.phoneError(form.phone);
+    const passwordIssue = api.passwordError(form.password);
+    if (phoneIssue) return setError(phoneIssue);
+    if (register && passwordIssue) return setError(passwordIssue);
     if (!form.phone || !form.password) return setError('Vui lòng nhập số điện thoại và mật khẩu.');
     setBusy(true);
     try {
       if (register) {
-        await api.register({ SoDienThoai: form.phone, MatKhau: form.password });
+        await api.register({ SoDienThoai: form.phone.trim(), MatKhau: form.password });
         navigate('/dang-nhap', { state: { message: 'Đăng ký thành công, hãy đăng nhập.' } });
       } else {
-        const { data } = await api.login({ SoDienThoai: form.phone, MatKhau: form.password });
-        localStorage.setItem('wavv_token', data.token);
+        const { data } = await api.login({ SoDienThoai: form.phone.trim(), MatKhau: form.password });
+        const role = String(data.tenVaiTro || '').trim();
+        if (role === 'Admin' || role === 'Sale') {
+          try { await api.logoutSession(data.refreshToken); } catch { /* không lưu phiên staff trên web khách */ }
+          return setError('Tài khoản quản trị hãy đăng nhập trang vận hành.');
+        }
+        api.persistAuth(data);
         write('wavv_user', {
-          name: form.phone,
-          phone: form.phone,
+          name: form.phone.trim(),
+          phone: form.phone.trim(),
           maUser: data.maUser,
           maVaiTro: data.maVaiTro,
+          tenVaiTro: data.tenVaiTro,
         });
         navigate(location.state?.from || '/');
       }
@@ -650,8 +679,8 @@ function AuthPage({ register = false }) {
         <h2>{register ? 'Tạo tài khoản' : 'Chào mừng trở lại'}</h2>
         <p>{register ? 'Bắt đầu lưu những hành trình của riêng bạn.' : location.state?.message || 'Đăng nhập để giữ chỗ và xem gợi ý.'}</p>
         {error && <div className="form-error">{error}</div>}
-        <input placeholder="Số điện thoại" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-        <input type="password" placeholder="Mật khẩu" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        <input placeholder="Số điện thoại (10 số, bắt đầu bằng 0)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+        <input type="password" placeholder={register ? 'Mật khẩu (≥ 8 ký tự, gồm chữ và số)' : 'Mật khẩu'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         <button disabled={busy} className="primary-button full">{busy ? 'Đang xử lý...' : register ? 'Đăng ký' : 'Đăng nhập'}</button>
         <span className="auth-switch">
           {register ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'}{' '}

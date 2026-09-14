@@ -230,14 +230,9 @@ public class AdminController : ControllerBase
         var phone = request.SoDienThoai?.Trim();
         var password = request.MatKhau?.Trim();
 
-        if (string.IsNullOrWhiteSpace(phone) ||
-            string.IsNullOrWhiteSpace(password))
-        {
-            return BadRequest(new
-            {
-                message = "Số điện thoại và mật khẩu không được để trống."
-            });
-        }
+        var credentialError = CredentialRules.Validate(phone, password);
+        if (credentialError is not null)
+            return BadRequest(new { message = credentialError });
 
         var phoneDb = FixedLengthHelper.PadTo20(phone);
 

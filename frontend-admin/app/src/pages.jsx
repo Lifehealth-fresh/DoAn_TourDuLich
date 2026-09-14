@@ -47,8 +47,8 @@ export function Login() {
 
   return (
     <section className="login">
-      <h1>ANAM Admin</h1>
-      <p>Đăng nhập để vận hành tour và xác nhận booking.</p>
+      <h1>ANAM — Vận hành</h1>
+      <p>Đăng nhập để vận hành tour và xác nhận booking. Số điện thoại 10 số, mật khẩu tối thiểu 8 ký tự.</p>
       <Notice error={e} />
       <form onSubmit={submit}>
         <input placeholder="Số điện thoại" onChange={(x) => setF({ ...f, SoDienThoai: x.target.value })} />

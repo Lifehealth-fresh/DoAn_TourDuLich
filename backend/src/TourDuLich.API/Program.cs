@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -73,6 +74,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<RefreshTokenService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IHanhViLogger, HanhViLogger>();
 builder.Services.AddScoped<IDeXuatLichTrinhService, DeXuatLichTrinhService>();
@@ -81,6 +83,29 @@ builder.Services.AddSingleton<ITourMediaStorage, TourMediaStorage>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<IAiRecommendationClient, AiRecommendationClient>();
 builder.Services.AddHostedService<AiRecommendationRefreshWorker>();
+
+var authPermitLimit = builder.Environment.IsDevelopment() ? 1000 : 10;
+var authWindowMinutes = builder.Environment.IsDevelopment() ? 1 : 15;
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync(
+            """{"message":"Quá nhiều lần thử. Vui lòng đợi rồi đăng nhập lại."}""",
+            token);
+    };
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = authPermitLimit,
+                Window = TimeSpan.FromMinutes(authWindowMinutes),
+                QueueLimit = 0
+            }));
+});
 
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("JWT key is not configured.");
@@ -99,6 +124,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidAudience = jwtAudience,
             ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtKey))
         };
@@ -122,6 +149,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseCors("Frontend");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

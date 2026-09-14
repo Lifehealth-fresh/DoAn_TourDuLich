@@ -1,23 +1,44 @@
 import axios from 'axios';
 const api=axios.create({baseURL:import.meta.env.VITE_API_BASE_URL||'https://localhost:7290',headers:{'Content-Type':'application/json'}});
+const isAuthUrl=(url='')=>/\/api\/Auth\/(?:login|refresh|logout)\/?(?:[?#]|$)/i.test(url);
+let refreshing=null;
+const persistSession=(data)=>{if(data?.token)localStorage.setItem('admin_token',data.token);if(data?.refreshToken)localStorage.setItem('admin_refresh',data.refreshToken);if(Array.isArray(data?.quyen))localStorage.setItem('admin_quyen',JSON.stringify(data.quyen));};
+const clearSession=()=>{localStorage.removeItem('admin_token');localStorage.removeItem('admin_refresh');localStorage.removeItem('admin_quyen');};
 api.interceptors.request.use(c=>{const t=localStorage.getItem('admin_token');if(t)c.headers.Authorization=`Bearer ${t}`;if(typeof FormData!=='undefined'&&c.data instanceof FormData){delete c.headers['Content-Type'];}return c;});
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    const isLoginRequest = error.config?.method?.toLowerCase() === 'post' &&
-      /\/api\/Auth\/login\/?(?:[?#]|$)/i.test(error.config?.url || '');
-    if (error.response?.status === 401 && !isLoginRequest) {
-      localStorage.removeItem('admin_token');
-      if (window.location.pathname !== '/dang-nhap') {
-        window.location.assign('/dang-nhap');
+  async (error) => {
+    const original = error.config || {};
+    if (error.response?.status === 401 && !original._retry && !isAuthUrl(original.url || '')) {
+      const refreshToken = localStorage.getItem('admin_refresh');
+      if (refreshToken) {
+        original._retry = true;
+        try {
+          if (!refreshing) {
+            refreshing = api.post('/api/Auth/refresh', { refreshToken })
+              .then((res) => { persistSession(res.data); return res.data.token; })
+              .finally(() => { refreshing = null; });
+          }
+          original.headers = original.headers || {};
+          original.headers.Authorization = `Bearer ${await refreshing}`;
+          return api(original);
+        } catch {
+          clearSession();
+        }
+      } else {
+        clearSession();
       }
+      if (window.location.pathname !== '/dang-nhap') window.location.assign('/dang-nhap');
     }
     return Promise.reject(error);
   },
 );
-export const errorMessage=(e,f='Có lỗi xảy ra.')=>e?.response?.data?.message||e?.response?.data?.title||(e?.response?.status===403?'Bạn không có quyền thực hiện thao tác này.':e?.response?.status===401?'Phiên đăng nhập đã hết hạn.':f);
+export const persistAuth=persistSession;
+export const clearAuth=clearSession;
+export const errorMessage=(e,f='Có lỗi xảy ra.')=>e?.response?.data?.message||e?.response?.data?.title||(e?.response?.status===429?'Quá nhiều lần thử. Vui lòng đợi rồi thử lại.':e?.response?.status===403?'Bạn không có quyền thực hiện thao tác này.':e?.response?.status===401?'Phiên đăng nhập đã hết hạn.':f);
 export const login=data=>api.post('/api/Auth/login',data);
-export const tours=(params)=>api.get('/api/Tour',{params:{pageSize:50,...params}}); export const createTour=d=>api.post('/api/Tour',d); export const updateTour=(id,d)=>api.put(`/api/Tour/${encodeURIComponent(id)}`,d); export const deleteTour=id=>api.delete(`/api/Tour/${encodeURIComponent(id)}`);
+export const logoutSession=(refreshToken)=>api.post('/api/Auth/logout',{refreshToken});
+export const tours=(params)=>api.get('/api/Tour',{params:{pageSize:100,...params}}); export const createTour=d=>api.post('/api/Tour',d); export const updateTour=(id,d)=>api.put(`/api/Tour/${encodeURIComponent(id)}`,d); export const deleteTour=id=>api.delete(`/api/Tour/${encodeURIComponent(id)}`);
 export const tourDetail=id=>api.get(`/api/Tour/${encodeURIComponent(id)}`);
 export const tourSchedule=id=>api.get(`/api/LichTrinh/tour/${encodeURIComponent(id)}`);
 export const createTourSchedule=data=>api.post('/api/LichTrinh',data);

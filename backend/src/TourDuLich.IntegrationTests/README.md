@@ -21,7 +21,7 @@ $env:TOURDULICH_TEST_SALE_PHONE = "0900000002"
 $env:TOURDULICH_TEST_SALE_PASSWORD = "Test@123456"
 ```
 
-Mỗi tài khoản khách test dùng số điện thoại bắt đầu bằng `0777`. Test tự dọn các
+Mỗi tài khoản khách test dùng số điện thoại 10 số bắt đầu bằng `0777` (ví dụ `0777123456`). Test tự dọn các
 dòng dữ liệu tạo bởi nhóm này trong `DisposeAsync`. Không chạy nhiều phiên
 `dotnet test` song song trên cùng Azure SQL vì các test dùng chung dữ liệu seed.
 
@@ -38,7 +38,7 @@ test đó được đánh dấu skip thay vì sửa logic nghiệp vụ.
 
 ## Nhóm test
 
-- `AuthTests`: 1 test, đăng ký, đăng nhập sai/đúng và kiểm tra JWT claim.
+- `AuthTests`: đăng ký, mật khẩu yếu, SĐT sai, đăng nhập, refresh token xoay vòng và logout.
 - `RbacTests`: 3 test, quyền ghi tour, quyền Admin và gửi duyệt.
 - `OwnershipTests`: 3 test, hồ sơ, booking và danh sách yêu thích.
 - `BookingTests`: 3 test, lịch quá hạn, trạng thái, sức chứa và chuyển trạng thái.

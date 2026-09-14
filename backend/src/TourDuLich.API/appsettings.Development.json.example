@@ -6,12 +6,14 @@
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=True;Connection Timeout=60;"
+    "DefaultConnection": "Server=tcp:<server>.database.windows.net,1433;Initial Catalog=<database>;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60;"
   },
   "Jwt": {
     "Key": "<generate-a-random-secret-key-at-least-32-characters>",
     "Issuer": "TourDuLichAPI",
-    "Audience": "TourDuLichClient"
+    "Audience": "TourDuLichClient",
+    "AccessTokenMinutes": 120,
+    "RefreshTokenDays": 7
   },
   "Cors": {
     "Origins": [

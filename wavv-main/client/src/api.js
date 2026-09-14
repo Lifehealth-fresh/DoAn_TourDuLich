@@ -1,23 +1,81 @@
 import axios from 'axios';
 
+const TOKEN_KEY = 'wavv_token';
+const REFRESH_KEY = 'wavv_refresh';
+const USER_KEY = 'wavv_user';
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'https://localhost:7290',
   headers: { 'Content-Type': 'application/json' },
 });
 
+const isAuthUrl = (url = '') =>
+  /\/api\/Auth\/(?:login|register|refresh|logout)\/?(?:[?#]|$)/i.test(url);
+
+export const newIdempotencyKey = () =>
+  (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+export const phoneError = (phone) => {
+  const value = String(phone || '').trim();
+  if (!/^0\d{9}$/.test(value)) return 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.';
+  return '';
+};
+
+export const passwordError = (password) => {
+  const value = String(password || '');
+  if (value.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự.';
+  if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) return 'Mật khẩu phải gồm cả chữ và số.';
+  return '';
+};
+
+const persistSession = (data) => {
+  if (data?.token) localStorage.setItem(TOKEN_KEY, data.token);
+  if (data?.refreshToken) localStorage.setItem(REFRESH_KEY, data.refreshToken);
+};
+
+const clearSession = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(USER_KEY);
+};
+
+let refreshing = null;
+
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('wavv_token');
+  const token = localStorage.getItem(TOKEN_KEY);
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    const isAuthRequest = /\/api\/Auth\/(?:login|register)\/?(?:[?#]|$)/i.test(error.config?.url || '');
-    if (error.response?.status === 401 && !isAuthRequest) {
-      localStorage.removeItem('wavv_token');
-      localStorage.removeItem('wavv_user');
+  async (error) => {
+    const original = error.config || {};
+    if (error.response?.status === 401 && !original._retry && !isAuthUrl(original.url || '')) {
+      const refreshToken = localStorage.getItem(REFRESH_KEY);
+      if (refreshToken) {
+        original._retry = true;
+        try {
+          if (!refreshing) {
+            refreshing = api.post('/api/Auth/refresh', { refreshToken })
+              .then((res) => {
+                persistSession(res.data);
+                return res.data.token;
+              })
+              .finally(() => { refreshing = null; });
+          }
+          const token = await refreshing;
+          original.headers = original.headers || {};
+          original.headers.Authorization = `Bearer ${token}`;
+          return api(original);
+        } catch {
+          clearSession();
+        }
+      } else {
+        clearSession();
+      }
       if (!['/dang-nhap', '/dang-ky'].includes(window.location.pathname)) {
         window.location.assign('/dang-nhap');
       }
@@ -31,13 +89,18 @@ export const errorMessage = (error, fallback = 'Có lỗi xảy ra. Vui lòng th
   if (typeof data === 'string' && data.trim()) return data;
   if (data?.message) return data.message;
   if (data?.title) return data.title;
+  if (error?.response?.status === 429) return 'Quá nhiều lần thử. Vui lòng đợi rồi thử lại.';
   if (error?.message === 'Network Error') return 'Không kết nối được máy chủ. Kiểm tra API đang chạy.';
   return fallback;
 };
 
+export const persistAuth = persistSession;
+export const clearAuth = clearSession;
+
 export const login = (data) => api.post('/api/Auth/login', data);
 export const register = (data) => api.post('/api/Auth/register', data);
-export const tours = () => api.get('/api/Tour', { params: { pageSize: 50 } });
+export const logoutSession = (refreshToken) => api.post('/api/Auth/logout', { refreshToken });
+export const tours = () => api.get('/api/Tour', { params: { pageSize: 100 } });
 export const tourDetail = (id) => api.get(`/api/Tour/${encodeURIComponent(id)}`);
 export const departures = (id) => api.get(`/api/Tour/${encodeURIComponent(id)}/lich-khoi-hanh`);
 export const itinerary = (id) => api.get(`/api/LichTrinh/tour/${encodeURIComponent(id)}`);
@@ -64,14 +127,14 @@ export const paymentSummary = (id) => api.get(`/api/ThanhToan/theo-booking/${enc
 export const createPayment = (data, config = {}) => api.post('/api/ThanhToan', data, {
   ...config,
   headers: {
-    'Idempotency-Key': config?.headers?.['Idempotency-Key'] || `${data?.MaBooking || 'pay'}-${Date.now()}`,
+    'Idempotency-Key': config?.headers?.['Idempotency-Key'] || newIdempotencyKey(),
     ...config.headers,
   },
 });
 export const createGatewayPayment = (data, config = {}) => api.post('/api/ThanhToan/tao-phien-cong', data, {
   ...config,
   headers: {
-    'Idempotency-Key': config?.headers?.['Idempotency-Key'] || `${data?.MaBooking || 'gateway'}-${Date.now()}`,
+    'Idempotency-Key': config?.headers?.['Idempotency-Key'] || newIdempotencyKey(),
     ...config.headers,
   },
 });

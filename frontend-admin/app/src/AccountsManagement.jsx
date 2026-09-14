@@ -99,7 +99,7 @@ export default function AccountsManagement() {
     try {
       await action();
     } catch (err) {
-      setError(api.errorMessage(err, fallback));
+      setError(err?.response ? api.errorMessage(err, fallback) : (err.message || fallback));
     } finally {
       setBusy(false);
     }
@@ -127,8 +127,15 @@ export default function AccountsManagement() {
   const saveNew = (event) => {
     event.preventDefault();
     run(async () => {
+      const phone = form.soDienThoai.trim();
+      if (!/^0\d{9}$/.test(phone)) {
+        throw new Error('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.');
+      }
+      if (!form.matKhau || form.matKhau.length < 8 || !/[A-Za-z]/.test(form.matKhau) || !/\d/.test(form.matKhau)) {
+        throw new Error('Mật khẩu phải có ít nhất 8 ký tự, gồm cả chữ và số.');
+      }
       const response = await api.createAccount({
-        soDienThoai: form.soDienThoai.trim(),
+        soDienThoai: phone,
         matKhau: form.matKhau,
         tenVaiTro: form.tenVaiTro,
         quyen: grants,
@@ -165,11 +172,12 @@ export default function AccountsManagement() {
         {isCreate ? (
           <>
             <label>Số điện thoại
-              <input required value={form.soDienThoai} maxLength={20}
+              <input required value={form.soDienThoai} maxLength={10} placeholder="0xxxxxxxxx"
                 onChange={(event) => setForm({ ...form, soDienThoai: event.target.value })} />
             </label>
             <label>Mật khẩu
-              <input required type="password" value={form.matKhau}
+              <input required type="password" minLength={8} placeholder="Tối thiểu 8 ký tự, gồm chữ và số"
+                value={form.matKhau}
                 onChange={(event) => setForm({ ...form, matKhau: event.target.value })} />
             </label>
           </>

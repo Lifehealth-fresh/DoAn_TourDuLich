@@ -71,6 +71,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<QuyenNhanVien> QuyenNhanViens { get; set; }
 
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
+
     public virtual DbSet<NhomKhuyenMai> NhomKhuyenMais { get; set; }
 
     public virtual DbSet<Quyen> Quyens { get; set; }
@@ -869,6 +871,31 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.MaUser)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_QuyenNhanVien_NguoiSuDung");
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(e => e.MaRefresh);
+            entity.ToTable("RefreshToken");
+            entity.HasIndex(e => e.TokenHash).IsUnique();
+            entity.HasIndex(e => e.MaUser);
+            entity.Property(e => e.MaRefresh)
+                .HasMaxLength(20)
+                .IsFixedLength();
+            entity.Property(e => e.MaUser)
+                .HasMaxLength(20)
+                .IsFixedLength();
+            entity.Property(e => e.TokenHash)
+                .HasMaxLength(64)
+                .IsUnicode(false)
+                .IsFixedLength();
+            entity.Property(e => e.HetHan).HasColumnType("datetime2");
+            entity.Property(e => e.ThuHoiLuc).HasColumnType("datetime2");
+            entity.Property(e => e.TaoLuc).HasColumnType("datetime2");
+            entity.HasOne(d => d.MaUserNavigation).WithMany(p => p.RefreshTokens)
+                .HasForeignKey(d => d.MaUser)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_RefreshToken_NguoiSuDung");
         });
 
         modelBuilder.Entity<NhomKhuyenMai>(entity =>
