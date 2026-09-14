@@ -1,6 +1,7 @@
-/* Bổ sung tour đang bán, lịch khởi hành (có sức chứa), ưu đãi, đối tác.
+/* Bổ sung tour đang bán, lịch khởi hành (có sức chứa), ưu đãi.
    Không đụng mật khẩu seed. Ảnh tour để trống — upload sau trên trang admin.
-   Chạy sau 021, idempotent. */
+   Chạy sau 021. Idempotent: mỗi dòng tự bỏ qua nếu đã có.
+   Tương thích KM_Tour.STT identity (Azure) và không identity (script 001). */
 
 SET NOCOUNT ON;
 
@@ -16,19 +17,21 @@ UPDATE dbo.LichKhoiHanh SET SoCho = 20 WHERE MaKhoiHanh IN (N'KH011', N'KH012') 
 UPDATE dbo.LichKhoiHanh SET SoCho = 26 WHERE MaKhoiHanh = N'KH013' AND SoCho IS NULL;
 UPDATE dbo.LichKhoiHanh SET SoCho = 28 WHERE MaKhoiHanh IN (N'KH014', N'KH015') AND SoCho IS NULL;
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Tour WHERE MaTour = N'TOUR010')
-INSERT INTO dbo.Tour (MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai) VALUES
-(N'TOUR010', N'Hà Giang mùa vàng', N'Bốn ngày cao nguyên đá: đèo Mã Pí Lèng, sông Nho Quế, nhà trình tường. Phù hợp nhóm bạn thích phượt nhẹ.', 4, N'Gồm khách sạn/homestay, xe, bữa chính, vé thắng cảnh. Không gồm vé máy bay và thuê xe máy tự túc.', 5800000, 18, 1, N'Chuan', N'HoatDong'),
-(N'TOUR011', N'Mai Châu - Pù Luông', N'Ba ngày thung lũng Hòa Bình: nhà sàn, ruộng bậc thang, suối. Nhịp chậm, nhiều khoảng xanh.', 3, N'Gồm homestay, xe, bữa chính, trải nghiệm bản. Không gồm vé máy bay.', 3200000, 22, 1, N'Chuan', N'HoatDong'),
-(N'TOUR012', N'Đà Nẵng - Bà Nà - Sơn Trà', N'Ba ngày Đà Nẵng: Bà Nà Hills, bán đảo Sơn Trà, biển Mỹ Khê. Gia đình và cặp đôi.', 3, N'Gồm khách sạn, xe, vé Bà Nà, bữa chính. Không gồm vé máy bay.', 4900000, 28, 1, N'Chuan', N'HoatDong'),
-(N'TOUR013', N'Quy Nhơn - Kỳ Co', N'Ba ngày biển Bình Định: Kỳ Co, Eo Gió, tháp Chăm. Nước trong, ít đông hơn Nha Trang.', 3, N'Gồm khách sạn, xe, cano Kỳ Co, bữa chính. Không gồm vé máy bay.', 3600000, 24, 1, N'Chuan', N'HoatDong'),
-(N'TOUR014', N'Phan Thiết - Mũi Né', N'Ba ngày đồi cát và biển: Mũi Né, bàu Sen, hải sản đêm. Nắng, gió, phù hợp gia đình.', 3, N'Gồm khách sạn, xe, điểm check-in, bữa chính. Không gồm vé máy bay.', 3400000, 26, 1, N'Chuan', N'HoatDong'),
-(N'TOUR015', N'Vũng Tàu cuối tuần', N'Hai ngày biển gần Sài Gòn: Bãi Sau, tượng Chúa, hải sản. Đi nhanh, về kịp thứ Hai.', 2, N'Gồm khách sạn, xe khứ hồi, bữa chính. Không gồm vé cáp treo.', 2200000, 32, 1, N'Chuan', N'HoatDong'),
-(N'TOUR016', N'Tây Ninh - Núi Bà Đen', N'Hai ngày hành hương: cáp treo Núi Bà, Tòa Thánh Tây Ninh, bánh tráng phơi sương.', 2, N'Gồm khách sạn, xe, vé cáp treo, bữa chính.', 1900000, 30, 1, N'Chuan', N'HoatDong'),
-(N'TOUR017', N'Sài Gòn - Củ Chi', N'Hai ngày đô thị: Dinh Độc Lập, chợ Bến Thành, địa đạo Củ Chi. Phù hợp khách lần đầu.', 2, N'Gồm khách sạn trung tâm, xe, vé điểm đến, bữa chính.', 2500000, 28, 1, N'Chuan', N'HoatDong'),
-(N'TOUR018', N'Mộc Châu cao nguyên sữa', N'Ba ngày Sơn La: đồi chè, hoa mận, thác Dải Yếm. Se lạnh, nhiều ảnh.', 3, N'Gồm khách sạn, xe giường nằm, bữa chính, điểm check-in. Nên mang áo ấm.', 3900000, 22, 1, N'Chuan', N'HoatDong');
+INSERT INTO dbo.Tour (MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai)
+SELECT v.MaTour, v.TenTour, v.Mota, v.ThoiGian, v.DieuKhoan, v.GiaTour, v.SLKhach, v.SLHuongDanVien, v.LoaiTour, v.TrangThai
+FROM (VALUES
+    (N'TOUR010', N'Hà Giang mùa vàng', N'Bốn ngày cao nguyên đá: đèo Mã Pí Lèng, sông Nho Quế, nhà trình tường. Phù hợp nhóm bạn thích phượt nhẹ.', 4, N'Gồm khách sạn/homestay, xe, bữa chính, vé thắng cảnh. Không gồm vé máy bay và thuê xe máy tự túc.', 5800000, 18, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR011', N'Mai Châu - Pù Luông', N'Ba ngày thung lũng Hòa Bình: nhà sàn, ruộng bậc thang, suối. Nhịp chậm, nhiều khoảng xanh.', 3, N'Gồm homestay, xe, bữa chính, trải nghiệm bản. Không gồm vé máy bay.', 3200000, 22, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR012', N'Đà Nẵng - Bà Nà - Sơn Trà', N'Ba ngày Đà Nẵng: Bà Nà Hills, bán đảo Sơn Trà, biển Mỹ Khê. Gia đình và cặp đôi.', 3, N'Gồm khách sạn, xe, vé Bà Nà, bữa chính. Không gồm vé máy bay.', 4900000, 28, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR013', N'Quy Nhơn - Kỳ Co', N'Ba ngày biển Bình Định: Kỳ Co, Eo Gió, tháp Chăm. Nước trong, ít đông hơn Nha Trang.', 3, N'Gồm khách sạn, xe, cano Kỳ Co, bữa chính. Không gồm vé máy bay.', 3600000, 24, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR014', N'Phan Thiết - Mũi Né', N'Ba ngày đồi cát và biển: Mũi Né, bàu Sen, hải sản đêm. Nắng, gió, phù hợp gia đình.', 3, N'Gồm khách sạn, xe, điểm check-in, bữa chính. Không gồm vé máy bay.', 3400000, 26, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR015', N'Vũng Tàu cuối tuần', N'Hai ngày biển gần Sài Gòn: Bãi Sau, tượng Chúa, hải sản. Đi nhanh, về kịp thứ Hai.', 2, N'Gồm khách sạn, xe khứ hồi, bữa chính. Không gồm vé cáp treo.', 2200000, 32, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR016', N'Tây Ninh - Núi Bà Đen', N'Hai ngày hành hương: cáp treo Núi Bà, Tòa Thánh Tây Ninh, bánh tráng phơi sương.', 2, N'Gồm khách sạn, xe, vé cáp treo, bữa chính.', 1900000, 30, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR017', N'Sài Gòn - Củ Chi', N'Hai ngày đô thị: Dinh Độc Lập, chợ Bến Thành, địa đạo Củ Chi. Phù hợp khách lần đầu.', 2, N'Gồm khách sạn trung tâm, xe, vé điểm đến, bữa chính.', 2500000, 28, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR018', N'Mộc Châu cao nguyên sữa', N'Ba ngày Sơn La: đồi chè, hoa mận, thác Dải Yếm. Se lạnh, nhiều ảnh.', 3, N'Gồm khách sạn, xe giường nằm, bữa chính, điểm check-in. Nên mang áo ấm.', 3900000, 22, 1, N'Chuan', N'HoatDong')
+) v(MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour);
 
-IF NOT EXISTS (SELECT 1 FROM dbo.LichTrinh WHERE MaLichTrinh = N'LT031')
 INSERT INTO dbo.LichTrinh (MaLichTrinh, MaTour, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThoiGianDuKien, Mota)
 SELECT v.MaLichTrinh, v.MaTour, v.NgayThu, v.ThuTuTrongNgay, v.MaDThamQuan, v.MaSanPham, v.SoLuong, v.DonGia, v.ThoiGianDuKien, v.Mota
 FROM (VALUES
@@ -62,85 +65,141 @@ WHERE EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
   AND EXISTS (SELECT 1 FROM dbo.DiemThamQuan d WHERE d.MaDThamQuan = v.MaDThamQuan)
   AND NOT EXISTS (SELECT 1 FROM dbo.LichTrinh x WHERE x.MaLichTrinh = v.MaLichTrinh);
 
-IF NOT EXISTS (SELECT 1 FROM dbo.LichKhoiHanh WHERE MaKhoiHanh = N'KH016')
-INSERT INTO dbo.LichKhoiHanh (MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, DiaDiem, SoCho) VALUES
-(N'KH016', N'TOUR010', DATEADD(DAY, 21, GETUTCDATE()), DATEADD(DAY, 24, GETUTCDATE()), N'Hà Nội', 18),
-(N'KH017', N'TOUR010', DATEADD(DAY, 49, GETUTCDATE()), DATEADD(DAY, 52, GETUTCDATE()), N'Hà Nội', 18),
-(N'KH018', N'TOUR011', DATEADD(DAY, 14, GETUTCDATE()), DATEADD(DAY, 16, GETUTCDATE()), N'Hà Nội', 22),
-(N'KH019', N'TOUR011', DATEADD(DAY, 36, GETUTCDATE()), DATEADD(DAY, 38, GETUTCDATE()), N'Hà Nội', 22),
-(N'KH020', N'TOUR012', DATEADD(DAY, 11, GETUTCDATE()), DATEADD(DAY, 13, GETUTCDATE()), N'Đà Nẵng', 28),
-(N'KH021', N'TOUR012', DATEADD(DAY, 33, GETUTCDATE()), DATEADD(DAY, 35, GETUTCDATE()), N'Đà Nẵng', 28),
-(N'KH022', N'TOUR013', DATEADD(DAY, 17, GETUTCDATE()), DATEADD(DAY, 19, GETUTCDATE()), N'Quy Nhơn', 24),
-(N'KH023', N'TOUR013', DATEADD(DAY, 41, GETUTCDATE()), DATEADD(DAY, 43, GETUTCDATE()), N'Quy Nhơn', 24),
-(N'KH024', N'TOUR014', DATEADD(DAY, 13, GETUTCDATE()), DATEADD(DAY, 15, GETUTCDATE()), N'Phan Thiết', 26),
-(N'KH025', N'TOUR014', DATEADD(DAY, 40, GETUTCDATE()), DATEADD(DAY, 42, GETUTCDATE()), N'Phan Thiết', 26),
-(N'KH026', N'TOUR015', DATEADD(DAY, 8, GETUTCDATE()), DATEADD(DAY, 9, GETUTCDATE()), N'TP. Hồ Chí Minh', 32),
-(N'KH027', N'TOUR015', DATEADD(DAY, 22, GETUTCDATE()), DATEADD(DAY, 23, GETUTCDATE()), N'TP. Hồ Chí Minh', 32),
-(N'KH028', N'TOUR016', DATEADD(DAY, 9, GETUTCDATE()), DATEADD(DAY, 10, GETUTCDATE()), N'TP. Hồ Chí Minh', 30),
-(N'KH029', N'TOUR016', DATEADD(DAY, 30, GETUTCDATE()), DATEADD(DAY, 31, GETUTCDATE()), N'TP. Hồ Chí Minh', 30),
-(N'KH030', N'TOUR017', DATEADD(DAY, 7, GETUTCDATE()), DATEADD(DAY, 8, GETUTCDATE()), N'TP. Hồ Chí Minh', 28),
-(N'KH031', N'TOUR017', DATEADD(DAY, 28, GETUTCDATE()), DATEADD(DAY, 29, GETUTCDATE()), N'TP. Hồ Chí Minh', 28),
-(N'KH032', N'TOUR018', DATEADD(DAY, 19, GETUTCDATE()), DATEADD(DAY, 21, GETUTCDATE()), N'Hà Nội', 22),
-(N'KH033', N'TOUR018', DATEADD(DAY, 47, GETUTCDATE()), DATEADD(DAY, 49, GETUTCDATE()), N'Hà Nội', 22),
-(N'KH034', N'TOUR001', DATEADD(DAY, 70, GETUTCDATE()), DATEADD(DAY, 72, GETUTCDATE()), N'Hà Nội', 30),
-(N'KH035', N'TOUR002', DATEADD(DAY, 60, GETUTCDATE()), DATEADD(DAY, 62, GETUTCDATE()), N'Đà Nẵng', 25),
-(N'KH036', N'TOUR006', DATEADD(DAY, 55, GETUTCDATE()), DATEADD(DAY, 58, GETUTCDATE()), N'Nha Trang', 30),
-(N'KH037', N'TOUR009', DATEADD(DAY, 26, GETUTCDATE()), DATEADD(DAY, 28, GETUTCDATE()), N'Đà Lạt', 28);
+INSERT INTO dbo.LichKhoiHanh (MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, DiaDiem, SoCho)
+SELECT v.MaKhoiHanh, v.MaTour, v.NgayKhoiHanh, v.NgayKetThuc, v.DiaDiem, v.SoCho
+FROM (VALUES
+    (N'KH016', N'TOUR010', DATEADD(DAY, 21, GETUTCDATE()), DATEADD(DAY, 24, GETUTCDATE()), N'Hà Nội', 18),
+    (N'KH017', N'TOUR010', DATEADD(DAY, 49, GETUTCDATE()), DATEADD(DAY, 52, GETUTCDATE()), N'Hà Nội', 18),
+    (N'KH018', N'TOUR011', DATEADD(DAY, 14, GETUTCDATE()), DATEADD(DAY, 16, GETUTCDATE()), N'Hà Nội', 22),
+    (N'KH019', N'TOUR011', DATEADD(DAY, 36, GETUTCDATE()), DATEADD(DAY, 38, GETUTCDATE()), N'Hà Nội', 22),
+    (N'KH020', N'TOUR012', DATEADD(DAY, 11, GETUTCDATE()), DATEADD(DAY, 13, GETUTCDATE()), N'Đà Nẵng', 28),
+    (N'KH021', N'TOUR012', DATEADD(DAY, 33, GETUTCDATE()), DATEADD(DAY, 35, GETUTCDATE()), N'Đà Nẵng', 28),
+    (N'KH022', N'TOUR013', DATEADD(DAY, 17, GETUTCDATE()), DATEADD(DAY, 19, GETUTCDATE()), N'Quy Nhơn', 24),
+    (N'KH023', N'TOUR013', DATEADD(DAY, 41, GETUTCDATE()), DATEADD(DAY, 43, GETUTCDATE()), N'Quy Nhơn', 24),
+    (N'KH024', N'TOUR014', DATEADD(DAY, 13, GETUTCDATE()), DATEADD(DAY, 15, GETUTCDATE()), N'Phan Thiết', 26),
+    (N'KH025', N'TOUR014', DATEADD(DAY, 40, GETUTCDATE()), DATEADD(DAY, 42, GETUTCDATE()), N'Phan Thiết', 26),
+    (N'KH026', N'TOUR015', DATEADD(DAY, 8, GETUTCDATE()), DATEADD(DAY, 9, GETUTCDATE()), N'TP. Hồ Chí Minh', 32),
+    (N'KH027', N'TOUR015', DATEADD(DAY, 22, GETUTCDATE()), DATEADD(DAY, 23, GETUTCDATE()), N'TP. Hồ Chí Minh', 32),
+    (N'KH028', N'TOUR016', DATEADD(DAY, 9, GETUTCDATE()), DATEADD(DAY, 10, GETUTCDATE()), N'TP. Hồ Chí Minh', 30),
+    (N'KH029', N'TOUR016', DATEADD(DAY, 30, GETUTCDATE()), DATEADD(DAY, 31, GETUTCDATE()), N'TP. Hồ Chí Minh', 30),
+    (N'KH030', N'TOUR017', DATEADD(DAY, 7, GETUTCDATE()), DATEADD(DAY, 8, GETUTCDATE()), N'TP. Hồ Chí Minh', 28),
+    (N'KH031', N'TOUR017', DATEADD(DAY, 28, GETUTCDATE()), DATEADD(DAY, 29, GETUTCDATE()), N'TP. Hồ Chí Minh', 28),
+    (N'KH032', N'TOUR018', DATEADD(DAY, 19, GETUTCDATE()), DATEADD(DAY, 21, GETUTCDATE()), N'Hà Nội', 22),
+    (N'KH033', N'TOUR018', DATEADD(DAY, 47, GETUTCDATE()), DATEADD(DAY, 49, GETUTCDATE()), N'Hà Nội', 22),
+    (N'KH034', N'TOUR001', DATEADD(DAY, 70, GETUTCDATE()), DATEADD(DAY, 72, GETUTCDATE()), N'Hà Nội', 30),
+    (N'KH035', N'TOUR002', DATEADD(DAY, 60, GETUTCDATE()), DATEADD(DAY, 62, GETUTCDATE()), N'Đà Nẵng', 25),
+    (N'KH036', N'TOUR006', DATEADD(DAY, 55, GETUTCDATE()), DATEADD(DAY, 58, GETUTCDATE()), N'Nha Trang', 30),
+    (N'KH037', N'TOUR009', DATEADD(DAY, 26, GETUTCDATE()), DATEADD(DAY, 28, GETUTCDATE()), N'Đà Lạt', 28)
+) v(MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, DiaDiem, SoCho)
+WHERE EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+  AND NOT EXISTS (SELECT 1 FROM dbo.LichKhoiHanh x WHERE x.MaKhoiHanh = v.MaKhoiHanh);
 
 IF NOT EXISTS (SELECT 1 FROM dbo.NhomKhuyenMai WHERE MaNhomKM = N'NKM002')
     INSERT INTO dbo.NhomKhuyenMai (MaNhomKM, TenNhomKM) VALUES (N'NKM002', N'Ưu đãi theo mùa');
 
-IF NOT EXISTS (SELECT 1 FROM dbo.KhuyenMai WHERE MaKM = N'KM004')
-INSERT INTO dbo.KhuyenMai (MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi, GiamGia, CoCongDon, TrangThai) VALUES
-(N'KM004', N'NKM001', N'Chào khách mới', N'WELCOME15', DATEADD(DAY, -3, GETUTCDATE()), DATEADD(DAY, 90, GETUTCDATE()), N'%', 15, 0, N'HoatDong'),
-(N'KM005', N'NKM002', N'Gia đình cuối tuần', N'FAMILY08', DATEADD(DAY, -1, GETUTCDATE()), DATEADD(DAY, 60, GETUTCDATE()), N'%', 8, 0, N'HoatDong'),
-(N'KM006', N'NKM002', N'Đặt sớm giảm tiền mặt', N'EARLY500', DATEADD(DAY, -5, GETUTCDATE()), DATEADD(DAY, 75, GETUTCDATE()), N'VND', 500000, 0, N'HoatDong'),
-(N'KM007', N'NKM002', N'Cao nguyên se lạnh mở rộng', N'HIGHLAND', DATEADD(DAY, -2, GETUTCDATE()), DATEADD(DAY, 50, GETUTCDATE()), N'%', 10, 0, N'HoatDong');
-
-IF NOT EXISTS (SELECT 1 FROM dbo.DieuKienKM WHERE MaDK = N'DK002')
-INSERT INTO dbo.DieuKienKM (MaDK, MaKhuyenMai, DonToiThieu, LanDatDau, SoLuong) VALUES
-(N'DK002', N'KM004', 2000000, 1, 200),
-(N'DK003', N'KM005', 4000000, 0, 80),
-(N'DK004', N'KM006', 5000000, 0, 50),
-(N'DK005', N'KM007', 3000000, 0, 100);
-
-IF NOT EXISTS (SELECT 1 FROM dbo.KM_Tour WHERE STT = 2)
-INSERT INTO dbo.KM_Tour (STT, MaKhuyenMai, MaTour)
-SELECT v.STT, v.MaKhuyenMai, v.MaTour
+INSERT INTO dbo.KhuyenMai (MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi, GiamGia, CoCongDon, TrangThai)
+SELECT v.MaKM, v.MaNhomKM, v.TenKM, v.MaCode, v.NgayBD, v.NgayKT, v.DonVi, v.GiamGia, v.CoCongDon, v.TrangThai
 FROM (VALUES
-    (2, N'KM002', N'TOUR007'),
-    (3, N'KM003', N'TOUR009'),
-    (4, N'KM004', N'TOUR001'),
-    (5, N'KM004', N'TOUR002'),
-    (6, N'KM005', N'TOUR006'),
-    (7, N'KM005', N'TOUR012'),
-    (8, N'KM005', N'TOUR015'),
-    (9, N'KM006', N'TOUR010'),
-    (10, N'KM006', N'TOUR007'),
-    (11, N'KM007', N'TOUR003'),
-    (12, N'KM007', N'TOUR018'),
-    (13, N'KM007', N'TOUR011'),
-    (14, N'KM001', N'TOUR004'),
-    (15, N'KM001', N'TOUR005')
-) v(STT, MaKhuyenMai, MaTour)
-WHERE NOT EXISTS (SELECT 1 FROM dbo.KM_Tour x WHERE x.STT = v.STT);
+    (N'KM004', N'NKM001', N'Chào khách mới', N'WELCOME15', DATEADD(DAY, -3, GETUTCDATE()), DATEADD(DAY, 90, GETUTCDATE()), N'%', 15, 0, N'HoatDong'),
+    (N'KM005', N'NKM002', N'Gia đình cuối tuần', N'FAMILY08', DATEADD(DAY, -1, GETUTCDATE()), DATEADD(DAY, 60, GETUTCDATE()), N'%', 8, 0, N'HoatDong'),
+    (N'KM006', N'NKM002', N'Đặt sớm giảm tiền mặt', N'EARLY500', DATEADD(DAY, -5, GETUTCDATE()), DATEADD(DAY, 75, GETUTCDATE()), N'VND', 500000, 0, N'HoatDong'),
+    (N'KM007', N'NKM002', N'Cao nguyên se lạnh mở rộng', N'HIGHLAND', DATEADD(DAY, -2, GETUTCDATE()), DATEADD(DAY, 50, GETUTCDATE()), N'%', 10, 0, N'HoatDong')
+) v(MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi, GiamGia, CoCongDon, TrangThai)
+WHERE EXISTS (SELECT 1 FROM dbo.NhomKhuyenMai n WHERE n.MaNhomKM = v.MaNhomKM)
+  AND NOT EXISTS (SELECT 1 FROM dbo.KhuyenMai x WHERE x.MaKM = v.MaKM);
 
-IF NOT EXISTS (SELECT 1 FROM dbo.DanhGiaTour WHERE MaDanhGiaTour = N'DG007')
-INSERT INTO dbo.DanhGiaTour (MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia, NhanXet) VALUES
-(N'DG007', N'USRKH000001', N'TOUR006', DATEADD(DAY, -18, GETUTCDATE()), 5, N'Biển Nha Trang đẹp, khách sạn gần bãi. VinWonders đông nhưng vui.'),
-(N'DG008', N'USRKH000002', N'TOUR009', DATEADD(DAY, -10, GETUTCDATE()), 4, N'Đà Lạt se lạnh đúng hẹn. Đồi chè Cầu Đất nên đi sớm.'),
-(N'DG009', N'USRKH000001', N'TOUR005', DATEADD(DAY, -25, GETUTCDATE()), 5, N'Huế chậm và đáng. Thuyền sông Hương lúc hoàng hôn rất yên.'),
-(N'DG010', N'USRKH000002', N'TOUR008', DATEADD(DAY, -7, GETUTCDATE()), 5, N'Chợ nổi Cái Răng phải đi lúc sáng. Ăn hủ tiếu trên ghe đáng nhớ.');
+INSERT INTO dbo.DieuKienKM (MaDK, MaKhuyenMai, DonToiThieu, LanDatDau, SoLuong)
+SELECT v.MaDK, v.MaKhuyenMai, v.DonToiThieu, v.LanDatDau, v.SoLuong
+FROM (VALUES
+    (N'DK002', N'KM004', 2000000, CAST(1 AS bit), 200),
+    (N'DK003', N'KM005', 4000000, CAST(0 AS bit), 80),
+    (N'DK004', N'KM006', 5000000, CAST(0 AS bit), 50),
+    (N'DK005', N'KM007', 3000000, CAST(0 AS bit), 100)
+) v(MaDK, MaKhuyenMai, DonToiThieu, LanDatDau, SoLuong)
+WHERE EXISTS (SELECT 1 FROM dbo.KhuyenMai k WHERE k.MaKM = v.MaKhuyenMai)
+  AND NOT EXISTS (SELECT 1 FROM dbo.DieuKienKM x WHERE x.MaDK = v.MaDK);
 
-IF NOT EXISTS (SELECT 1 FROM dbo.HuongDanVien WHERE MaHuongDanVien = N'HDV003')
-INSERT INTO dbo.HuongDanVien (MaHuongDanVien, HoTen, NgaySinh, QueQuan, Email, CCCD, SoDienThoai) VALUES
-(N'HDV003', N'Lê Minh Châu', '1991-03-12', N'Hà Giang', N'hdv3@example.com', N'001091000003', N'0912000003'),
-(N'HDV004', N'Phạm Quốc Huy', '1988-11-02', N'Đà Nẵng', N'hdv4@example.com', N'001088000004', N'0912000004');
+IF COLUMNPROPERTY(OBJECT_ID(N'dbo.KM_Tour'), N'STT', 'IsIdentity') = 1
+    INSERT INTO dbo.KM_Tour (MaKhuyenMai, MaTour)
+    SELECT v.MaKhuyenMai, v.MaTour
+    FROM (VALUES
+        (N'KM002', N'TOUR007'),
+        (N'KM003', N'TOUR009'),
+        (N'KM004', N'TOUR001'),
+        (N'KM004', N'TOUR002'),
+        (N'KM005', N'TOUR006'),
+        (N'KM005', N'TOUR012'),
+        (N'KM005', N'TOUR015'),
+        (N'KM006', N'TOUR010'),
+        (N'KM006', N'TOUR007'),
+        (N'KM007', N'TOUR003'),
+        (N'KM007', N'TOUR018'),
+        (N'KM007', N'TOUR011'),
+        (N'KM001', N'TOUR004'),
+        (N'KM001', N'TOUR005')
+    ) v(MaKhuyenMai, MaTour)
+    WHERE EXISTS (SELECT 1 FROM dbo.KhuyenMai k WHERE k.MaKM = v.MaKhuyenMai)
+      AND EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+      AND NOT EXISTS (
+          SELECT 1 FROM dbo.KM_Tour x
+          WHERE x.MaKhuyenMai = v.MaKhuyenMai AND x.MaTour = v.MaTour);
+ELSE
+    INSERT INTO dbo.KM_Tour (STT, MaKhuyenMai, MaTour)
+    SELECT ISNULL((SELECT MAX(STT) FROM dbo.KM_Tour), 0)
+           + ROW_NUMBER() OVER (ORDER BY v.MaKhuyenMai, v.MaTour),
+           v.MaKhuyenMai, v.MaTour
+    FROM (VALUES
+        (N'KM002', N'TOUR007'),
+        (N'KM003', N'TOUR009'),
+        (N'KM004', N'TOUR001'),
+        (N'KM004', N'TOUR002'),
+        (N'KM005', N'TOUR006'),
+        (N'KM005', N'TOUR012'),
+        (N'KM005', N'TOUR015'),
+        (N'KM006', N'TOUR010'),
+        (N'KM006', N'TOUR007'),
+        (N'KM007', N'TOUR003'),
+        (N'KM007', N'TOUR018'),
+        (N'KM007', N'TOUR011'),
+        (N'KM001', N'TOUR004'),
+        (N'KM001', N'TOUR005')
+    ) v(MaKhuyenMai, MaTour)
+    WHERE EXISTS (SELECT 1 FROM dbo.KhuyenMai k WHERE k.MaKM = v.MaKhuyenMai)
+      AND EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+      AND NOT EXISTS (
+          SELECT 1 FROM dbo.KM_Tour x
+          WHERE x.MaKhuyenMai = v.MaKhuyenMai AND x.MaTour = v.MaTour);
 
-IF NOT EXISTS (SELECT 1 FROM dbo.LichDanTour WHERE MaLichDanTour = N'LDT003')
-INSERT INTO dbo.LichDanTour (MaLichDanTour, MaHDV, MaTour, MaKhoiHanh) VALUES
-(N'LDT003', N'HDV003', N'TOUR010', N'KH016'),
-(N'LDT004', N'HDV004', N'TOUR012', N'KH020'),
-(N'LDT005', N'HDV001', N'TOUR011', N'KH018'),
-(N'LDT006', N'HDV002', N'TOUR017', N'KH030');
+INSERT INTO dbo.DanhGiaTour (MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia, NhanXet)
+SELECT v.MaDanhGiaTour, v.MaUser, v.MaTour, v.ThoiGian, v.SaoDanhGia, v.NhanXet
+FROM (VALUES
+    (N'DG007', N'USRKH000001', N'TOUR006', DATEADD(DAY, -18, GETUTCDATE()), 5, N'Biển Nha Trang đẹp, khách sạn gần bãi. VinWonders đông nhưng vui.'),
+    (N'DG008', N'USRKH000002', N'TOUR009', DATEADD(DAY, -10, GETUTCDATE()), 4, N'Đà Lạt se lạnh đúng hẹn. Đồi chè Cầu Đất nên đi sớm.'),
+    (N'DG009', N'USRKH000001', N'TOUR005', DATEADD(DAY, -25, GETUTCDATE()), 5, N'Huế chậm và đáng. Thuyền sông Hương lúc hoàng hôn rất yên.'),
+    (N'DG010', N'USRKH000002', N'TOUR008', DATEADD(DAY, -7, GETUTCDATE()), 5, N'Chợ nổi Cái Răng phải đi lúc sáng. Ăn hủ tiếu trên ghe đáng nhớ.')
+) v(MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia, NhanXet)
+WHERE EXISTS (SELECT 1 FROM dbo.NguoiSuDung u WHERE u.MaUser = v.MaUser)
+  AND EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+  AND NOT EXISTS (SELECT 1 FROM dbo.DanhGiaTour x WHERE x.MaDanhGiaTour = v.MaDanhGiaTour);
+
+INSERT INTO dbo.HuongDanVien (MaHuongDanVien, HoTen, NgaySinh, QueQuan, Email, CCCD, SoDienThoai)
+SELECT v.MaHuongDanVien, v.HoTen, v.NgaySinh, v.QueQuan, v.Email, v.CCCD, v.SoDienThoai
+FROM (VALUES
+    (N'HDV003', N'Lê Minh Châu', CAST('1991-03-12' AS date), N'Hà Giang', N'hdv3@example.com', N'001091000003', N'0912000003'),
+    (N'HDV004', N'Phạm Quốc Huy', CAST('1988-11-02' AS date), N'Đà Nẵng', N'hdv4@example.com', N'001088000004', N'0912000004')
+) v(MaHuongDanVien, HoTen, NgaySinh, QueQuan, Email, CCCD, SoDienThoai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.HuongDanVien x WHERE x.MaHuongDanVien = v.MaHuongDanVien);
+
+INSERT INTO dbo.LichDanTour (MaLichDanTour, MaHDV, MaTour, MaKhoiHanh)
+SELECT v.MaLichDanTour, v.MaHDV, v.MaTour, v.MaKhoiHanh
+FROM (VALUES
+    (N'LDT003', N'HDV003', N'TOUR010', N'KH016'),
+    (N'LDT004', N'HDV004', N'TOUR012', N'KH020'),
+    (N'LDT005', N'HDV001', N'TOUR011', N'KH018'),
+    (N'LDT006', N'HDV002', N'TOUR017', N'KH030')
+) v(MaLichDanTour, MaHDV, MaTour, MaKhoiHanh)
+WHERE EXISTS (SELECT 1 FROM dbo.HuongDanVien h WHERE h.MaHuongDanVien = v.MaHDV)
+  AND EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+  AND EXISTS (SELECT 1 FROM dbo.LichKhoiHanh k WHERE k.MaKhoiHanh = v.MaKhoiHanh)
+  AND NOT EXISTS (SELECT 1 FROM dbo.LichDanTour x WHERE x.MaLichDanTour = v.MaLichDanTour);
 GO
