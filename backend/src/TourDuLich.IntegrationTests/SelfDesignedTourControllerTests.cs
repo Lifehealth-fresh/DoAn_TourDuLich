@@ -227,21 +227,44 @@ public sealed class SelfDesignedTourControllerTests
         MaTourTaoNavigation = new Tour { MaTour = Key("TD1"), TenTour = "Tour thử", LoaiTour = Key("TuThietKe"), TrangThai = Key("ChoXacNhan"), Slkhach = 2 }
     };
     private static YeuCauThietKeController Controller(MemoryContext context, ProposalService? service = null) => new(
-        context, new NoBehaviorLogger(), service ?? new ProposalService(_ => []), NullLogger<YeuCauThietKeController>.Instance)
+    context,
+    new NoBehaviorLogger(),
+    service ?? new ProposalService(_ => []),
+    new StubChat(),
+    new StubDestinations(),
+    NullLogger<YeuCauThietKeController>.Instance)
     {
-        ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext
+        ControllerContext = new ControllerContext
         {
-            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("MaUser", "USER1"), new Claim(ClaimTypes.Role, "Sale")], "test"))
-        } }
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("MaUser", "USER1"), new Claim(ClaimTypes.Role, "Sale")], "test"))
+            }
+        }
     };
     private sealed class NoBehaviorLogger : IHanhViLogger
     {
         public Task LogAsync(string user, string? tour, string action) => Task.CompletedTask;
     }
+    private sealed class StubChat : IDesignChatService
+    {
+        public Task<DesignChatTurn> StartOrContinueAsync(string maUser, DesignChatRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(new DesignChatTurn());
+        public Task<DesignChatTurn> GetAsync(string maUser, string maHoiThoai, CancellationToken cancellationToken = default)
+            => Task.FromResult(new DesignChatTurn());
+    }
+    private sealed class StubDestinations : IDestinationResolver
+    {
+        public Task<DestinationMatch?> ResolveAsync(string? text, string? maTinh, CancellationToken cancellationToken = default)
+            => Task.FromResult<DestinationMatch?>(null);
+        public Task<IReadOnlyList<TinhThanh>> SearchAsync(string? query, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<TinhThanh>>([]);
+    }
     private sealed class ProposalService(Func<YeuCauThietKe, IReadOnlyList<LichTrinhDeXuat>> generate) : IDeXuatLichTrinhService
     {
         public int Calls { get; private set; }
-        public Task<IReadOnlyList<LichTrinhDeXuat>> GenerateAsync(YeuCauThietKe request, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<LichTrinhDeXuat>> GenerateAsync(
+            YeuCauThietKe request, DesignPlannerContext? extras = null, CancellationToken cancellationToken = default)
         {
             Calls++;
             return Task.FromResult(generate(request));
