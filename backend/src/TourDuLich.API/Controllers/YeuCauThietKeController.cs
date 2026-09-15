@@ -18,18 +18,56 @@ public class YeuCauThietKeController : ControllerBase
     private readonly AppDbContext _context;
     private readonly IHanhViLogger _hanhViLogger;
     private readonly IDeXuatLichTrinhService _deXuatService;
+    private readonly IDesignChatService _chat;
+    private readonly IDestinationResolver _destinations;
     private readonly ILogger<YeuCauThietKeController> _logger;
 
     public YeuCauThietKeController(
         AppDbContext context,
         IHanhViLogger hanhViLogger,
         IDeXuatLichTrinhService deXuatService,
+        IDesignChatService chat,
+        IDestinationResolver destinations,
         ILogger<YeuCauThietKeController> logger)
     {
         _context = context;
         _hanhViLogger = hanhViLogger;
         _deXuatService = deXuatService;
+        _chat = chat;
+        _destinations = destinations;
         _logger = logger;
+    }
+
+    [HttpPost("chat")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> Chat([FromBody] DesignChatRequest request, CancellationToken cancellationToken)
+    {
+        var maUser = GetCurrentMaUser();
+        if (maUser is null) return Unauthorized();
+        try
+        {
+            return Ok(await _chat.StartOrContinueAsync(maUser, request, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return NotFound(new { message = exception.Message });
+        }
+    }
+
+    [HttpGet("chat/{maHoiThoai}")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> ChatDetail(string maHoiThoai, CancellationToken cancellationToken)
+    {
+        var maUser = GetCurrentMaUser();
+        if (maUser is null) return Unauthorized();
+        try
+        {
+            return Ok(await _chat.GetAsync(maUser, maHoiThoai, cancellationToken));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return NotFound(new { message = exception.Message });
+        }
     }
 
     [HttpGet("cua-toi")]
@@ -165,6 +203,9 @@ public class YeuCauThietKeController : ControllerBase
             NgayGui = DateTime.UtcNow,
             MaTourTao = null
         };
+        var match = await _destinations.ResolveAsync(yeuCau.DiemDenMongMuon, request.MaTinhDen);
+        if (match?.Province is not null)
+            yeuCau.DiemDenMongMuon = match.Province.TenTinh;
 
         _context.YeuCauThietKes.Add(yeuCau);
         await _context.SaveChangesAsync();
@@ -451,7 +492,7 @@ public class YeuCauThietKeController : ControllerBase
         {
             var product = string.IsNullOrWhiteSpace(item.MaSanPham) ? null : products.GetValueOrDefault(FixedLengthHelper.PadTo20(item.MaSanPham));
             var point = string.IsNullOrWhiteSpace(item.MaDthamQuan) ? null : points.GetValueOrDefault(FixedLengthHelper.PadTo20(item.MaDthamQuan));
-            return (item.NgayThu, point?.MaKhuVuc, product);
+            return (item.NgayThu, point?.MaTinh, point?.MaKhuVuc, product);
         }));
         if (regionError is not null)
             return BadRequest(new { message = regionError });
@@ -712,7 +753,7 @@ public class YeuCauThietKeController : ControllerBase
         if (hotelError is not null)
             return BadRequest(new { message = hotelError });
         var regionError = HotelStayRules.RegionMismatchMessage(schedule.Select(item =>
-            (item.NgayThu ?? 0, item.MaDthamQuanNavigation?.MaKhuVuc, item.MaSanPhamNavigation)));
+            (item.NgayThu ?? 0, item.MaDthamQuanNavigation?.MaTinh, item.MaDthamQuanNavigation?.MaKhuVuc, item.MaSanPhamNavigation)));
         if (regionError is not null)
             return BadRequest(new { message = regionError });
 

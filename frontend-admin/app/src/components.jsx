@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from './context';
 
@@ -90,6 +90,27 @@ export function StatusMix({ items, labels = {} }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+export function SearchSelect({ id, value, onChange, options, emptyLabel = '— không chọn —', placeholder = 'Tìm theo từ khóa…' }) {
+  const [query, setQuery] = useState('');
+  const needle = query.trim().toLowerCase();
+  const shown = (needle
+    ? options.filter((item) => String(item.label || '').toLowerCase().includes(needle))
+    : options).slice();
+  if (value && !shown.some((item) => item.value === value)) {
+    const current = options.find((item) => item.value === value);
+    if (current) shown.unshift(current);
+  }
+  return (
+    <div>
+      <input id={id} style={{ width: '100%', marginBottom: 6 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} />
+      <select style={{ width: '100%' }} value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">{emptyLabel}</option>
+        {shown.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+      </select>
     </div>
   );
 }

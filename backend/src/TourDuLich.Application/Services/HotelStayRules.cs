@@ -8,6 +8,7 @@ public static class HotelStayRules
     public const string LoaiLuuTru = "LuuTru";
     public const string LoaiAnUong = "AnUong";
     public const string LoaiHoatDong = "HoatDong";
+    public static readonly TimeSpan LastActivity = new(20, 0, 0);
 
     public static bool IsHotelPartner(string? loaiDoiTac) =>
         string.Equals(FixedLengthHelper.TrimSafe(loaiDoiTac), LoaiLuuTru, StringComparison.OrdinalIgnoreCase);
@@ -69,23 +70,26 @@ public static class HotelStayRules
         => ItineraryStructureMessage(lines.Select(item => (item.NgayThu, item.ThuTu, (string?)null, item.Product)));
 
     public static string? RegionMismatchMessage(
-        IEnumerable<(int NgayThu, string? PointRegion, SanPhamDoiTac? Product)> lines)
+        IEnumerable<(int NgayThu, string? PointProvince, string? PointRegion, SanPhamDoiTac? Product)> lines)
     {
-        var pointRegions = lines
-            .Select(item => FixedLengthHelper.TrimSafe(item.PointRegion))
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var hotelRegions = lines
-            .Where(item => IsHotelProduct(item.Product))
-            .Select(item => FixedLengthHelper.TrimSafe(item.Product!.MaDoiTacNavigation?.MaTinh)
-                            ?? FixedLengthHelper.TrimSafe(item.Product!.MaDoiTacNavigation?.MaKhuVuc))
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (pointRegions.Count > 0 && hotelRegions.Any(region =>
-                !pointRegions.Contains(region, StringComparer.OrdinalIgnoreCase)))
-            return "Khách sạn phải cùng tỉnh/khu vực với điểm tham quan.";
+        foreach (var item in lines)
+        {
+            if (!IsHotelProduct(item.Product))
+                continue;
+            var hotelTinh = FixedLengthHelper.TrimSafe(item.Product!.MaDoiTacNavigation?.MaTinh);
+            var hotelKv = FixedLengthHelper.TrimSafe(item.Product.MaDoiTacNavigation?.MaKhuVuc);
+            var pointTinh = FixedLengthHelper.TrimSafe(item.PointProvince);
+            var pointKv = FixedLengthHelper.TrimSafe(item.PointRegion);
+            if (!string.IsNullOrWhiteSpace(hotelTinh) && !string.IsNullOrWhiteSpace(pointTinh))
+            {
+                if (!hotelTinh.Equals(pointTinh, StringComparison.OrdinalIgnoreCase))
+                    return "Khách sạn phải cùng tỉnh với điểm tham quan.";
+                continue;
+            }
+            if (!string.IsNullOrWhiteSpace(hotelKv) && !string.IsNullOrWhiteSpace(pointKv) &&
+                !hotelKv.Equals(pointKv, StringComparison.OrdinalIgnoreCase))
+                return "Khách sạn phải cùng tỉnh/khu vực với điểm tham quan.";
+        }
         return null;
     }
 }

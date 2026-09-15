@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
-import { ExpandRecord, Notice } from './components';
+import { ExpandRecord, Notice, SearchSelect } from './components';
 import { useAuth } from './context';
 
+const foldVi = (value) => String(value || '').normalize('NFD').replace(/đ/gi, 'd').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
 const dateText = (value) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
@@ -32,6 +33,7 @@ export function DesignRequests() {
   const [lyDo, setLyDo] = useState('');
   const [places, setPlaces] = useState([]);
   const [products, setProducts] = useState([]);
+  const [destMaTinh, setDestMaTinh] = useState('');
   const selected = items.find((item) => item.maYeuCau === selectedId);
   const tourId = trim(selected?.maTourTao);
   const state = trim(schedule?.trangThai ?? selected?.trangThai);
@@ -46,6 +48,18 @@ export function DesignRequests() {
     api.sightseeingPlaces().then((response) => setPlaces(rowsOf(response))).catch(() => {});
     api.partnerProducts().then((response) => setProducts(rowsOf(response))).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const dest = trim(selected?.diemDenMongMuon);
+    if (!dest) { setDestMaTinh(''); return; }
+    let active = true;
+    api.provinces(dest).then((response) => {
+      if (!active) return;
+      const hit = (response.data || [])[0];
+      setDestMaTinh(trim(hit?.maTinh));
+    }).catch(() => { if (active) setDestMaTinh(''); });
+    return () => { active = false; };
+  }, [selected?.diemDenMongMuon]);
 
   useEffect(() => {
     let active = true;
@@ -141,11 +155,12 @@ export function DesignRequests() {
     if (missingDay) return;
     const regionMismatch = Object.entries(byDay).some(([, dayRows]) => {
       const ids = dayRows.map((row) => row.maDthamQuan).filter(Boolean);
-      const region = places.find((place) => ids.includes(place.maDthamQuan))?.maKhuVuc;
+      const point = places.find((place) => ids.includes(place.maDthamQuan));
       const hotel = products.find((item) => item.maDoiTac === hotelsUsed[0]);
-      return region && hotel?.maKhuVuc && hotel.maKhuVuc !== region;
+      if (point?.maTinh && hotel?.maTinh) return hotel.maTinh !== point.maTinh;
+      return point?.maKhuVuc && hotel?.maKhuVuc && hotel.maKhuVuc !== point.maKhuVuc;
     });
-    if (regionMismatch) { setError('Khách sạn phải cùng tỉnh/khu vực với điểm tham quan.'); return; }
+    if (regionMismatch) { setError('Khách sạn phải cùng tỉnh với điểm tham quan.'); return; }
     act('save', { chiTiets });
   };
   const actionButton = (action, caption, allowed) => <button disabled={!allowed} style={{ opacity: allowed ? 1 : 0.5 }} onClick={() => act(action)}>{busy === action ? 'Đang xử lý…' : caption}</button>;
@@ -193,25 +208,31 @@ export function DesignRequests() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
                   <label>Ngày thứ<input style={{ width: '100%' }} type="number" required min="1" max={Math.min(30, Math.max(1, selected.soNgay || 1))} step="1" value={row.ngayThu} onChange={(event) => changeRow(index, 'ngayThu', event.target.value)} /></label>
                   <label>Thứ tự trong ngày<input style={{ width: '100%' }} type="number" required min="1" max="2147483647" step="1" value={row.thuTuTrongNgay} onChange={(event) => changeRow(index, 'thuTuTrongNgay', event.target.value)} /></label>
-                  <label>Điểm tham quan<select style={{ width: '100%' }} value={row.maDthamQuan} onChange={(event) => changeRow(index, 'maDthamQuan', event.target.value)}>
-                    <option value="">— không chọn điểm —</option>
-                    {places.map((place) => <option key={place.maDthamQuan} value={place.maDthamQuan}>{place.tenDiaDanh} ({place.tenKhuVuc || place.maKhuVuc || '—'})</option>)}
-                  </select></label>
-                  <label>Sản phẩm / khách sạn<select style={{ width: '100%' }} value={row.maSanPham} onChange={(event) => {
-                    const product = products.find((item) => item.maSanPham === event.target.value);
-                    changeRow(index, 'maSanPham', event.target.value);
+                  <label>Điểm tham quan<SearchSelect emptyLabel="— không chọn điểm —" placeholder="Gõ Hồ Hoàn Kiếm, Nha Trang…" value={row.maDthamQuan} onChange={(value) => changeRow(index, 'maDthamQuan', value)} options={places
+                    .filter((place) => {
+                      if (destMaTinh && trim(place.maTinh) === destMaTinh) return true;
+                      const dest = foldVi(selected.diemDenMongMuon);
+                      if (!dest) return true;
+                      return foldVi(`${place.tenDiaDanh} ${place.diaChi} ${place.tenKhuVuc} ${place.maTinh}`).includes(dest);
+                    })
+                    .map((place) => ({ value: place.maDthamQuan, label: `${place.tenDiaDanh} (${place.maTinh || place.tenKhuVuc || '—'})` }))} /></label>
+                  <label>Sản phẩm / khách sạn<SearchSelect emptyLabel="— không chọn sản phẩm —" placeholder="Gõ khách sạn, món ăn…" value={row.maSanPham} onChange={(value) => {
+                    changeRow(index, 'maSanPham', value);
+                    const product = products.find((item) => item.maSanPham === value);
                     if (product?.loaiDoiTac === 'LuuTru') changeRow(index, 'soLuong', 1);
-                  }}>
-                    <option value="">— không chọn sản phẩm —</option>
-                    {products.filter((item) => {
-                      if (item.loaiDoiTac !== 'LuuTru') return true;
-                      const ids = rows.filter((line) => Number(line.ngayThu) === Number(row.ngayThu) && line.maDthamQuan).map((line) => line.maDthamQuan);
-                      const region = places.find((place) => ids.includes(place.maDthamQuan))?.maKhuVuc;
-                      return !region || item.maKhuVuc === region;
-                    }).map((item) => <option key={item.maSanPham} value={item.maSanPham}>
-                      {item.loaiDoiTac === 'LuuTru' ? 'KS' : 'SP'} · {item.tenDoiTac} · {item.tenSanPham} · {Number(item.giaNiemYet || 0).toLocaleString('vi-VN')}đ{item.loaiDoiTac === 'LuuTru' ? '/đêm' : ''}
-                    </option>)}
-                  </select></label>
+                  }} options={products.filter((item) => {
+                    const ids = rows.filter((line) => Number(line.ngayThu) === Number(row.ngayThu) && line.maDthamQuan).map((line) => line.maDthamQuan);
+                    const point = places.find((place) => ids.includes(place.maDthamQuan));
+                    if (item.loaiDoiTac === 'LuuTru') {
+                      if (point?.maTinh) return trim(item.maTinh) === trim(point.maTinh);
+                      if (destMaTinh) return trim(item.maTinh) === destMaTinh;
+                      if (point?.maKhuVuc) return trim(item.maKhuVuc) === trim(point.maKhuVuc);
+                      return true;
+                    }
+                    if (destMaTinh) return trim(item.maTinh) === destMaTinh;
+                    const dest = foldVi(selected.diemDenMongMuon);
+                    return !dest || foldVi(`${item.tenDoiTac} ${item.tenSanPham}`).includes(dest);
+                  }).map((item) => ({ value: item.maSanPham, label: `${item.loaiDoiTac === 'LuuTru' ? 'KS' : 'SP'} · ${item.tenDoiTac} · ${item.tenSanPham} · ${Number(item.giaNiemYet || 0).toLocaleString('vi-VN')}đ${item.loaiDoiTac === 'LuuTru' ? '/đêm' : ''}` }))} /></label>
                   <label>Số lượng<input style={{ width: '100%' }} type="number" required min="1" max="2147483647" step="1" value={row.soLuong} onChange={(event) => changeRow(index, 'soLuong', event.target.value)} /></label>
                   <div><label htmlFor={`design-description-${index}`}>Mô tả</label><textarea id={`design-description-${index}`} style={{ width: '100%' }} rows={2} value={row.mota} onChange={(event) => changeRow(index, 'mota', event.target.value)} /></div>
                 </div>
@@ -223,9 +244,13 @@ export function DesignRequests() {
                   setRows((current) => {
                     const day = Number(current.at(-1)?.ngayThu || 1);
                     const ids = current.filter((row) => Number(row.ngayThu) === day && row.maDthamQuan).map((row) => row.maDthamQuan);
-                    const region = places.find((place) => ids.includes(place.maDthamQuan))?.maKhuVuc;
-                    const hotels = products.filter((item) => item.loaiDoiTac === 'LuuTru' && (!region || item.maKhuVuc === region));
-                    if (!hotels.length) { setError(region ? 'Chưa có khách sạn cùng khu vực với điểm trong ngày. Thêm ở mục Đối tác.' : 'Chưa có khách sạn đối tác. Hãy thêm ở mục Đối tác.'); return current; }
+                    const point = places.find((place) => ids.includes(place.maDthamQuan));
+                    const hotels = products.filter((item) => item.loaiDoiTac === 'LuuTru' && (
+                      point?.maTinh ? trim(item.maTinh) === trim(point.maTinh)
+                        : destMaTinh ? trim(item.maTinh) === destMaTinh
+                        : !point?.maKhuVuc || trim(item.maKhuVuc) === trim(point.maKhuVuc)
+                    ));
+                    if (!hotels.length) { setError(point ? 'Chưa có khách sạn cùng tỉnh với điểm trong ngày. Thêm ở mục Đối tác.' : 'Chưa có khách sạn đối tác. Hãy thêm ở mục Đối tác.'); return current; }
                     const hotel = hotels[0];
                     const order = Math.max(0, ...current.filter((row) => Number(row.ngayThu) === day).map((row) => Number(row.thuTuTrongNgay || 0))) + 1;
                     setError('');

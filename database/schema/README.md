@@ -22,6 +22,8 @@ database. Không có `CREATE DATABASE` hoặc `USE`; hãy mở đúng database t
 22. `020_QuyenTaiKhoan.sql` — bảng `QuyenNhanVien`: phân quyền Thêm/Sửa/Xóa/Toàn quyền theo từng tài khoản và từng chức năng admin.
 23. `021_RefreshToken.sql` — bảng phiên refresh token (thu hồi khi đăng xuất, xoay token khi gia hạn).
 24. `022_SeedCatalogMoRong.sql` — thêm tour đang bán TOUR010–TOUR018, lịch khởi hành có sức chứa, mã ưu đãi, đánh giá mẫu. Ảnh tour để trống, upload sau trên admin.
+25. `023_TuThietKeChatPlanner.sql` — bảng chat tự thiết kế, alias tỉnh (Nha Trang→Khánh Hòa), ma trận thời gian đi, backfill MaTinh điểm cũ. **Không xóa booking/user.** Chạy sau 018+022.
+26. `024_MatchToanBoOffline.sql` — alias 63 tỉnh + thành phố thường gõ; backfill MaTinh còn thiếu (014/017). Không cần Google Maps. Chạy sau 023.
 
 Thứ tự chạy thực tế là `001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012`.
 Các file 013–022 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.

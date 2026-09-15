@@ -153,3 +153,6 @@ export default api;
 export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');
 export const agreeDesignSchedule=id=>api.put('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/dong-y-lich');
 export const requestDesignRevision=(id,lyDo)=>api.put('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/yeu-cau-chinh-sua',{lyDo});
+export const provinces = (q) => api.get('/api/TinhThanh', { params: q ? { q } : {} });
+export const designChat = (data) => api.post('/api/YeuCauThietKe/chat', data);
+export const designChatDetail = (id) => api.get('/api/YeuCauThietKe/chat/' + encodeURIComponent(id));

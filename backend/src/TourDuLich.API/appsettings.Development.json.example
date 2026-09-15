@@ -39,6 +39,9 @@
     "IpnUrl": "https://localhost:7290/api/ThanhToan/momo/ipn",
     "FrontendReturnUrl": "http://localhost:5173"
   },
+  "GoogleMaps": {
+    "ApiKey": ""
+  },
   "AiService": {
     "BaseUrl": "http://localhost:8000/",
     "ApiKey": "change-this-in-development"

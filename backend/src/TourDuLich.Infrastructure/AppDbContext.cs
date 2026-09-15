@@ -88,6 +88,10 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<VaiTro> VaiTros { get; set; }
 
     public virtual DbSet<YeuCauThietKe> YeuCauThietKes { get; set; }
+    public virtual DbSet<TinhThanhAlias> TinhThanhAliases { get; set; }
+    public virtual DbSet<MatranDiChuyen> MatranDiChuyens { get; set; }
+    public virtual DbSet<HoiThoaiThietKe> HoiThoaiThietKes { get; set; }
+    public virtual DbSet<TinNhanThietKe> TinNhanThietKes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -639,6 +643,48 @@ public partial class AppDbContext : DbContext
             entity.HasOne(e => e.MaKhuVucNavigation).WithMany(p => p.TinhThanhs)
                 .HasForeignKey(e => e.MaKhuVuc)
                 .HasConstraintName("FK_TinhThanh_KhuVuc");
+            entity.HasMany(e => e.Aliases).WithOne(e => e.MaTinhNavigation)
+                .HasForeignKey(e => e.MaTinh);
+        });
+
+        modelBuilder.Entity<TinhThanhAlias>(entity =>
+        {
+            entity.ToTable("TinhThanhAlias");
+            entity.HasKey(e => e.MaAlias);
+            entity.Property(e => e.MaTinh).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.TenAlias).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<MatranDiChuyen>(entity =>
+        {
+            entity.ToTable("MatranDiChuyen");
+            entity.HasKey(e => new { e.MaTinhDi, e.MaTinhDen, e.PhuongTien });
+            entity.Property(e => e.MaTinhDi).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaTinhDen).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.PhuongTien).HasMaxLength(20).IsFixedLength();
+        });
+
+        modelBuilder.Entity<HoiThoaiThietKe>(entity =>
+        {
+            entity.ToTable("HoiThoaiThietKe");
+            entity.HasKey(e => e.MaHoiThoai);
+            entity.Property(e => e.MaHoiThoai).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaUser).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaYeuCau).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.TrangThai).HasMaxLength(20).IsFixedLength();
+            entity.HasOne(e => e.MaUserNavigation).WithMany().HasForeignKey(e => e.MaUser);
+            entity.HasOne(e => e.MaYeuCauNavigation).WithMany().HasForeignKey(e => e.MaYeuCau);
+        });
+
+        modelBuilder.Entity<TinNhanThietKe>(entity =>
+        {
+            entity.ToTable("TinNhanThietKe");
+            entity.HasKey(e => e.MaTinNhan);
+            entity.Property(e => e.MaTinNhan).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaHoiThoai).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.VaiTro).HasMaxLength(20).IsFixedLength();
+            entity.HasOne(e => e.MaHoiThoaiNavigation).WithMany(e => e.TinNhans)
+                .HasForeignKey(e => e.MaHoiThoai);
         });
 
         modelBuilder.Entity<KhuyenMai>(entity =>

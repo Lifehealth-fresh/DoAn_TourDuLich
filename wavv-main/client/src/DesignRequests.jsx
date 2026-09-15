@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import * as api from './api';
 import CurrentDesignSchedule from './CurrentDesignSchedule.jsx';
+import DesignChat from './DesignChat.jsx';
 
 const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
@@ -9,24 +10,14 @@ const dateText = (value) => value ? new Date(value).toLocaleDateString('vi-VN') 
 const itemsOf = (response) => Array.isArray(response.data) ? response.data : response.data?.items || [];
 const labels = { Moi: 'Mới gửi', Huy: 'Đã hủy', DangThietKe: 'Đang thiết kế', CanChinhSua: 'Cần chỉnh sửa', ChoKhachXacNhan: 'Chờ bạn xác nhận', ChoDuyet: 'Chờ duyệt', DaDuyet: 'Đã duyệt' };
 const statusLabel = (value) => labels[trim(value)] || trim(value) || '—';
-const newForm = () => ({ DiemDenMongMuon: '', NgayDuKienDi: '', SoNgay: 3, SoNguoiLon: 2, SoTreEm: 0, NganSachDuKien: '', SoThichGhiChu: '' });
-const tomorrowDate = () => {
-  const day = new Date();
-  day.setDate(day.getDate() + 1);
-  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
-};
 
 export function DesignRequestsPage() {
-  const [form, setForm] = useState(newForm);
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState('');
   const [listError, setListError] = useState('');
-  const [createdId, setCreatedId] = useState('');
   const pageSize = 10;
 
   useEffect(() => {
@@ -41,52 +32,12 @@ export function DesignRequestsPage() {
     return () => { active = false; };
   }, [page, refresh]);
 
-  const field = (name) => ({ value: form[name], disabled: sending, onChange: (event) => setForm({ ...form, [name]: event.target.value }) });
-  const submit = async (event) => {
-    event.preventDefault();
-    if (sending) return;
-    setError(''); setCreatedId('');
-    const data = {
-      ...form, DiemDenMongMuon: trim(form.DiemDenMongMuon), SoThichGhiChu: trim(form.SoThichGhiChu),
-      SoNgay: Number(form.SoNgay), SoNguoiLon: Number(form.SoNguoiLon), SoTreEm: Number(form.SoTreEm), NganSachDuKien: Number(form.NganSachDuKien),
-    };
-    if (!data.DiemDenMongMuon || !data.NgayDuKienDi || data.NgayDuKienDi < tomorrowDate()) {
-      setError('Vui lòng nhập điểm đến và chọn ngày đi từ ngày mai trở đi.'); return;
-    }
-    if (![data.SoNgay, data.SoNguoiLon, data.SoTreEm, data.NganSachDuKien].every(Number.isInteger) ||
-        data.SoNgay < 1 || data.SoNgay > 30 || data.SoNguoiLon < 0 || data.SoTreEm < 0 ||
-        data.SoNguoiLon + data.SoTreEm < 1 || data.SoNguoiLon + data.SoTreEm > 2147483647 ||
-        data.NganSachDuKien < 1 || data.NganSachDuKien > 2147483647) {
-      setError('Nhập số ngày từ 1–30, ít nhất một hành khách và ngân sách nguyên dương hợp lệ.'); return;
-    }
-    setSending(true);
-    try {
-      const response = await api.createDesignRequest(data);
-      setCreatedId(trim(response.data.maYeuCau));
-      setForm(newForm()); setPage(1); setRefresh((value) => value + 1);
-    } catch (err) { setError(api.errorMessage(err, 'Không gửi được yêu cầu thiết kế.')); }
-    finally { setSending(false); }
-  };
-
   return (
     <section className="page-section" style={{ overflowWrap: 'anywhere' }}>
       <div className="page-heading"><div><span className="stamp">Hành trình của riêng bạn</span><h1>Tự thiết kế <em>chuyến đi</em></h1></div></div>
-      <p>Gửi mong muốn để hệ thống ghép đề xuất. Bạn chọn phương án, xem lịch Sale đã sửa và xác nhận rồi đặt tour sau khi được duyệt.</p>
-      {createdId && <div className="success-message" role="status">Đã gửi yêu cầu <b>{createdId}</b>. <Link to={`/tu-thiet-ke/${encodeURIComponent(createdId)}`}>Xem chi tiết và đề xuất</Link></div>}
-      {error && <div className="form-error" role="alert">{error}</div>}
-      <form className="design-form profile-form" onSubmit={submit} aria-busy={sending}>
-        <div className="profile-fields">
-          <label>Điểm đến mong muốn<input required maxLength={200} {...field('DiemDenMongMuon')} placeholder="Ví dụ: Đà Nẵng" /></label>
-          <label>Ngày dự kiến đi<input type="date" required min={tomorrowDate()} {...field('NgayDuKienDi')} /></label>
-          <label>Số ngày<input type="number" required min="1" max="30" step="1" {...field('SoNgay')} /></label>
-          <label>Ngân sách dự kiến (VNĐ)<input type="number" required min="1" max="2147483647" step="1" {...field('NganSachDuKien')} /></label>
-          <label>Số người lớn<input type="number" required min="0" max="2147483647" step="1" {...field('SoNguoiLon')} /></label>
-          <label>Số trẻ em<input type="number" required min="0" max="2147483647" step="1" {...field('SoTreEm')} /></label>
-          <label className="span-2">Sở thích / ghi chú<textarea rows={4} {...field('SoThichGhiChu')} /></label>
-        </div>
-        <button className="primary-button" disabled={sending}>{sending ? 'Đang gửi và ghép đề xuất…' : 'Gửi yêu cầu thiết kế'}</button>
-      </form>
-      <div className="page-heading"><h2>Yêu cầu của tôi</h2><button className="outline-button" disabled={loading || sending} onClick={() => setRefresh((value) => value + 1)}>Tải lại danh sách</button></div>
+      <p>Trò chuyện với trợ lý ANAM: chọn tỉnh xuất phát / đến, giờ đi–về, ngân sách. Hệ thống ghép 3 lịch từ CSDL (không bịa khách sạn).</p>
+      <DesignChat />
+      <div className="page-heading"><h2>Yêu cầu của tôi</h2><button className="outline-button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}>Tải lại danh sách</button></div>
       {listError && <div className="form-error" role="alert">{listError}</div>}
       {loading ? <p role="status">Đang tải yêu cầu…</p> : !listError && <>
         <div className="booking-list">{items.map((item) => <Link className="booking-row" key={item.maYeuCau} to={`/tu-thiet-ke/${encodeURIComponent(trim(item.maYeuCau))}`}>

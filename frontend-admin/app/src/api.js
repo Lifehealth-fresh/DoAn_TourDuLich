@@ -43,6 +43,7 @@ export const tourDetail=id=>api.get(`/api/Tour/${encodeURIComponent(id)}`);
 export const tourSchedule=id=>api.get(`/api/LichTrinh/tour/${encodeURIComponent(id)}`);
 export const createTourSchedule=data=>api.post('/api/LichTrinh',data);
 export const deleteTourSchedule=id=>api.delete(`/api/LichTrinh/${encodeURIComponent(id)}`);
+export const provinces=(q)=>api.get('/api/TinhThanh',{params:q?{q}:{}});
 export const sightseeingPlaces=()=>api.get('/api/DiemThamQuan');
 export const createSightseeing=data=>api.post('/api/DiemThamQuan',data);
 export const updateSightseeing=(id,data)=>api.put(`/api/DiemThamQuan/${encodeURIComponent(id)}`,data);

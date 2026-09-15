@@ -1,8 +1,9 @@
-﻿namespace TourDuLich.API.DTOs;
+namespace TourDuLich.API.DTOs;
 
 public class YeuCauThietKeCreateDto
 {
     public string? DiemDenMongMuon { get; set; }
+    public string? MaTinhDen { get; set; }
     public DateOnly? NgayDuKienDi { get; set; }
     public int? SoNgay { get; set; }
     public int SoNguoiLon { get; set; }
