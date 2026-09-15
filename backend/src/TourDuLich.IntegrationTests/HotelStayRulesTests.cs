@@ -11,10 +11,10 @@ public sealed class HotelStayRulesTests
     public void RegionMismatch_SameProvince_DoesNotCompareKhuVucToTinh()
     {
         var hotel = Hotel("TN01", "KV001");
-        var error = HotelStayRules.RegionMismatchMessage(new[]
-        {
-            (1, "TN01", "KV001", hotel)
-        });
+        var error = HotelStayRules.RegionMismatchMessage(new (int, string?, string?, SanPhamDoiTac?)[]
+{
+    (1, "TN01", "KV001", hotel)
+});
         Assert.Null(error);
     }
 
@@ -22,10 +22,10 @@ public sealed class HotelStayRulesTests
     public void RegionMismatch_HotelHaNoi_PointNhaTrang_Fails()
     {
         var hotel = Hotel("TN01", "KV001");
-        var error = HotelStayRules.RegionMismatchMessage(new[]
-        {
-            (1, "TN37", "KV002", hotel)
-        });
+        var error = HotelStayRules.RegionMismatchMessage(new (int, string?, string?, SanPhamDoiTac?)[]
+{
+    (1, "TN37", "KV002", hotel)
+});
         Assert.Equal("Khách sạn phải cùng tỉnh với điểm tham quan.", error);
     }
 

@@ -125,6 +125,8 @@ public class AuthController : ControllerBase
     [EnableRateLimiting("auth")]
     public async Task<ActionResult> Refresh(RefreshTokenDto request)
     {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+            return Unauthorized(new { message = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
         var existing = await _refreshTokenService.FindActiveAsync(request.RefreshToken);
         if (existing is null)
             return Unauthorized(new { message = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
