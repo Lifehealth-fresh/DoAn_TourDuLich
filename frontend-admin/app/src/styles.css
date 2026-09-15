@@ -69,6 +69,16 @@ button {
 .ok { background: #d8f3e2; color: var(--jade); }
 .danger { background: #8d2d44; }
 .booking-row { width: 100%; text-align: left; background: #fffdf8; color: inherit; box-shadow: 5px 5px 0 rgba(28, 54, 88, 0.12); }
+button.row {
+  color: var(--ink);
+  background: #fffdf8;
+  font-weight: 700;
+  text-align: left;
+  width: 100%;
+}
+button.row b,
+button.row span,
+button.row em { color: var(--ink); }
 .booking-row.on { outline: 3px solid var(--gold); }
 .badge { display: inline-block; padding: 3px 8px; border: 2px solid var(--ink); font-size: 0.75rem; font-weight: 800; font-style: normal; background: #ffe08a; }
 .badge.ChoXacNhan, .badge.wait { background: #ffe08a; }

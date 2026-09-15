@@ -108,6 +108,11 @@ export const tourPhotos = (id) => api.get(`/api/Tour/${encodeURIComponent(id)}/a
 export const reviews = (id) => api.get(`/api/DanhGia/tour/${encodeURIComponent(id)}`);
 export const createTourReview = (data) => api.post('/api/DanhGia/tour', data);
 export const updateTourReview = (id, data) => api.put(`/api/DanhGia/tour/${encodeURIComponent(id)}`, data);
+export const uploadReviewMedia = (file) => {
+  const data = new FormData();
+  data.append('file', file);
+  return api.post('/api/DanhGia/media/upload', data);
+};
 export const savedTours = () => api.get('/api/DanhSachYeuThich/cua-toi');
 export const saveTour = (data) => api.post('/api/DanhSachYeuThich', data);
 export const removeSavedTour = (id) => api.delete(`/api/DanhSachYeuThich/${encodeURIComponent(id)}`);
@@ -148,6 +153,11 @@ export const updateProfile = (id, data) => api.put(`/api/KhachHang/${encodeURICo
 export const addDocument = (id, data) => api.post(`/api/KhachHang/${encodeURIComponent(id)}/giay-to`, data);
 export const updateDocument = (id, docId, data) => api.put(`/api/KhachHang/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}`, data);
 export const deleteDocument = (id, docId) => api.delete(`/api/KhachHang/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}`);
+export const uploadDocumentImage = (id, docId, file, mat = 'Truoc') => {
+  const data = new FormData();
+  data.append('file', file);
+  return api.post(`/api/KhachHang/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}/anh?mat=${encodeURIComponent(mat)}`, data);
+};
 
 export default api;
 export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');

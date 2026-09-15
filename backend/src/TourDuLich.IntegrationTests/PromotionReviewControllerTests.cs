@@ -72,6 +72,22 @@ public sealed class PromotionReviewControllerTests
             new DanhGiaTourUpdateDto { SaoDanhGia = 4, NhanXet = "Đã sửa" }));
         Assert.Equal(4, row.SaoDanhGia); Assert.Equal("Đã sửa", row.NhanXet);
         Assert.True(row.CongKhai);
+        Assert.NotNull(row.ThoiGianSua);
+    }
+
+    [Fact]
+    public async Task Review_EditRejectedAfterFiveDays()
+    {
+        using var db = new MemoryContext();
+        db.Booking.TrangThai = Key("HoanThanh");
+        var controller = Reviews(db);
+        Assert.IsType<ObjectResult>(await controller.CreateTourReview(Review()));
+        var row = Assert.Single(db.ReviewRows);
+        row.ThoiGian = DateTime.UtcNow.AddDays(-6);
+        var denied = Assert.IsType<ObjectResult>(await controller.UpdateTourReview(row.MaDanhGiaTour.Trim(),
+            new DanhGiaTourUpdateDto { SaoDanhGia = 2, NhanXet = "Quá hạn" }));
+        Assert.Equal(403, denied.StatusCode);
+        Assert.Equal(5, row.SaoDanhGia);
     }
 
     [Fact]

@@ -13,6 +13,8 @@ public partial class DanhGiaTour
 
     public DateTime? ThoiGian { get; set; }
 
+    public DateTime? ThoiGianSua { get; set; }
+
     public int? SaoDanhGia { get; set; }
 
     public string? NhanXet { get; set; }

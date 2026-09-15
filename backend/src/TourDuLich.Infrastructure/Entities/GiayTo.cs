@@ -17,6 +17,14 @@ public partial class GiayTo
 
     public string NoiCap { get; set; } = null!;
 
+    public string? AnhMatTruoc { get; set; }
+
+    public string? AnhMatSau { get; set; }
+
+    public string? CloudPublicIdTruoc { get; set; }
+
+    public string? CloudPublicIdSau { get; set; }
+
     public string MaKhachHang { get; set; } = null!;
 
     public virtual KhachHang MaKhachHangNavigation { get; set; } = null!;

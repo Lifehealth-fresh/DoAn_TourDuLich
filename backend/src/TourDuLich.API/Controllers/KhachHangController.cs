@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TourDuLich.API.Authorization;
 using TourDuLich.API.DTOs;
+using TourDuLich.API.Services;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
@@ -14,10 +16,88 @@ namespace TourDuLich.API.Controllers;
 public class KhachHangController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly ITourMediaStorage? _storage;
 
-    public KhachHangController(AppDbContext context)
+    public KhachHangController(AppDbContext context, ITourMediaStorage? storage = null)
     {
         _context = context;
+        _storage = storage;
+    }
+
+    [HttpGet("quan-ly")]
+    [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.KhachHang, PermissionCatalog.Xem)]
+    public async Task<ActionResult> SearchStaff([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 30)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var needle = (q ?? string.Empty).Trim();
+        var query = _context.KhachHangs.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(needle))
+        {
+            var padded = FixedLengthHelper.PadTo20(needle);
+            query = query.Where(item =>
+                item.MaKhachHang == padded ||
+                (item.SoDienThoai != null && item.SoDienThoai.Contains(needle)) ||
+                ((item.Ho ?? "") + " " + (item.Ten ?? "")).Contains(needle) ||
+                (item.Email != null && item.Email.Contains(needle)));
+        }
+
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .OrderBy(item => item.Ho).ThenBy(item => item.Ten)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(item => new
+            {
+                maKhachHang = FixedLengthHelper.TrimSafe(item.MaKhachHang),
+                ho = item.Ho,
+                ten = item.Ten,
+                email = item.Email,
+                soDienThoai = FixedLengthHelper.TrimSafe(item.SoDienThoai),
+                quocTich = item.QuocTich,
+                ngaySinh = item.NgaySinh,
+                soGiayTo = item.GiayTos.Count(),
+                soChuyenDi = _context.DatDichVus.Count(b => b.MaKhachHang == item.MaKhachHang || b.MaUser == item.MaUser)
+            }).ToListAsync();
+        return Ok(new { q = needle, page, pageSize, totalCount, items });
+    }
+
+    [HttpGet("quan-ly/{maKhachHang}")]
+    [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.KhachHang, PermissionCatalog.Xem)]
+    public async Task<ActionResult> StaffDetail(string maKhachHang)
+    {
+        var key = FixedLengthHelper.PadTo20(maKhachHang);
+        var profile = await _context.KhachHangs.AsNoTracking()
+            .Include(item => item.GiayTos)
+            .FirstOrDefaultAsync(item => item.MaKhachHang == key);
+        if (profile is null)
+            return NotFound(new { message = "Không tìm thấy hồ sơ khách hàng." });
+
+        var trips = await (
+            from b in _context.DatDichVus.AsNoTracking()
+            join t in _context.Tours.AsNoTracking() on b.MaTour equals t.MaTour
+            where b.MaKhachHang == profile.MaKhachHang || b.MaUser == profile.MaUser
+            orderby b.NgayDat descending
+            select new
+            {
+                maBooking = FixedLengthHelper.TrimSafe(b.MaBooking),
+                maTour = FixedLengthHelper.TrimSafe(b.MaTour),
+                tenTour = t.TenTour,
+                maKhoiHanh = FixedLengthHelper.TrimSafe(b.MaKhoiHanh),
+                ngayDat = b.NgayDat,
+                trangThai = FixedLengthHelper.TrimSafe(b.TrangThai),
+                slnguoiLon = b.SlnguoiLon,
+                sltreEm = b.SltreEm,
+                thanhTien = b.ThanhTien
+            }).ToListAsync();
+
+        return Ok(new
+        {
+            hoSo = ToProfile(profile),
+            chuyenDi = trips
+        });
     }
 
     [HttpGet]
@@ -251,6 +331,7 @@ public class KhachHangController : ControllerBase
 
     [HttpPost("sale/{maKhachHang}/giay-to")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.KhachHang, PermissionCatalog.Them)]
     public async Task<ActionResult> SaleAddDocument(string maKhachHang, GiayToCreateDto request)
     {
         var profile = await _context.KhachHangs.FirstOrDefaultAsync(item =>
@@ -262,6 +343,7 @@ public class KhachHangController : ControllerBase
 
     [HttpPut("sale/{maKhachHang}/giay-to/{maGiayTo}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.KhachHang, PermissionCatalog.Sua)]
     public async Task<ActionResult> SaleUpdateDocument(
         string maKhachHang,
         string maGiayTo,
@@ -283,6 +365,7 @@ public class KhachHangController : ControllerBase
 
     [HttpDelete("sale/{maKhachHang}/giay-to/{maGiayTo}")]
     [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.KhachHang, PermissionCatalog.Xoa)]
     public async Task<IActionResult> SaleDeleteDocument(string maKhachHang, string maGiayTo)
     {
         var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
@@ -294,6 +377,76 @@ public class KhachHangController : ControllerBase
         _context.GiayTos.Remove(document);
         await _context.SaveChangesAsync();
         return NoContent();
+    }
+
+    [HttpPost("{maKhachHang}/giay-to/{maGiayTo}/anh")]
+    [Authorize(Roles = "KhachHang")]
+    [RequestSizeLimit(10_485_760)]
+    public async Task<ActionResult> UploadDocumentImage(
+        string maKhachHang, string maGiayTo, [FromForm] IFormFile file, [FromQuery] string mat = "Truoc",
+        CancellationToken cancellationToken = default)
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+        var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
+            item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo) &&
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang) &&
+            item.MaKhachHangNavigation.MaUser == maUserDb, cancellationToken);
+        if (document is null)
+            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ của bạn." });
+        return await SaveDocumentImage(document, file, mat, cancellationToken);
+    }
+
+    [HttpPost("sale/{maKhachHang}/giay-to/{maGiayTo}/anh")]
+    [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.KhachHang, PermissionCatalog.Sua)]
+    [RequestSizeLimit(10_485_760)]
+    public async Task<ActionResult> StaffUploadDocumentImage(
+        string maKhachHang, string maGiayTo, [FromForm] IFormFile file, [FromQuery] string mat = "Truoc",
+        CancellationToken cancellationToken = default)
+    {
+        var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
+            item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo) &&
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang), cancellationToken);
+        if (document is null)
+            return NotFound(new { message = "Không tìm thấy giấy tờ." });
+        return await SaveDocumentImage(document, file, mat, cancellationToken);
+    }
+
+    private async Task<ActionResult> SaveDocumentImage(
+        GiayTo document, IFormFile file, string mat, CancellationToken cancellationToken)
+    {
+        var side = (mat ?? "Truoc").Trim();
+        if (side is not ("Truoc" or "Sau"))
+            return BadRequest(new { message = "mat chỉ nhận Truoc hoặc Sau." });
+        if (_storage is null)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Chưa cấu hình lưu media." });
+        var validation = await MediaUploadRules.ValidateAsync(file, allowVideo: false, cancellationToken);
+        if (!validation.IsValid)
+            return BadRequest(new { message = validation.Error });
+        StoredTourMedia uploaded;
+        try
+        {
+            uploaded = await _storage.UploadAsync(
+                file, $"giay-to/{FixedLengthHelper.TrimSafe(document.MaGiayTo)}", validation.Kind, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
+        }
+
+        if (side == "Truoc")
+        {
+            document.AnhMatTruoc = uploaded.SecureUrl;
+            document.CloudPublicIdTruoc = uploaded.PublicId;
+        }
+        else
+        {
+            document.AnhMatSau = uploaded.SecureUrl;
+            document.CloudPublicIdSau = uploaded.PublicId;
+        }
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(ToDocument(document));
     }
 
     private async Task<ActionResult> CreateForUser(string maUserDb, KhachHangCreateDto request)
@@ -466,7 +619,9 @@ public class KhachHangController : ControllerBase
             soTrenGiayTo = document.SoTrenGiayTo,
             ngayCap = document.NgayCap,
             ngayHetHan = document.NgayHetHan,
-            noiCap = document.NoiCap
+            noiCap = document.NoiCap,
+            anhMatTruoc = document.AnhMatTruoc,
+            anhMatSau = document.AnhMatSau
         };
     }
 

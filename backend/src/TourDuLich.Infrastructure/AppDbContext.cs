@@ -233,6 +233,7 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(20)
                 .IsFixedLength();
             entity.Property(e => e.ThoiGian).HasColumnType("datetime");
+            entity.Property(e => e.ThoiGianSua).HasColumnType("datetime");
             entity.Property(e => e.CongKhai).HasDefaultValue(true);
 
             entity.HasOne(d => d.MaTourNavigation).WithMany(p => p.DanhGiaTours)
@@ -251,7 +252,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.MaMedia).HasMaxLength(20).IsFixedLength();
             entity.Property(e => e.MaDanhGiaTour).HasMaxLength(20).IsFixedLength();
             entity.Property(e => e.LoaiMedia).HasMaxLength(10).IsRequired();
-            entity.Property(e => e.Url).HasMaxLength(300).IsRequired();
+            entity.Property(e => e.Url).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.CloudPublicId).HasMaxLength(200);
+            entity.Property(e => e.CloudResourceType).HasMaxLength(20);
             entity.HasOne(e => e.MaDanhGiaTourNavigation)
                 .WithMany(e => e.MediaDanhGiaTours)
                 .HasForeignKey(e => e.MaDanhGiaTour)
@@ -489,6 +492,10 @@ public partial class AppDbContext : DbContext
                 .IsFixedLength();
             entity.Property(e => e.NoiCap).HasMaxLength(50);
             entity.Property(e => e.SoTrenGiayTo).HasMaxLength(50);
+            entity.Property(e => e.AnhMatTruoc).HasMaxLength(500);
+            entity.Property(e => e.AnhMatSau).HasMaxLength(500);
+            entity.Property(e => e.CloudPublicIdTruoc).HasMaxLength(200);
+            entity.Property(e => e.CloudPublicIdSau).HasMaxLength(200);
 
             entity.HasOne(d => d.MaKhachHangNavigation).WithMany(p => p.GiayTos)
                 .HasForeignKey(d => d.MaKhachHang)

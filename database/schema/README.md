@@ -24,6 +24,8 @@ database. Không có `CREATE DATABASE` hoặc `USE`; hãy mở đúng database t
 24. `022_SeedCatalogMoRong.sql` — thêm tour đang bán TOUR010–TOUR018, lịch khởi hành có sức chứa, mã ưu đãi, đánh giá mẫu. Ảnh tour để trống, upload sau trên admin.
 25. `023_TuThietKeChatPlanner.sql` — bảng chat tự thiết kế, alias tỉnh (Nha Trang→Khánh Hòa), ma trận thời gian đi, backfill MaTinh điểm cũ. **Không xóa booking/user.** Chạy sau 018+022.
 26. `024_MatchToanBoOffline.sql` — alias 63 tỉnh + thành phố thường gõ; backfill MaTinh còn thiếu (014/017). Không cần Google Maps. Chạy sau 023.
+27. `027_DanhGiaCongKhaiVaNoiBo.sql` — cột `CongKhai` trên `DanhGiaTour`, quyền module `DanhGia` (chỉ xem), seed ~90 bài đánh giá công khai. Chạy sau 026.
+28. `028_ReviewEditMediaVaKhachHang.sql` — hạn sửa đánh giá 5 ngày (`ThoiGianSua`), Cloudinary media đánh giá, ảnh CCCD giấy tờ, quyền module `KhachHang`. Chạy sau 027.
 
 Thứ tự chạy thực tế là `001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012`.
 Các file 013–022 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.

@@ -611,6 +611,13 @@ function TourDetail() {
                 <p>“{review.nhanXet || 'Chuyến đi đáng nhớ.'}”</p>
                 <b>{review.tenKhachHang || 'Khách ANAM'}</b>
                 <small>{dateText(review.thoiGian)}</small>
+                {review.media?.length ? (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {review.media.map((m, i) => m.loaiMedia === 'Video'
+                      ? <video key={i} src={m.url} controls style={{ maxWidth: 220 }} />
+                      : <img key={i} src={m.url} alt="" style={{ height: 88 }} />)}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -905,6 +912,7 @@ function BookingDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [item, setItem] = useState(location.state?.booking || null);
+  const [ownReview, setOwnReview] = useState(null);
   const [summary, setSummary] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(!location.state?.booking);
@@ -930,6 +938,12 @@ function BookingDetailPage() {
     try {
       const bookingRes = await api.bookingDetail(id);
       setItem(bookingRes.data);
+      if (bookingRes.data?.maTour) {
+        try {
+          const reviewRes = await api.reviews(String(bookingRes.data.maTour).trim());
+          setOwnReview(reviewRes.data?.danhGiaCuaToi || null);
+        } catch { setOwnReview(null); }
+      }
       try {
         const sumRes = await api.paymentSummary(id);
         setSummary(sumRes.data || {});
@@ -1123,6 +1137,7 @@ function BookingDetailPage() {
       {trim(item.trangThai) === 'HoanThanh' && item.maTour && (
         <TourReviewForm
           tourId={String(item.maTour).trim()}
+          ownReview={ownReview}
           internal={trim(item.loaiTour) === 'TuThietKe'}
           onSaved={load}
         />
@@ -1138,6 +1153,8 @@ function ProfilePage() {
   const [item, setItem] = useState(null);
   const [docs, setDocs] = useState([]);
   const [trips, setTrips] = useState([]);
+  const [frontFile, setFrontFile] = useState(null);
+  const [backFile, setBackFile] = useState(null);
   const [form, setForm] = useState({
     ho: '',
     ten: '',
@@ -1255,17 +1272,33 @@ function ProfilePage() {
     setError('');
     setDocSaved('');
     try {
+      let row;
       if (editingDoc) {
         const res = await api.updateDocument(item.maKhachHang, editingDoc, docPayload());
-        setDocs((list) => list.map((d) => (d.maGiayTo === editingDoc ? res.data : d)));
-        setDocSaved('Đã cập nhật giấy tờ.');
+        row = res.data;
       } else {
         const res = await api.addDocument(item.maKhachHang, docPayload());
-        setDocs((list) => [...list, res.data]);
+        row = res.data;
+      }
+      if (frontFile) {
+        const up = await api.uploadDocumentImage(item.maKhachHang, row.maGiayTo, frontFile, 'Truoc');
+        row = up.data;
+      }
+      if (backFile) {
+        const up = await api.uploadDocumentImage(item.maKhachHang, row.maGiayTo, backFile, 'Sau');
+        row = up.data;
+      }
+      if (editingDoc) {
+        setDocs((list) => list.map((d) => (d.maGiayTo === editingDoc ? row : d)));
+        setDocSaved('Đã cập nhật giấy tờ.');
+      } else {
+        setDocs((list) => [...list.filter((d) => d.maGiayTo !== row.maGiayTo), row]);
         setDocSaved('Đã thêm giấy tờ mới.');
       }
       setDocForm(emptyDoc);
       setEditingDoc('');
+      setFrontFile(null);
+      setBackFile(null);
     } catch (e2) {
       setError(api.errorMessage(e2));
     } finally {
@@ -1433,7 +1466,7 @@ function ProfilePage() {
               <div>
                 <p className="proposal-label">03 · Giấy tờ</p>
                 <h2>CCCD & hộ chiếu</h2>
-                <p>Lưu số giấy tờ để Sale xác minh nhanh khi bạn đặt chỗ.</p>
+                <p>Chỉ bạn và bộ phận vận hành thấy giấy tờ này, không hiện trên website công khai.</p>
               </div>
               {docSaved && <div className="success-message">{docSaved}</div>}
             </header>
@@ -1453,6 +1486,10 @@ function ProfilePage() {
                       </header>
                       <p className="doc-number">{doc.soTrenGiayTo}</p>
                       <p>Cấp {dateText(doc.ngayCap)} · {doc.noiCap}</p>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {doc.anhMatTruoc && <img src={doc.anhMatTruoc} alt="Mặt trước" style={{ height: 72 }} />}
+                        {doc.anhMatSau && <img src={doc.anhMatSau} alt="Mặt sau" style={{ height: 72 }} />}
+                      </div>
                       <div className="doc-actions">
                         <button type="button" className="text-button" onClick={() => editDoc(doc)}>Sửa</button>
                         <button type="button" className="text-button" onClick={() => removeDoc(doc)}>Xóa</button>
@@ -1486,6 +1523,12 @@ function ProfilePage() {
                 </label>
                 <label className="span-2">Nơi cấp
                   <input maxLength={50} value={docForm.noiCap} onChange={setDocField('noiCap')} placeholder="Cục Cảnh sát QLHC" required />
+                </label>
+                <label>Ảnh mặt trước CCCD
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFrontFile(e.target.files?.[0] || null)} />
+                </label>
+                <label>Ảnh mặt sau CCCD
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setBackFile(e.target.files?.[0] || null)} />
                 </label>
               </div>
               <div className="doc-form-actions">
@@ -1572,7 +1615,9 @@ function PromotionsPage() {
               {condition.lanDatDau && 'Chỉ cho lần đặt đầu. '}
               {condition.soLuong != null && `Giới hạn ${condition.soLuong} lượt sử dụng.`}
             </p>)}
-            <p>{item.maTours?.length ? `Tour áp dụng: ${item.maTours.join(', ')}` : 'Áp dụng mọi tour.'}</p>
+            <p>{item.tours?.length
+              ? `Tour áp dụng: ${item.tours.map((t) => t.tenTour || t.maTour).join(', ')}`
+              : item.maTours?.length ? `Tour áp dụng: ${item.maTours.join(', ')}` : 'Áp dụng mọi tour.'}</p>
             <button className="outline-button" onClick={() => copyCode(item.maCode)}>
               Sao chép mã
             </button>

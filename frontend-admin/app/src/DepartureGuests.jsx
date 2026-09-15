@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import * as api from './api';
 import { ExpandRecord, Notice } from './components';
 import { useAuth } from './context';
@@ -200,7 +201,9 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
                           onClick={() => !blocked && setBookingId(b.maBooking)}
                           onKeyDown={(e) => { if (e.key === 'Enter' && !blocked) setBookingId(b.maBooking); }}>
                           <td>{b.soDienThoai || '—'}</td>
-                          <td>{b.hoTen || 'Chưa có hồ sơ'}</td>
+                          <td>{b.maKhachHang
+                            ? <Link to={`/khach-hang?id=${encodeURIComponent(b.maKhachHang)}`}>{b.hoTen || 'Chưa có hồ sơ'}</Link>
+                            : (b.hoTen || 'Chưa có hồ sơ')}</td>
                           <td>{b.soCho} = {b.slnguoiLon} NL + {b.sltreEm} TE</td>
                           <td><button type="button" disabled={blocked} onClick={() => setBookingId(b.maBooking)}>{b.maBooking}</button></td>
                           <td><em className={`badge ${String(b.trangThai || '').trim()}`}>{STATUS[b.trangThai] || b.trangThai}</em></td>
@@ -213,7 +216,7 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
               </>}
               {open && bookingId && profile && (
                 <form className="panel" style={{ marginTop: 16 }} onSubmit={saveProfile}>
-                  <h3>Hồ sơ khách — {profile.maBooking}</h3>
+                  <h3>Hồ sơ khách — {profile.maBooking} {profile.maKhachHang && <Link to={`/khach-hang?id=${encodeURIComponent(profile.maKhachHang)}`}>Mở trang khách</Link>}</h3>
                   <p className="muted">Vé {STATUS[profile.trangThai] || profile.trangThai || '—'}. Số điện thoại theo tài khoản, không sửa tại đây.</p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                     <label>Họ<input required maxLength={20} value={profileForm.ho} onChange={(e) => setProfileForm({ ...profileForm, ho: e.target.value })} /></label>

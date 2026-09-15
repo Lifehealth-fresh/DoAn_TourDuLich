@@ -37,7 +37,12 @@ public class KhuyenMaiController : ControllerBase
                     maDk = FixedLengthHelper.TrimSafe(dk.MaDk), donToiThieu = dk.DonToiThieu,
                     lanDatDau = dk.LanDatDau, soLuong = dk.SoLuong
                 }).ToList(),
-                maTours = item.KmTours.Select(link => FixedLengthHelper.TrimSafe(link.MaTour)).ToList()
+                maTours = item.KmTours.Select(link => FixedLengthHelper.TrimSafe(link.MaTour)).ToList(),
+                tours = item.KmTours.Select(link => new
+                {
+                    maTour = FixedLengthHelper.TrimSafe(link.MaTour),
+                    tenTour = link.MaTourNavigation.TenTour
+                }).ToList()
             }).ToListAsync();
         return Ok(items);
     }
@@ -61,7 +66,12 @@ public class KhuyenMaiController : ControllerBase
                 maDk = FixedLengthHelper.TrimSafe(dk.MaDk), donToiThieu = dk.DonToiThieu,
                 lanDatDau = dk.LanDatDau, soLuong = dk.SoLuong
             }).ToList(),
-            maTours = km.KmTours.Select(link => FixedLengthHelper.TrimSafe(link.MaTour)).ToList()
+            maTours = km.KmTours.Select(link => FixedLengthHelper.TrimSafe(link.MaTour)).ToList(),
+            tours = km.KmTours.Select(link => new
+            {
+                maTour = FixedLengthHelper.TrimSafe(link.MaTour),
+                tenTour = link.MaTourNavigation.TenTour
+            }).ToList()
         }).FirstOrDefaultAsync();
         return item is null ? NotFound(new { message = $"Không tìm thấy khuyến mãi '{maKm}'." }) : Ok(item);
     }

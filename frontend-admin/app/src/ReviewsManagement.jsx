@@ -85,6 +85,13 @@ export default function ReviewsManagement() {
                     {!item.congKhai && <em className="badge wait">Nội bộ</em>}
                   </header>
                   <p>{item.nhanXet || 'Không có nhận xét.'}</p>
+                  {item.media?.length ? (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                      {item.media.map((m, i) => m.loaiMedia === 'Video'
+                        ? <video key={i} src={m.url} controls style={{ maxWidth: 220, maxHeight: 140 }} />
+                        : <a key={i} href={m.url} target="_blank" rel="noreferrer"><img src={m.url} alt="" style={{ height: 88, border: '2px solid #1c1612' }} /></a>)}
+                    </div>
+                  ) : null}
                 </article>
               )) : <p className="muted">Tour này chưa có bài đánh giá.</p>}
             </div>

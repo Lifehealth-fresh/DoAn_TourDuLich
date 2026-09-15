@@ -79,10 +79,10 @@ export default function PromotionsManagement() {
     return () => { active = false; };
   }, []);
   const field = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
-  const fresh = (demo = false) => {
+  const fresh = () => {
     setSelected(''); setCreating(true);
-    setForm({ ...empty(), ...(demo ? { tenKm: 'Ưu đãi trải nghiệm DEMO10', maCode: 'DEMO10', donToiThieu: 1000000 } : {}) });
-    setError(''); setMessage(demo ? 'Đã điền mẫu DEMO10: giảm 10%, đơn tối thiểu 1.000.000 đ. Bấm Thêm ưu đãi để lưu.' : '');
+    setForm(empty());
+    setError(''); setMessage('');
     requestAnimationFrame(() => document.getElementById('promo-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   };
   const openRow = (id) => run(() => loadDetail(id), 'Không tải được chi tiết ưu đãi.');
@@ -120,10 +120,6 @@ export default function PromotionsManagement() {
       if (selected === id) { setSelected(''); setCreating(false); setForm(empty()); }
     }, 'Không xóa được ưu đãi.');
   };
-  const now = Date.now();
-  const hasValidSeed = items.some((item) => ['DALAT08', 'ISLAND10'].includes((item.maCode || '').trim()) &&
-    (item.trangThai || '').trim() === 'HoatDong' && asUtc(item.ngayBd)?.getTime() <= now && asUtc(item.ngayKt)?.getTime() >= now);
-  const hasDemo = items.some((item) => (item.maCode || '').trim() === 'DEMO10');
   const options = [...tours, ...form.maTours.filter((id) => !tours.some((tour) => tour.maTour.trim() === id))
     .map((id) => ({ maTour: id, tenTour: 'Tour đã gắn với mã' }))];
   const editor = (
@@ -175,7 +171,6 @@ export default function PromotionsManagement() {
       <button disabled={busy} onClick={() => run(async () => {
         await loadList(); if (selected) await loadDetail(selected);
       }, 'Không tải lại được ưu đãi.')}>Tải lại ưu đãi</button>
-      {canThem && !hasValidSeed && !hasDemo && <button disabled={busy} onClick={() => fresh(true)}>Điền mã DEMO10</button>}
     </div>
     {creating && <div id="promo-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
     <div className="table" aria-label="Danh sách ưu đãi">

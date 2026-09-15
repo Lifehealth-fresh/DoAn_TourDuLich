@@ -34,6 +34,14 @@ public static class ReviewDashboardBuilder
         return string.IsNullOrWhiteSpace(name) ? "Khách ANAM" : name;
     }
 
+    public const int ReviewEditDays = 5;
+
+    public static DateTime? EditDeadline(DateTime? created) =>
+        created?.AddDays(ReviewEditDays);
+
+    public static bool CanEdit(DateTime? created, DateTime utcNow) =>
+        created.HasValue && utcNow <= created.Value.AddDays(ReviewEditDays);
+
     public static ReviewDashboardDto Build(
         IReadOnlyList<ReviewFact> rows,
         IReadOnlyDictionary<string, string> tourNames,

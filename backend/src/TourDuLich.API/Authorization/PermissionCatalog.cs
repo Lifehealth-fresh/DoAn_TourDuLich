@@ -15,6 +15,7 @@ public static class PermissionCatalog
     public const string DoiTac = "DoiTac";
     public const string ThietKe = "ThietKe";
     public const string DanhGia = "DanhGia";
+    public const string KhachHang = "KhachHang";
     public const string TaiKhoan = "TaiKhoan";
 
     public static readonly IReadOnlyList<PermissionModule> Modules =
@@ -27,6 +28,7 @@ public static class PermissionCatalog
         new(DoiTac, "Đối tác"),
         new(ThietKe, "Thiết kế"),
         new(DanhGia, "Đánh giá nhận xét"),
+        new(KhachHang, "Quản lý khách hàng"),
         new(TaiKhoan, "Tài khoản")
     ];
 
@@ -44,6 +46,7 @@ public static class PermissionCatalog
             DoiTac => "đối tác",
             ThietKe => "yêu cầu thiết kế",
             DanhGia => "đánh giá nhận xét",
+            KhachHang => "hồ sơ khách hàng",
             TaiKhoan => "tài khoản",
             TongQuan => "trang tổng quan",
             _ => chucNang.ToLowerInvariant()

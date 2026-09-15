@@ -43,6 +43,7 @@ public static class DepartureAvailability
         }).Select(x => new DepartureGuest
         {
             MaBooking = x.booking.MaBooking.Trim(), MaUser = x.booking.MaUser.Trim(),
+            MaKhachHang = x.profile == null ? null : x.profile.MaKhachHang.Trim(),
             SoDienThoai = x.profile != null ? x.profile.SoDienThoai.Trim() : x.booking.MaUserNavigation.SoDienThoai.Trim(),
             HoTen = x.profile == null ? null : (x.profile.Ho.Trim() + " " + x.profile.Ten.Trim()).Trim(),
             SlnguoiLon = x.booking.SlnguoiLon ?? 0, SltreEm = x.booking.SltreEm ?? 0,
@@ -68,6 +69,7 @@ public sealed class DepartureGuest
 {
     public string MaBooking { get; set; } = "";
     public string MaUser { get; set; } = "";
+    public string? MaKhachHang { get; set; }
     public string SoDienThoai { get; set; } = "";
     public string? HoTen { get; set; }
     public int SlnguoiLon { get; set; }

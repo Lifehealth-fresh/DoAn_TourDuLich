@@ -17,11 +17,13 @@ public class DanhGiaController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly IHanhViLogger _hanhViLogger;
+    private readonly ITourMediaStorage? _storage;
 
-    public DanhGiaController(AppDbContext context, IHanhViLogger hanhViLogger)
+    public DanhGiaController(AppDbContext context, IHanhViLogger hanhViLogger, ITourMediaStorage? storage = null)
     {
         _context = context;
         _hanhViLogger = hanhViLogger;
+        _storage = storage;
     }
 
     // GET /api/DanhGia/tour/{maTour}
@@ -115,7 +117,15 @@ public class DanhGiaController : ControllerBase
                 saoDanhGia = item.SaoDanhGia,
                 nhanXet = item.NhanXet,
                 thoiGian = item.ThoiGian,
-                congKhai = item.CongKhai
+                thoiGianSua = item.ThoiGianSua,
+                congKhai = item.CongKhai,
+                coTheSua = ReviewDashboardBuilder.CanEdit(item.ThoiGian, DateTime.UtcNow),
+                hanSua = ReviewDashboardBuilder.EditDeadline(item.ThoiGian),
+                media = item.MediaDanhGiaTours.OrderBy(media => media.ThuTu).Select(media => new
+                {
+                    url = media.Url,
+                    loaiMedia = media.LoaiMedia
+                })
             }).FirstOrDefaultAsync();
 
         return Ok(new
@@ -354,6 +364,38 @@ public class DanhGiaController : ControllerBase
         });
     }
 
+    // POST /api/DanhGia/media/upload
+    [HttpPost("media/upload")]
+    [Authorize(Roles = "KhachHang")]
+    [RequestSizeLimit(104_857_600)]
+    public async Task<ActionResult> UploadReviewMedia([FromForm] IFormFile file, CancellationToken cancellationToken)
+    {
+        if (User.IsInRole("Sale") || User.IsInRole("Admin"))
+            return Forbid();
+        var maUser = GetCurrentMaUser();
+        if (maUser is null) return Unauthorized();
+        if (_storage is null)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Chưa cấu hình lưu media." });
+        var validation = await MediaUploadRules.ValidateAsync(file, allowVideo: true, cancellationToken);
+        if (!validation.IsValid)
+            return BadRequest(new { message = validation.Error });
+        try
+        {
+            var uploaded = await _storage.UploadAsync(
+                file, $"reviews/{FixedLengthHelper.TrimSafe(maUser)}", validation.Kind, cancellationToken);
+            return Ok(new
+            {
+                url = uploaded.SecureUrl,
+                loaiMedia = validation.Kind == TourMediaKind.Image ? "Anh" : "Video",
+                publicId = uploaded.PublicId
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
+        }
+    }
+
     // PUT /api/DanhGia/tour/{maDanhGiaTour}
     [HttpPut("tour/{maDanhGiaTour}")]
     [Authorize]
@@ -392,9 +434,17 @@ public class DanhGiaController : ControllerBase
             return NotFound(new { message = "Không tìm thấy đánh giá của bạn." });
         }
 
+        if (!ReviewDashboardBuilder.CanEdit(danhGia.ThoiGian, DateTime.UtcNow))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = $"Chỉ được sửa đánh giá trong {ReviewDashboardBuilder.ReviewEditDays} ngày sau khi gửi."
+            });
+        }
+
         danhGia.SaoDanhGia = request.SaoDanhGia;
         danhGia.NhanXet = request.NhanXet?.Trim();
-        danhGia.ThoiGian = DateTime.UtcNow;
+        danhGia.ThoiGianSua = DateTime.UtcNow;
 
         var media = ParseMedia(request.MediaUrls, out var mediaError);
         if (mediaError is not null)
@@ -690,8 +740,8 @@ public class DanhGiaController : ControllerBase
                 soCongKhai = tr.Count(x => x.CongKhai),
                 soNoiBo = tr.Count(x => !x.CongKhai),
                 diemTrungBinh = tr.Where(x => x.SaoDanhGia != null).Average(x => (double?)x.SaoDanhGia),
-                tyLeTieuCuc = tr.Count() == 0 ? 0d : tr.Count(x => (x.SaoDanhGia ?? 0) <= 2) / (double)tr.Count(),
-                tyLeTichCuc = tr.Count() == 0 ? 0d : tr.Count(x => (x.SaoDanhGia ?? 0) >= 4) / (double)tr.Count()
+                tyLeTieuCuc = tr.Count() == 0 ? 0 : tr.Count(x => (x.SaoDanhGia ?? 0) <= 2) / (double)tr.Count(),
+                tyLeTichCuc = tr.Count() == 0 ? 0 : tr.Count(x => (x.SaoDanhGia ?? 0) >= 4) / (double)tr.Count()
             }).ToListAsync();
 
         var items = pageIds.Select(id =>
@@ -733,10 +783,16 @@ public class DanhGiaController : ControllerBase
             {
                 item.MaDanhGiaTour,
                 item.ThoiGian,
+                item.ThoiGianSua,
                 item.MaUser,
                 item.SaoDanhGia,
                 item.NhanXet,
-                item.CongKhai
+                item.CongKhai,
+                media = item.MediaDanhGiaTours.OrderBy(m => m.ThuTu).Select(m => new
+                {
+                    url = m.Url,
+                    loaiMedia = m.LoaiMedia
+                })
             }).ToListAsync();
 
         var userIds = raw.Select(item => item.MaUser).Where(id => id != null).Distinct().ToList();
@@ -754,11 +810,13 @@ public class DanhGiaController : ControllerBase
             {
                 maDanhGiaTour = FixedLengthHelper.TrimSafe(item.MaDanhGiaTour),
                 thoiGian = item.ThoiGian,
+                thoiGianSua = item.ThoiGianSua,
                 maKhachHang = FixedLengthHelper.TrimSafe(kh?.MaKhachHang),
                 tenKhachHang = ReviewDashboardBuilder.GuestName(kh?.Ho, kh?.Ten),
                 saoDanhGia = item.SaoDanhGia,
                 nhanXet = item.NhanXet,
-                congKhai = item.CongKhai
+                congKhai = item.CongKhai,
+                media = item.media
             };
         }).ToList();
 
@@ -860,6 +918,11 @@ public class DanhGiaController : ControllerBase
         if (items is null)
         {
             error = null;
+            return result;
+        }
+        if (items.Count > 6)
+        {
+            error = "Tối đa 6 ảnh/video mỗi bài đánh giá.";
             return result;
         }
 
