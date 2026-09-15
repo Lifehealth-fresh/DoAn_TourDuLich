@@ -131,7 +131,7 @@ public static class ReviewDashboardBuilder
     private static double? Average(IEnumerable<int> values)
     {
         var list = values.ToList();
-        return list.Count == 0 ? null : Math.Round(list.Average(), 2);
+        return list.Count == 0 ? (double?)null : Math.Round(list.Average(), 2);
     }
 
     private static double? Median(List<int> values)
@@ -140,7 +140,7 @@ public static class ReviewDashboardBuilder
         var ordered = values.OrderBy(v => v).ToList();
         var mid = ordered.Count / 2;
         return ordered.Count % 2 == 1
-            ? ordered[mid]
+            ? (double)ordered[mid]
             : Math.Round((ordered[mid - 1] + ordered[mid]) / 2.0, 2);
     }
 }

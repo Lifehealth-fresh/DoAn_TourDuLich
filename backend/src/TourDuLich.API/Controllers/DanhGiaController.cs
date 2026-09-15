@@ -690,8 +690,8 @@ public class DanhGiaController : ControllerBase
                 soCongKhai = tr.Count(x => x.CongKhai),
                 soNoiBo = tr.Count(x => !x.CongKhai),
                 diemTrungBinh = tr.Where(x => x.SaoDanhGia != null).Average(x => (double?)x.SaoDanhGia),
-                tyLeTieuCuc = tr.Count() == 0 ? 0 : tr.Count(x => (x.SaoDanhGia ?? 0) <= 2) / (double)tr.Count(),
-                tyLeTichCuc = tr.Count() == 0 ? 0 : tr.Count(x => (x.SaoDanhGia ?? 0) >= 4) / (double)tr.Count()
+                tyLeTieuCuc = tr.Count() == 0 ? 0d : tr.Count(x => (x.SaoDanhGia ?? 0) <= 2) / (double)tr.Count(),
+                tyLeTichCuc = tr.Count() == 0 ? 0d : tr.Count(x => (x.SaoDanhGia ?? 0) >= 4) / (double)tr.Count()
             }).ToListAsync();
 
         var items = pageIds.Select(id =>
@@ -706,7 +706,7 @@ public class DanhGiaController : ControllerBase
                 soDanhGia = row?.soDanhGia ?? 0,
                 soCongKhai = row?.soCongKhai ?? 0,
                 soNoiBo = row?.soNoiBo ?? 0,
-                diemTrungBinh = row?.diemTrungBinh is null ? null : Math.Round(row.diemTrungBinh.Value, 2),
+                diemTrungBinh = row?.diemTrungBinh is null ? (double?)null : Math.Round(row.diemTrungBinh.Value, 2),
                 tyLeTieuCuc = Math.Round(row?.tyLeTieuCuc ?? 0, 4),
                 tyLeTichCuc = Math.Round(row?.tyLeTichCuc ?? 0, 4)
             };
