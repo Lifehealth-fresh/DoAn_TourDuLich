@@ -31,20 +31,12 @@ public sealed class AiPlannerDecorator : IDeXuatLichTrinhService
         {
             try
             {
-                var prompt = $"""
-                    Form khách:
-                    - Xuất phát: {extras.MaTinhXuatPhat}
-                    - Đến: {request.DiemDenMongMuon} / {extras.MaTinhDen}
-                    - Ngày đi: {request.NgayDuKienDi} {extras.GioKhoiHanh}
-                    - Số ngày: {request.SoNgay}, NL {request.SoNguoiLon}, TE {request.SoTreEm}
-                    - Ngân sách: {request.NganSachDuKien}
-                    - Mục đích: {request.MucDich}
-                    - Ghi chú: {request.SoThichGhiChu}
-                    Hãy gọi search_sights, search_hotels, search_meals, calculate_route với đúng tỉnh.
-                    Cuối cùng trả JSON thuần (không markdown):
-                    {{"usedCatalog":true,"notes":"...","ready":true}}
-                    Không bịa ID. Nếu thiếu KS hoặc điểm thì ready=false.
-                    """;
+                var prompt =
+    $"Form khách:\n- Xuất phát: {extras.MaTinhXuatPhat}\n- Đến: {request.DiemDenMongMuon} / {extras.MaTinhDen}\n" +
+    $"- Ngày đi: {request.NgayDuKienDi} {extras.GioKhoiHanh}\n- Số ngày: {request.SoNgay}, NL {request.SoNguoiLon}, TE {request.SoTreEm}\n" +
+    $"- Ngân sách: {request.NganSachDuKien}\n- Mục đích: {request.MucDich}\n- Ghi chú: {request.SoThichGhiChu}\n" +
+    "Hãy gọi search_sights, search_hotels, search_meals, calculate_route với đúng tỉnh.\n" +
+    "Cuối cùng trả JSON thuần usedCatalog, notes, ready. Không bịa ID. Thiếu KS hoặc điểm thì ready=false.";
                 var text = await _llm.CompleteWithToolsAsync(
                     """
                     Bạn là bộ lập lịch tour Việt Nam. Chỉ dùng dữ liệu function.
