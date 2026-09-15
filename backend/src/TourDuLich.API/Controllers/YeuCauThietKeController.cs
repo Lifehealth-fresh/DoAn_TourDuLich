@@ -314,7 +314,7 @@ public class YeuCauThietKeController : ControllerBase
         if (!YeuCauThietKeStateMachine.CanGenerateProposals(requestState))
             return Conflict(new { message = $"Không thể sinh đề xuất. {YeuCauThietKeStateMachine.Describe(requestState)}" });
 
-        var proposals = await _deXuatService.GenerateAsync(request, cancellationToken);
+        var proposals = await _deXuatService.GenerateAsync(request, null, cancellationToken);
         if (proposals.Count == 0)
             return BadRequest(new { message = "Không tìm thấy điểm tham quan cùng khu vực hoặc chưa có khách sạn (LuuTru) gắn khu vực đó." });
         var saved = await _context.LichTrinhDeXuats.AsNoTracking()
