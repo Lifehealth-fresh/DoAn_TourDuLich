@@ -102,4 +102,8 @@ export const account=id=>api.get('/api/Admin/tai-khoan/'+encodeURIComponent(id))
 export const createAccount=data=>api.post('/api/Admin/tai-khoan',data);
 export const updateAccountGrants=(id,data)=>api.put('/api/Admin/tai-khoan/'+encodeURIComponent(id)+'/quyen',data);
 export const changeAccountRole=(id,tenVaiTro)=>api.put('/api/Admin/tai-khoan/'+encodeURIComponent(id)+'/vai-tro',{tenVaiTro});
+export const deleteAccount=id=>api.delete('/api/Admin/tai-khoan/'+encodeURIComponent(id));
+export const supportInbox=()=>api.get('/api/HoTro/quan-ly');
+export const supportThread=id=>api.get('/api/HoTro/quan-ly/'+encodeURIComponent(id));
+export const supportReply=(id,noiDung)=>api.post('/api/HoTro/quan-ly/'+encodeURIComponent(id),{noiDung});
 

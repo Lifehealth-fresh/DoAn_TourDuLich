@@ -76,7 +76,7 @@ api.interceptors.response.use(
       } else {
         clearSession();
       }
-      if (!['/dang-nhap', '/dang-ky'].includes(window.location.pathname)) {
+      if (!['/dang-nhap', '/dang-ky', '/ho-so-moi'].includes(window.location.pathname)) {
         window.location.assign('/dang-nhap');
       }
     }
@@ -166,4 +166,6 @@ export const requestDesignRevision=(id,lyDo)=>api.put('/api/YeuCauThietKe/'+enco
 export const provinces = (q) => api.get('/api/TinhThanh', { params: q ? { q } : {} });
 export const designChat = (data) => api.post('/api/YeuCauThietKe/chat', data);
 export const supportChat = (data) => api.post('/api/HoTro/chat', data);
+export const mySupport = () => api.get('/api/HoTro/cua-toi');
+export const sendSupport = (noiDung) => api.post('/api/HoTro/cua-toi', { noiDung });
 export const designChatDetail = (id) => api.get('/api/YeuCauThietKe/chat/' + encodeURIComponent(id));

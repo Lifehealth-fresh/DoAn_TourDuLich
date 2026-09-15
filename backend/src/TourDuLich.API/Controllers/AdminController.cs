@@ -38,6 +38,8 @@ public class AdminController : ControllerBase
         var query = _context.NguoiSuDungs
             .AsNoTracking()
             .Include(user => user.MaVaiTroNavigation)
+            .Include(user => user.NhanVien)
+            .Where(user => user.TrangThai.Trim() != "VoHieu")
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(tenVaiTro))
@@ -65,7 +67,11 @@ public class AdminController : ControllerBase
             {
                 maUser = user.MaUser,
                 soDienThoai = user.SoDienThoai,
-                tenVaiTro = user.MaVaiTroNavigation.TenVaiTro
+                tenVaiTro = user.MaVaiTroNavigation.TenVaiTro,
+                ho = user.NhanVien != null ? user.NhanVien.Ho : null,
+                ten = user.NhanVien != null ? user.NhanVien.Ten : null,
+                soCccd = user.NhanVien != null ? user.NhanVien.SoCccd : null,
+                chucVu = user.NhanVien != null ? user.NhanVien.ChucVu : null
             })
             .ToListAsync();
 
@@ -84,6 +90,10 @@ public class AdminController : ControllerBase
                 maUser = FixedLengthHelper.TrimSafe(account.maUser),
                 soDienThoai = FixedLengthHelper.TrimSafe(account.soDienThoai),
                 tenVaiTro = role,
+                ho = account.ho,
+                ten = account.ten,
+                soCccd = account.soCccd,
+                chucVu = account.chucVu,
                 quyen = MapGrants(role, rows)
             };
         });
@@ -100,9 +110,10 @@ public class AdminController : ControllerBase
         var account = await _context.NguoiSuDungs
             .AsNoTracking()
             .Include(user => user.MaVaiTroNavigation)
+            .Include(user => user.NhanVien)
             .FirstOrDefaultAsync(user => user.MaUser == maUserDb);
 
-        if (account is null)
+        if (account is null || account.TrangThai.Trim() == "VoHieu")
             return NotFound(new { message = "Không tìm thấy tài khoản." });
 
         var rows = await _context.QuyenNhanViens
@@ -111,13 +122,7 @@ public class AdminController : ControllerBase
             .ToListAsync();
 
         var role = account.MaVaiTroNavigation.TenVaiTro.Trim();
-        return Ok(new
-        {
-            maUser = FixedLengthHelper.TrimSafe(account.MaUser),
-            soDienThoai = FixedLengthHelper.TrimSafe(account.SoDienThoai),
-            tenVaiTro = role,
-            quyen = MapGrants(role, rows)
-        });
+        return Ok(ToAccountPayload(account, role, rows));
     }
 
     [HttpPost("tai-khoan")]
@@ -132,6 +137,10 @@ public class AdminController : ControllerBase
         {
             SoDienThoai = request.SoDienThoai,
             MatKhau = request.MatKhau,
+            MatKhauXacNhan = request.MatKhau,
+            Ho = "Nhân viên",
+            Ten = "Sale",
+            SoCccd = "000000000000",
             TenVaiTro = "Sale"
         });
 
@@ -196,6 +205,8 @@ public class AdminController : ControllerBase
         }
 
         var account = await _context.NguoiSuDungs
+            .Include(user => user.MaVaiTroNavigation)
+            .Include(user => user.NhanVien)
             .FirstOrDefaultAsync(user => user.MaUser == targetUserDb);
 
         if (account is null)
@@ -216,6 +227,8 @@ public class AdminController : ControllerBase
         }
 
         account.MaVaiTro = role.MaVaiTro;
+        if (account.NhanVien is not null)
+            account.NhanVien.ChucVu = role.TenVaiTro.Trim();
         await _context.SaveChangesAsync();
 
         return Ok(new
@@ -225,12 +238,52 @@ public class AdminController : ControllerBase
         });
     }
 
+    [HttpDelete("tai-khoan/{maUser}")]
+    [RequirePermission(PermissionCatalog.TaiKhoan, PermissionCatalog.Xoa)]
+    public async Task<IActionResult> DeleteAccount(string maUser)
+    {
+        var currentUser = User.FindFirst("MaUser")?.Value;
+        var targetUserDb = FixedLengthHelper.PadTo20(maUser);
+        if (currentUser is not null && FixedLengthHelper.PadTo20(currentUser) == targetUserDb)
+            return BadRequest(new { message = "Không được xóa tài khoản đang đăng nhập." });
+
+        var account = await _context.NguoiSuDungs
+            .Include(user => user.MaVaiTroNavigation)
+            .FirstOrDefaultAsync(user => user.MaUser == targetUserDb);
+        if (account is null || account.TrangThai.Trim() == "VoHieu")
+            return NotFound(new { message = "Không tìm thấy tài khoản." });
+        if (string.Equals(account.MaVaiTroNavigation.TenVaiTro.Trim(), "KhachHang", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Không xóa tài khoản khách hàng tại đây." });
+
+        if (string.Equals(account.MaVaiTroNavigation.TenVaiTro.Trim(), "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            var otherAdmins = await _context.NguoiSuDungs
+                .CountAsync(user =>
+                    user.MaVaiTro == account.MaVaiTro &&
+                    user.MaUser != account.MaUser &&
+                    user.TrangThai.Trim() != "VoHieu");
+            if (otherAdmins == 0)
+                return BadRequest(new { message = "Không xóa admin cuối cùng." });
+        }
+
+        account.TrangThai = FixedLengthHelper.PadTo20("VoHieu");
+        var tokens = await _context.RefreshTokens.Where(item => item.MaUser == account.MaUser && item.ThuHoiLuc == null).ToListAsync();
+        var now = DateTime.UtcNow;
+        foreach (var token in tokens)
+            token.ThuHoiLuc = now;
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Đã xóa tài khoản.", maUser = FixedLengthHelper.TrimSafe(account.MaUser) });
+    }
+
     private async Task<ActionResult> CreateStaffAsync(AdminCreateAccountDto request)
     {
         var phone = request.SoDienThoai?.Trim();
         var password = request.MatKhau?.Trim();
 
-        var credentialError = CredentialRules.Validate(phone, password);
+        var credentialError = CredentialRules.Validate(phone, password)
+            ?? CredentialRules.ValidateConfirm(password, request.MatKhauXacNhan ?? password)
+            ?? CredentialRules.ValidateName(request.Ho, request.Ten)
+            ?? CredentialRules.ValidateCccd(request.SoCccd);
         if (credentialError is not null)
             return BadRequest(new { message = credentialError });
 
@@ -267,10 +320,20 @@ public class AdminController : ControllerBase
             MaUser = maUserDb,
             SoDienThoai = phoneDb,
             MatKhau = BCrypt.Net.BCrypt.HashPassword(password),
-            MaVaiTro = role.MaVaiTro
+            MaVaiTro = role.MaVaiTro,
+            TrangThai = FixedLengthHelper.PadTo20("HoatDong")
         };
 
         _context.NguoiSuDungs.Add(account);
+        _context.NhanViens.Add(new NhanVien
+        {
+            MaNhanVien = await GenerateUserIdAsync(),
+            MaUser = maUserDb,
+            Ho = request.Ho!.Trim(),
+            Ten = request.Ten!.Trim(),
+            SoCccd = request.SoCccd!.Trim(),
+            ChucVu = string.IsNullOrWhiteSpace(request.ChucVu) ? role.TenVaiTro.Trim() : request.ChucVu.Trim()
+        });
         await ReplaceGrantsAsync(maUserDb, request.Quyen);
         await _context.SaveChangesAsync();
 
@@ -278,15 +341,21 @@ public class AdminController : ControllerBase
             .AsNoTracking()
             .Where(item => item.MaUser == maUserDb)
             .ToListAsync();
-
-        return StatusCode(StatusCodes.Status201Created, new
-        {
-            maUser = FixedLengthHelper.TrimSafe(account.MaUser),
-            soDienThoai = FixedLengthHelper.TrimSafe(account.SoDienThoai),
-            tenVaiTro = role.TenVaiTro.Trim(),
-            quyen = MapGrants(role.TenVaiTro.Trim(), rows)
-        });
+        account.NhanVien = await _context.NhanViens.AsNoTracking().FirstAsync(item => item.MaUser == maUserDb);
+        return StatusCode(StatusCodes.Status201Created, ToAccountPayload(account, role.TenVaiTro.Trim(), rows));
     }
+
+    private object ToAccountPayload(NguoiSuDung account, string role, IEnumerable<QuyenNhanVien> rows) => new
+    {
+        maUser = FixedLengthHelper.TrimSafe(account.MaUser),
+        soDienThoai = FixedLengthHelper.TrimSafe(account.SoDienThoai),
+        tenVaiTro = role,
+        ho = account.NhanVien?.Ho,
+        ten = account.NhanVien?.Ten,
+        soCccd = account.NhanVien?.SoCccd,
+        chucVu = account.NhanVien?.ChucVu,
+        quyen = MapGrants(role, rows)
+    };
 
     private async Task ReplaceGrantsAsync(string maUserDb, IEnumerable<QuyenChucNangDto>? incoming)
     {

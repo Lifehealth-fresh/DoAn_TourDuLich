@@ -40,4 +40,10 @@ public partial class NguoiSuDung
     public virtual ICollection<ThongBao> ThongBaos { get; set; } = new List<ThongBao>();
 
     public virtual ICollection<YeuCauThietKe> YeuCauThietKes { get; set; } = new List<YeuCauThietKe>();
+
+    public string TrangThai { get; set; } = "HoatDong";
+
+    public virtual NhanVien? NhanVien { get; set; }
+
+    public virtual ICollection<CuocTroChuyen> CuocTroChuyenKhachs { get; set; } = new List<CuocTroChuyen>();
 }

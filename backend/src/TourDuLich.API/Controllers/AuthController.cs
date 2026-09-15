@@ -40,7 +40,8 @@ public class AuthController : ControllerBase
         var soDienThoai = request.SoDienThoai?.Trim();
         var matKhau = request.MatKhau?.Trim();
 
-        var credentialError = CredentialRules.Validate(soDienThoai, matKhau);
+        var credentialError = CredentialRules.Validate(soDienThoai, matKhau)
+            ?? CredentialRules.ValidateConfirm(matKhau, request.MatKhauXacNhan ?? matKhau);
         if (credentialError is not null)
             return BadRequest(new { message = credentialError });
 
@@ -107,6 +108,7 @@ public class AuthController : ControllerBase
 
         var nguoiSuDung = await _context.NguoiSuDungs
             .Include(user => user.MaVaiTroNavigation)
+            .Include(user => user.NhanVien)
             .FirstOrDefaultAsync(user => user.SoDienThoai == soDienThoaiDb);
 
         if (nguoiSuDung is null ||
@@ -114,6 +116,9 @@ public class AuthController : ControllerBase
         {
             return Unauthorized(new { message = "Sai số điện thoại hoặc mật khẩu" });
         }
+
+        if (string.Equals(nguoiSuDung.TrangThai?.Trim(), "VoHieu", StringComparison.OrdinalIgnoreCase))
+            return Unauthorized(new { message = "Tài khoản đã bị vô hiệu." });
 
         return Ok(await ToSessionAsync(
             nguoiSuDung,
@@ -167,10 +172,22 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(maUser))
             return Unauthorized(new { message = "Phiên đăng nhập không hợp lệ." });
 
+        var maUserDb = FixedLengthHelper.PadTo20(maUser);
+        var account = await _context.NguoiSuDungs
+            .AsNoTracking()
+            .Include(user => user.NhanVien)
+            .Include(user => user.KhachHangs)
+            .FirstOrDefaultAsync(user => user.MaUser == maUserDb);
+        var khach = account?.KhachHangs.FirstOrDefault();
         return Ok(new
         {
             maUser,
             tenVaiTro,
+            soDienThoai = FixedLengthHelper.TrimSafe(account?.SoDienThoai),
+            ho = account?.NhanVien?.Ho ?? khach?.Ho,
+            ten = account?.NhanVien?.Ten ?? khach?.Ten,
+            soCccd = account?.NhanVien?.SoCccd,
+            chucVu = account?.NhanVien?.ChucVu ?? tenVaiTro,
             quyen = await _permissions.GetEffectiveGrantsAsync(maUser, tenVaiTro)
         });
     }
@@ -187,6 +204,9 @@ public class AuthController : ControllerBase
             expiresIn = _jwtTokenService.AccessTokenSeconds,
             maUser,
             soDienThoai = FixedLengthHelper.TrimSafe(nguoiSuDung.SoDienThoai),
+            ho = nguoiSuDung.NhanVien?.Ho,
+            ten = nguoiSuDung.NhanVien?.Ten,
+            chucVu = nguoiSuDung.NhanVien?.ChucVu ?? tenVaiTro,
             maVaiTro = nguoiSuDung.MaVaiTro,
             tenVaiTro,
             quyen = await _permissions.GetEffectiveGrantsAsync(maUser, tenVaiTro)

@@ -203,6 +203,8 @@ function Layout() {
   const [open, setOpen] = useState(false);
   const user = read('wavv_user');
   const navigate = useNavigate();
+  const location = useLocation();
+  const hideChat = ['/dang-nhap', '/dang-ky', '/ho-so-moi'].includes(location.pathname);
   const logout = async () => {
     const refreshToken = localStorage.getItem('wavv_refresh');
     try { await api.logoutSession(refreshToken); } catch { /* phiên local vẫn phải xóa */ }
@@ -236,7 +238,7 @@ function Layout() {
         </nav>
       </header>
       <main><Outlet /></main>
-      <SupportChat />
+      {!hideChat && <SupportChat />}
       <footer className="footer">
         <div>
           <Brand />
@@ -641,7 +643,7 @@ function TourDetail() {
 function AuthPage({ register = false }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [form, setForm] = useState({ phone: '', password: '' });
+  const [form, setForm] = useState({ phone: '', password: '', confirm: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -651,12 +653,25 @@ function AuthPage({ register = false }) {
     const passwordIssue = api.passwordError(form.password);
     if (phoneIssue) return setError(phoneIssue);
     if (register && passwordIssue) return setError(passwordIssue);
+    if (register && form.password !== form.confirm) return setError('Xác nhận mật khẩu không khớp.');
     if (!form.phone || !form.password) return setError('Vui lòng nhập số điện thoại và mật khẩu.');
     setBusy(true);
     try {
       if (register) {
-        await api.register({ SoDienThoai: form.phone.trim(), MatKhau: form.password });
-        navigate('/dang-nhap', { state: { message: 'Đăng ký thành công, hãy đăng nhập.' } });
+        const { data } = await api.register({
+          SoDienThoai: form.phone.trim(),
+          MatKhau: form.password,
+          MatKhauXacNhan: form.confirm,
+        });
+        api.persistAuth(data);
+        write('wavv_user', {
+          name: form.phone.trim(),
+          phone: form.phone.trim(),
+          maUser: data.maUser,
+          maVaiTro: data.maVaiTro,
+          tenVaiTro: data.tenVaiTro,
+        });
+        navigate('/ho-so-moi');
       } else {
         const { data } = await api.login({ SoDienThoai: form.phone.trim(), MatKhau: form.password });
         const role = String(data.tenVaiTro || '').trim();
@@ -693,11 +708,81 @@ function AuthPage({ register = false }) {
         {error && <div className="form-error">{error}</div>}
         <input placeholder="Số điện thoại (10 số, bắt đầu bằng 0)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <input type="password" placeholder={register ? 'Mật khẩu (≥ 8 ký tự, gồm chữ và số)' : 'Mật khẩu'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        {register && <input type="password" placeholder="Xác nhận mật khẩu" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} />}
         <button disabled={busy} className="primary-button full">{busy ? 'Đang xử lý...' : register ? 'Đăng ký' : 'Đăng nhập'}</button>
         <span className="auth-switch">
           {register ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'}{' '}
           <Link to={register ? '/dang-nhap' : '/dang-ky'}>{register ? 'Đăng nhập' : 'Đăng ký'}</Link>
         </span>
+      </form>
+    </section>
+  );
+}
+
+function OnboardingGuestPage() {
+  const navigate = useNavigate();
+  const user = read('wavv_user') || {};
+  const [form, setForm] = useState({
+    ho: '', ten: '', danhXung: 'Anh', gioiTinh: 'Nam', ngaySinh: '',
+    email: '', country: 'Việt Nam', hoGiayTo: '', tenGiayTo: '',
+  });
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const setField = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.ho.trim() || !form.ten.trim()) return setError('Họ và tên không được để trống.');
+    if (!form.hoGiayTo.trim() || !form.tenGiayTo.trim()) return setError('Nhập họ tên trên giấy tờ.');
+    setBusy(true); setError('');
+    try {
+      await api.createProfile({
+        Ho: form.ho.trim(),
+        Ten: form.ten.trim(),
+        HoGiayTo: form.hoGiayTo.trim(),
+        TenGiayTo: form.tenGiayTo.trim(),
+        QuocTich: form.country.trim() || 'Việt Nam',
+        DanhXung: form.danhXung,
+        GioiTinh: form.gioiTinh,
+        NgaySinh: form.ngaySinh || null,
+        Email: form.email.trim(),
+      });
+      const refreshToken = localStorage.getItem('wavv_refresh');
+      try { await api.logoutSession(refreshToken); } catch { /* chuyển sang đăng nhập */ }
+      api.clearAuth();
+      navigate('/dang-nhap', { state: { message: 'Đã lưu hồ sơ. Hãy đăng nhập để tiếp tục.' } });
+    } catch (err) {
+      setError(api.errorMessage(err, 'Không lưu được hồ sơ hành khách.'));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <section className="page-section" style={{ maxWidth: 720, margin: '0 auto' }}>
+      <p className="stamp">Bước 2</p>
+      <h1>Thông tin hành khách</h1>
+      <p className="muted">Điền hồ sơ và tên trên giấy tờ. Sau đó đăng nhập để dùng tài khoản.</p>
+      {error && <div className="form-error" role="alert">{error}</div>}
+      <form className="profile-form" onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label>Danh xưng
+            <select value={form.danhXung} onChange={setField('danhXung')}><option>Anh</option><option>Chị</option><option>Ông</option><option>Bà</option></select>
+          </label>
+          <label>Giới tính
+            <select value={form.gioiTinh} onChange={setField('gioiTinh')}><option>Nam</option><option>Nữ</option><option>Khác</option></select>
+          </label>
+          <label>Họ<input required value={form.ho} onChange={setField('ho')} /></label>
+          <label>Tên<input required value={form.ten} onChange={setField('ten')} /></label>
+          <label>Ngày sinh<input type="date" value={form.ngaySinh} onChange={setField('ngaySinh')} /></label>
+          <label>Quốc tịch<input value={form.country} onChange={setField('country')} /></label>
+        </div>
+        <label>Email<input type="email" value={form.email} onChange={setField('email')} placeholder="ban@email.com" /></label>
+        <p className="muted">Số điện thoại tài khoản: {user.phone || '—'}</p>
+        <h2>Tên trên giấy tờ</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label>Họ trên giấy tờ<input required value={form.hoGiayTo} onChange={setField('hoGiayTo')} placeholder="NGUYEN" /></label>
+          <label>Tên trên giấy tờ<input required value={form.tenGiayTo} onChange={setField('tenGiayTo')} placeholder="AN" /></label>
+        </div>
+        <button className="primary-button" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu hồ sơ và đăng nhập'}</button>
       </form>
     </section>
   );
@@ -1650,6 +1735,7 @@ export default function App() {
           <Route path="/tour/:id" element={<TourDetail />} />
           <Route path="/dang-nhap" element={<AuthPage />} />
           <Route path="/dang-ky" element={<AuthPage register />} />
+          <Route path="/ho-so-moi" element={<Protected><OnboardingGuestPage /></Protected>} />
           <Route path="/goi-y" element={<Protected><RecommendationPage /></Protected>} />
           <Route path="/tim-tour" element={<FindTourPage />} />
           <Route path="/tu-thiet-ke" element={<Protected><DesignRequestsPage /></Protected>} />

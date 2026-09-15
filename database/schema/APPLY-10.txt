@@ -1,0 +1,15 @@
+Đánh giá tour công khai + feedback nội bộ (tự thiết kế) + KPI tổng quan
+
+Thứ tự:
+1. SSMS, UTF-8: chạy 027_DanhGiaCongKhaiVaNoiBo.sql trên Azure (sau 026).
+2. git apply --3way artifacts/patches/10-danh-gia-cong-khai.patch
+   hoặc copy các file đã sửa rồi push develop.
+3. Đợi CI API + static web xanh.
+4. Đăng xuất admin rồi đăng nhập lại (0900000001 / Test@123456) để nhận quyền module DanhGia.
+5. Kiểm tra:
+   - Website khách: trang tour có tên người đánh giá + sao; không hiện bài tự thiết kế.
+   - Vé Hoàn thành: form gửi đánh giá. Tour tự thiết kế = "nhận xét nội bộ".
+   - Admin menu "Đánh giá nhận xét": tìm theo tên/mã tour, tên/mã khách; bấm tour xem bài; không có nút thêm/sửa/xóa.
+   - Tổng quan: khối "Sức khỏe đánh giá" (KPI, cột sao, xu hướng, xếp hạng tour).
+
+Không commit file .patch lên git.

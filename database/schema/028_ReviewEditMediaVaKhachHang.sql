@@ -41,8 +41,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints
         N'DiemThamQuan', N'DoiTac', N'ThietKe', N'DanhGia', N'KhachHang', N'TaiKhoan'));
 GO
 
-INSERT INTO dbo.QuyenNhanVien (MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
-SELECT u.MaUser, N'KhachHang', 1, 1, 1, 0
+INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
+SELECT CONVERT(nchar(20), LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 20)),
+       u.MaUser, N'KhachHang', 1, 1, 1, 0
 FROM dbo.NguoiSuDung u
 JOIN dbo.VaiTro v ON v.MaVaiTro = u.MaVaiTro
 WHERE LTRIM(RTRIM(v.TenVaiTro)) IN (N'Admin', N'Sale')

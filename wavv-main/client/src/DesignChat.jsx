@@ -53,29 +53,39 @@ export function ProvinceField({ label, value, onChange }) {
 export default function SupportChat() {
   const user = (() => { try { return JSON.parse(localStorage.getItem('wavv_user') || 'null'); } catch { return null; } })();
   const [open, setOpen] = useState(false);
-  const [turn, setTurn] = useState(null);
+  const [thread, setThread] = useState(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const bottom = useRef(null);
 
-  useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [turn, open]);
-
-  const send = async (payload) => {
-    if (busy || !user) return;
-    setBusy(true); setError('');
-    try {
-      const response = await api.supportChat({ maHoiThoai: turn?.maHoiThoai, ...payload });
-      setTurn(response.data);
-      setText('');
-    } catch (err) {
-      setError(api.errorMessage(err, 'Không gửi được. Chạy SQL 023 nếu chưa có bảng hội thoại.'));
-    } finally { setBusy(false); }
+  const load = async () => {
+    const response = await api.mySupport();
+    setThread(response.data);
   };
 
   useEffect(() => {
-    if (open && user && !turn && !busy) send({});
+    if (!open || !user) return undefined;
+    let alive = true;
+    load().catch((err) => { if (alive) setError(api.errorMessage(err, 'Không mở được chat với vận hành.')); });
+    const timer = setInterval(() => { load().catch(() => {}); }, 5000);
+    return () => { alive = false; clearInterval(timer); };
   }, [open]);
+
+  useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread?.tinNhans?.length, open]);
+
+  const send = async (event) => {
+    event.preventDefault();
+    if (busy || !user || !text.trim()) return;
+    setBusy(true); setError('');
+    try {
+      const response = await api.sendSupport(text.trim());
+      setThread(response.data);
+      setText('');
+    } catch (err) {
+      setError(api.errorMessage(err, 'Không gửi được tin nhắn.'));
+    } finally { setBusy(false); }
+  };
 
   if (!user) return null;
 
@@ -85,23 +95,24 @@ export default function SupportChat() {
         <div className="support-panel design-chat">
           <header className="chat-head">
             <div>
-              <span className="stamp">Trợ lý ANAM</span>
-              <h2>Hỗ trợ thao tác</h2>
-              <p>Hỏi cách đặt tour, thanh toán, hủy, tự thiết kế… Không sinh lịch trong chat.</p>
+              <span className="stamp">ANAM hỗ trợ</span>
+              <h2>Chat với vận hành</h2>
+              <p>Nhân viên admin/sale sẽ trả lời trực tiếp.</p>
             </div>
             <button className="text-button" type="button" onClick={() => setOpen(false)}>Đóng</button>
           </header>
           <div className="chat-thread" role="log">
-            {(turn?.messages || []).map((item) => (
-              <article key={item.maTinNhan} className={`chat-bubble ${item.vaiTro === 'Khach' ? 'me' : 'bot'}`}>
+            {(thread?.tinNhans || []).map((item) => (
+              <article key={item.maTinNhan} className={`chat-bubble ${item.vaiTro === 'KhachHang' ? 'me' : 'bot'}`}>
                 <p>{item.noiDung}</p>
               </article>
             ))}
+            {!thread?.tinNhans?.length && <p className="muted">Gửi tin nhắn để được hỗ trợ đặt tour, thanh toán, hồ sơ…</p>}
             <div ref={bottom} />
           </div>
           {error && <div className="form-error" role="alert">{error}</div>}
-          <form className="chat-compose" onSubmit={(event) => { event.preventDefault(); if (text.trim()) send({ message: text.trim() }); }}>
-            <input value={text} disabled={busy} onChange={(event) => setText(event.target.value)} placeholder="Hỏi trợ lý…" />
+          <form className="chat-compose" onSubmit={send}>
+            <input value={text} disabled={busy} onChange={(event) => setText(event.target.value)} placeholder="Nhắn cho ANAM…" />
             <button className="primary-button" disabled={busy || !text.trim()}>{busy ? '…' : 'Gửi'}</button>
           </form>
         </div>
@@ -112,3 +123,4 @@ export default function SupportChat() {
     </div>
   );
 }
+

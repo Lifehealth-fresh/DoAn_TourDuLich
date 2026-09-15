@@ -24,6 +24,7 @@ export const MODULES = [
   { ma: 'ThietKe', ten: 'Thiết kế' },
   { ma: 'DanhGia', ten: 'Đánh giá nhận xét' },
   { ma: 'KhachHang', ten: 'Quản lý khách hàng' },
+  { ma: 'HoTro', ten: 'Hỗ trợ chat' },
   { ma: 'TaiKhoan', ten: 'Tài khoản' },
 ];
 
@@ -37,6 +38,7 @@ const NAV = [
   { module: 'ThietKe', to: '/thiet-ke', label: 'Thiết kế' },
   { module: 'DanhGia', to: '/danh-gia', label: 'Đánh giá nhận xét' },
   { module: 'KhachHang', to: '/khach-hang', label: 'Khách hàng' },
+  { module: 'HoTro', to: '/ho-tro', label: 'Hỗ trợ' },
   { module: 'TaiKhoan', to: '/tai-khoan', label: 'Tài khoản' },
 ];
 
@@ -67,16 +69,29 @@ export function firstAllowedPath(grants, role) {
   return NAV.find((item) => canGrant(grants, role, item.module, 'Xem'))?.to || '/';
 }
 
+const readProfile = () => {
+  try {
+    return JSON.parse(localStorage.getItem('admin_profile') || 'null');
+  } catch {
+    return null;
+  }
+};
+
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(localStorage.getItem('admin_token'));
   const [quyen, setQuyen] = useState(readQuyen);
+  const [profile, setProfile] = useState(readProfile);
   const user = token ? decode(token) : null;
   const role = roleOf(user);
 
-  const persist = (nextToken, nextQuyen, refreshToken) => {
+  const persist = (nextToken, nextQuyen, refreshToken, nextProfile) => {
     localStorage.setItem('admin_token', nextToken);
     localStorage.setItem('admin_quyen', JSON.stringify(nextQuyen || []));
     if (refreshToken) localStorage.setItem('admin_refresh', refreshToken);
+    if (nextProfile) {
+      localStorage.setItem('admin_profile', JSON.stringify(nextProfile));
+      setProfile(nextProfile);
+    }
     setToken(nextToken);
     setQuyen(nextQuyen || []);
   };
@@ -97,7 +112,14 @@ export function AuthProvider({ children }) {
       try { await logoutSession(response.refreshToken); } catch { /* không giữ phiên khách trên trang vận hành */ }
       throw new Error('Tài khoản này không có quyền quản trị.');
     }
-    persist(response.token, response.quyen || [], response.refreshToken);
+    persist(response.token, response.quyen || [], response.refreshToken, {
+      maUser: response.maUser,
+      soDienThoai: response.soDienThoai,
+      ho: response.ho,
+      ten: response.ten,
+      chucVu: response.chucVu,
+      tenVaiTro: nextRole,
+    });
     return { ...response, home: firstAllowedPath(response.quyen || [], nextRole) };
   };
 
@@ -108,8 +130,10 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_quyen');
     localStorage.removeItem('admin_refresh');
+    localStorage.removeItem('admin_profile');
     setToken(null);
     setQuyen([]);
+    setProfile(null);
   };
 
   useEffect(() => {
@@ -119,6 +143,18 @@ export function AuthProvider({ children }) {
         localStorage.setItem('admin_quyen', JSON.stringify(response.data.quyen));
         setQuyen(response.data.quyen);
       }
+      if (response.data) {
+        const next = {
+          maUser: response.data.maUser,
+          soDienThoai: response.data.soDienThoai,
+          ho: response.data.ho,
+          ten: response.data.ten,
+          chucVu: response.data.chucVu,
+          tenVaiTro: response.data.tenVaiTro,
+        };
+        localStorage.setItem('admin_profile', JSON.stringify(next));
+        setProfile(next);
+      }
     }).catch(() => {});
   }, [token]);
 
@@ -127,10 +163,10 @@ export function AuthProvider({ children }) {
 
   return (
     <C.Provider value={useMemo(() => ({
-      token, user, quyen, login, logout, can, navItems, role,
+      token, user, profile, quyen, login, logout, can, navItems, role,
       isStaff: Boolean(token && ['Admin', 'Sale'].includes(role)),
       isAdmin: role === 'Admin',
-    }), [token, user, quyen, role])}>
+    }), [token, user, profile, quyen, role])}>
       {children}
     </C.Provider>
   );

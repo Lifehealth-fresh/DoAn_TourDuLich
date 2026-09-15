@@ -7,16 +7,26 @@ export function Protected() {
 }
 
 export function Layout() {
-  const { logout, navItems } = useAuth();
+  const { logout, navItems, profile, role } = useAuth();
   const nav = useNavigate();
+  const fullName = [profile?.ho, profile?.ten].filter(Boolean).join(' ').trim();
+  const title = fullName || profile?.soDienThoai || 'Nhân viên ANAM';
   return (
     <div className="shell">
       <aside>
         <Link className="brand" to="/">ANAM<small>Trang vận hành</small></Link>
         {navItems.map((item) => <Link key={item.to} to={item.to}>{item.label}</Link>)}
-        <button onClick={() => { logout(); nav('/dang-nhap'); }}>Đăng xuất</button>
       </aside>
-      <main><Outlet /></main>
+      <div className="workspace">
+        <header className="topbar">
+          <div className="topbar-user">
+            <strong>{title}</strong>
+            <span>{profile?.chucVu || role} · {profile?.soDienThoai || ''}</span>
+          </div>
+          <button type="button" className="topbar-logout" onClick={() => { logout(); nav('/dang-nhap'); }}>Đăng xuất</button>
+        </header>
+        <main><Outlet /></main>
+      </div>
     </div>
   );
 }

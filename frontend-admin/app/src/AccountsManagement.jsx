@@ -78,13 +78,14 @@ export default function AccountsManagement() {
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState('');
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ soDienThoai: '', matKhau: '', tenVaiTro: 'Sale' });
+  const [form, setForm] = useState({ soDienThoai: '', matKhau: '', matKhauXacNhan: '', ho: '', ten: '', soCccd: '', chucVu: '', tenVaiTro: 'Sale' });
   const [grants, setGrants] = useState(emptyGrant);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const canThem = can('TaiKhoan', 'Them');
   const canSua = can('TaiKhoan', 'Sua');
+  const canXoa = can('TaiKhoan', 'Xoa');
 
   const load = async () => {
     const response = await api.accounts();
@@ -112,14 +113,18 @@ export default function AccountsManagement() {
   const open = (item) => {
     setCreating(false);
     setSelected(item.maUser);
-    setForm({ soDienThoai: item.soDienThoai, matKhau: '', tenVaiTro: item.tenVaiTro });
+    setForm({
+      soDienThoai: item.soDienThoai, matKhau: '', matKhauXacNhan: '',
+      ho: item.ho || '', ten: item.ten || '', soCccd: item.soCccd || '',
+      chucVu: item.chucVu || item.tenVaiTro, tenVaiTro: item.tenVaiTro,
+    });
     setGrants(mergeGrants(item.quyen));
   };
 
   const fresh = () => {
     setSelected('');
     setCreating(true);
-    setForm({ soDienThoai: '', matKhau: '', tenVaiTro: 'Sale' });
+    setForm({ soDienThoai: '', matKhau: '', matKhauXacNhan: '', ho: '', ten: '', soCccd: '', chucVu: '', tenVaiTro: 'Sale' });
     setGrants(emptyGrant());
     requestAnimationFrame(() => document.getElementById('account-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   };
@@ -134,16 +139,34 @@ export default function AccountsManagement() {
       if (!form.matKhau || form.matKhau.length < 8 || !/[A-Za-z]/.test(form.matKhau) || !/\d/.test(form.matKhau)) {
         throw new Error('Mật khẩu phải có ít nhất 8 ký tự, gồm cả chữ và số.');
       }
+      if (form.matKhau !== form.matKhauXacNhan) {
+        throw new Error('Xác nhận mật khẩu không khớp.');
+      }
+      if (!form.ho.trim() || !form.ten.trim()) {
+        throw new Error('Họ và tên không được để trống.');
+      }
+      if (!/^\d{9}$|^\d{12}$/.test(form.soCccd.trim())) {
+        throw new Error('Số CCCD phải gồm 9 hoặc 12 chữ số.');
+      }
       const response = await api.createAccount({
         soDienThoai: phone,
         matKhau: form.matKhau,
+        matKhauXacNhan: form.matKhauXacNhan,
+        ho: form.ho.trim(),
+        ten: form.ten.trim(),
+        soCccd: form.soCccd.trim(),
+        chucVu: form.chucVu.trim() || form.tenVaiTro,
         tenVaiTro: form.tenVaiTro,
         quyen: grants,
       });
       setMessage(`Đã tạo tài khoản ${response.data.soDienThoai}.`);
       setCreating(false);
       setSelected(response.data.maUser);
-      setForm({ soDienThoai: response.data.soDienThoai, matKhau: '', tenVaiTro: response.data.tenVaiTro });
+      setForm({
+        soDienThoai: response.data.soDienThoai, matKhau: '', matKhauXacNhan: '',
+        ho: response.data.ho || '', ten: response.data.ten || '', soCccd: response.data.soCccd || '',
+        chucVu: response.data.chucVu || '', tenVaiTro: response.data.tenVaiTro,
+      });
       setGrants(mergeGrants(response.data.quyen));
       await load();
     }, 'Không tạo được tài khoản.');
@@ -166,27 +189,55 @@ export default function AccountsManagement() {
     }, 'Không lưu được phân quyền.');
   };
 
+  const remove = (item) => {
+    if (item.maUser === selfId) return;
+    if (!window.confirm(`Xóa tài khoản ${item.soDienThoai}? Người này sẽ không đăng nhập được.`)) return;
+    run(async () => {
+      await api.deleteAccount(item.maUser);
+      setMessage(`Đã xóa ${item.soDienThoai}.`);
+      if (selected === item.maUser) { setSelected(''); setCreating(false); }
+      await load();
+    }, 'Không xóa được tài khoản.');
+  };
+
   const editor = (isCreate) => (
     <form onSubmit={isCreate ? saveNew : saveGrants}>
       <fieldset disabled={busy} className="account-form">
         {isCreate ? (
           <>
+            <div className="grid-2">
+              <label>Họ
+                <input required value={form.ho} onChange={(event) => setForm({ ...form, ho: event.target.value })} />
+              </label>
+              <label>Tên
+                <input required value={form.ten} onChange={(event) => setForm({ ...form, ten: event.target.value })} />
+              </label>
+            </div>
             <label>Số điện thoại
               <input required value={form.soDienThoai} maxLength={10} placeholder="0xxxxxxxxx"
                 onChange={(event) => setForm({ ...form, soDienThoai: event.target.value })} />
+            </label>
+            <label>Số CCCD
+              <input required value={form.soCccd} maxLength={12} placeholder="9 hoặc 12 chữ số"
+                onChange={(event) => setForm({ ...form, soCccd: event.target.value })} />
             </label>
             <label>Mật khẩu
               <input required type="password" minLength={8} placeholder="Tối thiểu 8 ký tự, gồm chữ và số"
                 value={form.matKhau}
                 onChange={(event) => setForm({ ...form, matKhau: event.target.value })} />
             </label>
+            <label>Xác nhận mật khẩu
+              <input required type="password" minLength={8} placeholder="Nhập lại mật khẩu"
+                value={form.matKhauXacNhan}
+                onChange={(event) => setForm({ ...form, matKhauXacNhan: event.target.value })} />
+            </label>
           </>
         ) : (
-          <p className="muted">SĐT {form.soDienThoai} · mã {selected}</p>
+          <p className="muted">{[form.ho, form.ten].filter(Boolean).join(' ') || 'Chưa có hồ sơ'} · SĐT {form.soDienThoai} · CCCD {form.soCccd || '—'} · mã {selected}</p>
         )}
-        <label>Vai trò
+        <label>Vai trò / chức vụ
           <select value={form.tenVaiTro} disabled={!isCreate && (!canSua || selected === selfId)}
-            onChange={(event) => setForm({ ...form, tenVaiTro: event.target.value })}>
+            onChange={(event) => setForm({ ...form, tenVaiTro: event.target.value, chucVu: event.target.value })}>
             <option value="Sale">Sale (nhân viên admin)</option>
             <option value="Admin">Admin (toàn quyền)</option>
           </select>
@@ -220,12 +271,14 @@ export default function AccountsManagement() {
       <div className="table" aria-label="Danh sách tài khoản">
         {items.map((item) => (
           <ExpandRecord key={item.maUser} open={selected === item.maUser && !creating} summary={
-            <div className="row" style={{ gridTemplateColumns: '1fr 1fr 2fr auto', cursor: busy ? 'wait' : 'pointer' }}
+            <div className="row" style={{ gridTemplateColumns: '1.2fr 1fr auto 2fr auto auto', cursor: busy ? 'wait' : 'pointer' }}
               onClick={() => { if (!busy) (selected === item.maUser ? setSelected('') : open(item)); }}>
-              <b>{item.soDienThoai}</b>
+              <b>{[item.ho, item.ten].filter(Boolean).join(' ') || item.soDienThoai}</b>
+              <span>{item.soDienThoai}</span>
               <span className="badge">{item.tenVaiTro}</span>
               <span className="muted">{summary(item.quyen)}</span>
-              <button type="button" disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa quyền</button>
+              {canSua && <button type="button" disabled={busy} onClick={(event) => { event.stopPropagation(); open(item); }}>Sửa quyền</button>}
+              {canXoa && item.maUser !== selfId && <button type="button" className="danger" disabled={busy} onClick={(event) => { event.stopPropagation(); remove(item); }}>Xóa</button>}
             </div>
           }>
             {editor(false)}

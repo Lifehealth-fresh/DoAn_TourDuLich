@@ -147,6 +147,10 @@ public sealed class QuyenTaiKhoanTests : ApiTestBase
         {
             soDienThoai = phone,
             matKhau = "Test@123456",
+            matKhauXacNhan = "Test@123456",
+            ho = "Tran",
+            ten = "Sale",
+            soCccd = "079099000001",
             tenVaiTro = "Sale",
             quyen = new[]
             {
@@ -163,6 +167,55 @@ public sealed class QuyenTaiKhoanTests : ApiTestBase
         Grant(body, "TaiKhoan").GetProperty("toanQuyen").GetBoolean().Should().BeFalse();
     }
 
+    [Fact]
+    public async Task StaffWithoutTaiKhoanXoa_CannotDeleteAccount()
+    {
+        SkipIfNoConnection();
+        UseToken(await LoginAdminAsync());
+        var phone = "0777" + Random.Shared.Next(100000, 999999).ToString("D6");
+        var created = await Client.PostAsJsonAsync("/api/Admin/tai-khoan", new
+        {
+            soDienThoai = phone,
+            matKhau = "Test@123456",
+            matKhauXacNhan = "Test@123456",
+            ho = "Le",
+            ten = "Xoa",
+            soCccd = "079099000002",
+            tenVaiTro = "Sale",
+            quyen = new[] { new { chucNang = "Tour", them = true, sua = true, xoa = true, toanQuyen = false } }
+        });
+        created.EnsureSuccessStatusCode();
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("maUser").GetString();
+        var staff = await CreateStaffAsync();
+        UseToken(staff);
+        (await Client.DeleteAsync($"/api/Admin/tai-khoan/{id}")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Admin_DeletesStaffAccount_ThenLoginFails()
+    {
+        SkipIfNoConnection();
+        UseToken(await LoginAdminAsync());
+        var phone = "0777" + Random.Shared.Next(100000, 999999).ToString("D6");
+        var created = await Client.PostAsJsonAsync("/api/Admin/tai-khoan", new
+        {
+            soDienThoai = phone,
+            matKhau = "Test@123456",
+            matKhauXacNhan = "Test@123456",
+            ho = "Pham",
+            ten = "BiXoa",
+            soCccd = "079099000003",
+            tenVaiTro = "Sale",
+            quyen = Array.Empty<object>()
+        });
+        created.EnsureSuccessStatusCode();
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("maUser").GetString();
+        var deleted = await Client.DeleteAsync($"/api/Admin/tai-khoan/{id}");
+        deleted.StatusCode.Should().Be(HttpStatusCode.OK);
+        var login = await Client.PostAsJsonAsync("/api/Auth/login", new { soDienThoai = phone, matKhau = "Test@123456" });
+        login.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     private async Task<AuthResult> CreateStaffAsync(params object[] grants)
     {
         UseToken(await LoginAdminAsync());
@@ -171,6 +224,10 @@ public sealed class QuyenTaiKhoanTests : ApiTestBase
         {
             soDienThoai = phone,
             matKhau = "Test@123456",
+            matKhauXacNhan = "Test@123456",
+            ho = "Tran",
+            ten = "Sale",
+            soCccd = "079099000001",
             tenVaiTro = "Sale",
             quyen = grants
         });

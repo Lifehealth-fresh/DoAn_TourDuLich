@@ -4,6 +4,11 @@ public class AdminCreateAccountDto
 {
     public string SoDienThoai { get; set; } = null!;
     public string MatKhau { get; set; } = null!;
+    public string? MatKhauXacNhan { get; set; }
+    public string? Ho { get; set; }
+    public string? Ten { get; set; }
+    public string? SoCccd { get; set; }
+    public string? ChucVu { get; set; }
     public string? TenVaiTro { get; set; }
     public List<QuyenChucNangDto>? Quyen { get; set; }
 }

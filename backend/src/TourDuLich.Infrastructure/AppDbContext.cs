@@ -69,6 +69,12 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<NguoiSuDung> NguoiSuDungs { get; set; }
 
+    public virtual DbSet<NhanVien> NhanViens { get; set; }
+
+    public virtual DbSet<CuocTroChuyen> CuocTroChuyens { get; set; }
+
+    public virtual DbSet<TinNhanHoTro> TinNhanHoTros { get; set; }
+
     public virtual DbSet<QuyenNhanVien> QuyenNhanViens { get; set; }
 
     public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
@@ -901,6 +907,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.SoDienThoai)
                 .HasMaxLength(20)
                 .IsFixedLength();
+            entity.Property(e => e.TrangThai)
+                .HasMaxLength(20)
+                .IsFixedLength()
+                .HasDefaultValue("HoatDong");
 
             entity.HasOne(d => d.MaVaiTroNavigation).WithMany(p => p.NguoiSuDungs)
                 .HasForeignKey(d => d.MaVaiTro)
@@ -1148,6 +1158,62 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.MaUser)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_YeuCauThietKe_NguoiSuDung");
+        });
+
+        modelBuilder.Entity<NhanVien>(entity =>
+        {
+            entity.HasKey(e => e.MaNhanVien);
+            entity.ToTable("NhanVien");
+            entity.HasIndex(e => e.MaUser).IsUnique();
+            entity.Property(e => e.MaNhanVien).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaUser).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.Ho).HasMaxLength(50);
+            entity.Property(e => e.Ten).HasMaxLength(50);
+            entity.Property(e => e.SoCccd).HasMaxLength(20);
+            entity.Property(e => e.ChucVu).HasMaxLength(40);
+            entity.HasOne(d => d.MaUserNavigation).WithOne(p => p.NhanVien)
+                .HasForeignKey<NhanVien>(d => d.MaUser)
+                .HasConstraintName("FK_NhanVien_NguoiSuDung");
+        });
+
+        modelBuilder.Entity<CuocTroChuyen>(entity =>
+        {
+            entity.HasKey(e => e.MaCuoc);
+            entity.ToTable("CuocTroChuyen");
+            entity.Property(e => e.MaCuoc).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaUserKhach).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaUserNhanVien).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.TieuDe).HasMaxLength(200);
+            entity.Property(e => e.TrangThai).HasMaxLength(20);
+            entity.Property(e => e.ThoiGianTao).HasColumnType("datetime");
+            entity.Property(e => e.ThoiGianCapNhat).HasColumnType("datetime");
+            entity.HasOne(d => d.MaUserKhachNavigation).WithMany(p => p.CuocTroChuyenKhachs)
+                .HasForeignKey(d => d.MaUserKhach)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CuocTroChuyen_Khach");
+            entity.HasOne(d => d.MaUserNhanVienNavigation).WithMany()
+                .HasForeignKey(d => d.MaUserNhanVien)
+                .HasConstraintName("FK_CuocTroChuyen_NhanVien");
+        });
+
+        modelBuilder.Entity<TinNhanHoTro>(entity =>
+        {
+            entity.HasKey(e => e.MaTinNhan);
+            entity.ToTable("TinNhanHoTro");
+            entity.Property(e => e.MaTinNhan).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaCuoc).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaUserGui).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.VaiTroGui).HasMaxLength(20);
+            entity.Property(e => e.NoiDung).HasMaxLength(2000);
+            entity.Property(e => e.ThoiGian).HasColumnType("datetime");
+            entity.HasOne(d => d.MaCuocNavigation).WithMany(p => p.TinNhanHoTros)
+                .HasForeignKey(d => d.MaCuoc)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_TinNhanHoTro_Cuoc");
+            entity.HasOne(d => d.MaUserGuiNavigation).WithMany()
+                .HasForeignKey(d => d.MaUserGui)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TinNhanHoTro_User");
         });
 
         OnModelCreatingPartial(modelBuilder);
