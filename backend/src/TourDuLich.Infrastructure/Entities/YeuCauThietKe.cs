@@ -20,6 +20,14 @@ public partial class YeuCauThietKe
     public string? TrangThai { get; set; }
     public DateTime? NgayGui { get; set; }
     public string? MaTourTao { get; set; }
+    public string? TenChuyenDi { get; set; }
+    public string? MucDich { get; set; }
+    public string? MaTinhXuatPhat { get; set; }
+    public string? MaTinhDen { get; set; }
+    public TimeSpan? GioKhoiHanh { get; set; }
+    public DateOnly? NgayKetThuc { get; set; }
+    public TimeSpan? GioKetThuc { get; set; }
+    public int? SoSuKienMoiNgay { get; set; }
     public virtual AigoiY? MaGoiYthamKhaoNavigation { get; set; }
     public virtual Tour? MaTourTaoNavigation { get; set; }
     public virtual NguoiSuDung MaUserNavigation { get; set; } = null!;

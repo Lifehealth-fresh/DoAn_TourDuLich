@@ -10,6 +10,16 @@ public sealed class DesignPlannerContext
     public DateOnly? NgayKetThuc { get; init; }
     public TimeSpan? GioKetThuc { get; init; }
     public int? SoSuKienMoiNgay { get; init; }
+
+    public static DesignPlannerContext From(YeuCauThietKe request) => new()
+    {
+        MaTinhXuatPhat = request.MaTinhXuatPhat,
+        MaTinhDen = request.MaTinhDen,
+        GioKhoiHanh = request.GioKhoiHanh,
+        NgayKetThuc = request.NgayKetThuc,
+        GioKetThuc = request.GioKetThuc,
+        SoSuKienMoiNgay = request.SoSuKienMoiNgay
+    };
 }
 
 public interface IDeXuatLichTrinhService

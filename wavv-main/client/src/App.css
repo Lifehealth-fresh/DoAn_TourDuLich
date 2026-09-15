@@ -504,6 +504,46 @@ input:focus, select:focus, textarea:focus { border-color: var(--coral); }
 .chat-chips button:hover { background: #ffe08a; }
 .design-chat .muted { color: var(--muted); margin: 0; font-size: 0.92rem; }
 
+.design-form .design-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.design-form label, .province-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+.design-form input, .design-form select, .design-form textarea {
+  padding: 8px 10px;
+  border: 2px solid var(--ink);
+  background: #fff;
+}
+.province-field { position: relative; }
+.province-menu {
+  position: absolute;
+  z-index: 8;
+  top: 100%;
+  left: 0; right: 0;
+  max-height: 220px;
+  overflow: auto;
+  background: #fff;
+  border: 2px solid var(--ink);
+  display: grid;
+}
+.province-menu button { text-align: left; padding: 8px 10px; border: 0; background: #fff; cursor: pointer; }
+.province-menu button:hover { background: #ffe08a; }
+
+.support-dock { position: fixed; right: 18px; bottom: 18px; z-index: 40; display: grid; justify-items: end; gap: 10px; }
+.support-fab {
+  background: var(--navy); color: #fff3d6; border: 3px solid var(--ink);
+  padding: 10px 16px; cursor: pointer; font-weight: 800; box-shadow: var(--shadow);
+}
+.support-panel { width: min(420px, calc(100vw - 36px)); max-height: 70vh; overflow: auto; margin: 0; }
+
 
 .profile-menu { padding: 24px; background: var(--navy); color: #fff3d6; border: 3px solid var(--ink); }
 .avatar {

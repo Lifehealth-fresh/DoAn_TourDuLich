@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import * as api from './api';
 import CurrentDesignSchedule from './CurrentDesignSchedule.jsx';
-import DesignChat from './DesignChat.jsx';
+import { ProvinceField } from './DesignChat.jsx';
 
 const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
@@ -10,8 +10,104 @@ const dateText = (value) => value ? new Date(value).toLocaleDateString('vi-VN') 
 const itemsOf = (response) => Array.isArray(response.data) ? response.data : response.data?.items || [];
 const labels = { Moi: 'Mới gửi', Huy: 'Đã hủy', DangThietKe: 'Đang thiết kế', CanChinhSua: 'Cần chỉnh sửa', ChoKhachXacNhan: 'Chờ bạn xác nhận', ChoDuyet: 'Chờ duyệt', DaDuyet: 'Đã duyệt' };
 const statusLabel = (value) => labels[trim(value)] || trim(value) || '—';
+const tomorrow = () => {
+  const day = new Date();
+  day.setDate(day.getDate() + 1);
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+};
+
+const PURPOSES = ['Du lịch', 'Nghỉ dưỡng', 'Gia đình', 'Cặp đôi', 'Công tác', 'Ẩm thực', 'Biển', 'Núi'];
+
+function DesignForm({ onCreated }) {
+  const [origin, setOrigin] = useState(null);
+  const [dest, setDest] = useState(null);
+  const [form, setForm] = useState({
+    ngayDuKienDi: tomorrow(),
+    gioKhoiHanh: '08:00',
+    soNgay: 3,
+    soNguoiLon: 2,
+    soTreEm: 0,
+    nganSachDuKien: 8000000,
+    mucDich: 'Du lịch',
+    soThichGhiChu: '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (busy) return;
+    if (!origin?.maTinh || !dest?.maTinh) {
+      setError('Hãy chọn tỉnh/thành xuất phát và tỉnh/thành đến từ danh sách.');
+      return;
+    }
+    setBusy(true); setError('');
+    try {
+      const soNgay = Math.max(1, Number(form.soNgay) || 1);
+      const payload = {
+        maTinhXuatPhat: origin.maTinh,
+        maTinhDen: dest.maTinh,
+        diemDenMongMuon: dest.tenTinh,
+        ngayDuKienDi: form.ngayDuKienDi,
+        gioKhoiHanh: form.gioKhoiHanh.length === 5 ? `${form.gioKhoiHanh}:00` : form.gioKhoiHanh,
+        soNgay,
+        soNguoiLon: Number(form.soNguoiLon) || 0,
+        soTreEm: Number(form.soTreEm) || 0,
+        nganSachDuKien: Number(form.nganSachDuKien) || null,
+        mucDich: form.mucDich,
+        tenChuyenDi: `${origin.tenTinh} → ${dest.tenTinh}`,
+        soThichGhiChu: form.soThichGhiChu,
+      };
+      const response = await api.createDesignRequest(payload);
+      onCreated(response.data?.maYeuCau);
+    } catch (err) {
+      setError(api.errorMessage(err, 'Không gửi được yêu cầu thiết kế.'));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <form className="design-form" onSubmit={submit}>
+      <h2>Khai báo chuyến đi</h2>
+      <p>Chọn tỉnh trên danh sách (gõ không dấu vẫn ra). Hệ thống ghép 3 lịch từ CSDL — không bịa khách sạn. Chat góc phải chỉ hướng dẫn thao tác.</p>
+      {error && <div className="form-error" role="alert">{error}</div>}
+      <div className="design-grid">
+        <ProvinceField label="Địa điểm xuất phát" value={origin} onChange={setOrigin} />
+        <ProvinceField label="Địa điểm đến" value={dest} onChange={setDest} />
+        <label>Ngày xuất phát
+          <input type="date" required min={tomorrow()} value={form.ngayDuKienDi} onChange={(e) => set('ngayDuKienDi', e.target.value)} />
+        </label>
+        <label>Giờ xuất phát
+          <input type="time" required value={form.gioKhoiHanh} onChange={(e) => set('gioKhoiHanh', e.target.value)} />
+        </label>
+        <label>Số ngày đi
+          <input type="number" min="1" max="30" required value={form.soNgay} onChange={(e) => set('soNgay', e.target.value)} />
+        </label>
+        <label>Người lớn
+          <input type="number" min="1" required value={form.soNguoiLon} onChange={(e) => set('soNguoiLon', e.target.value)} />
+        </label>
+        <label>Trẻ em
+          <input type="number" min="0" value={form.soTreEm} onChange={(e) => set('soTreEm', e.target.value)} />
+        </label>
+        <label>Ngân sách dự kiến (đ)
+          <input type="number" min="0" step="100000" value={form.nganSachDuKien} onChange={(e) => set('nganSachDuKien', e.target.value)} />
+        </label>
+        <label>Mục đích chuyến đi
+          <select value={form.mucDich} onChange={(e) => set('mucDich', e.target.value)}>
+            {PURPOSES.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+      </div>
+      <label>Ghi chú / sở thích
+        <textarea rows="3" value={form.soThichGhiChu} onChange={(e) => set('soThichGhiChu', e.target.value)} placeholder="Ví dụ: thích biển, không đi quá xa, có trẻ nhỏ…" />
+      </label>
+      <button className="primary-button" disabled={busy}>{busy ? 'Đang ghép lịch…' : 'Gửi yêu cầu và nhận 3 đề xuất'}</button>
+    </form>
+  );
+}
 
 export function DesignRequestsPage() {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -35,8 +131,7 @@ export function DesignRequestsPage() {
   return (
     <section className="page-section" style={{ overflowWrap: 'anywhere' }}>
       <div className="page-heading"><div><span className="stamp">Hành trình của riêng bạn</span><h1>Tự thiết kế <em>chuyến đi</em></h1></div></div>
-      <p>Trò chuyện với trợ lý ANAM: chọn tỉnh xuất phát / đến, giờ đi–về, ngân sách. Hệ thống ghép 3 lịch từ CSDL (không bịa khách sạn).</p>
-      <DesignChat />
+      <DesignForm onCreated={(id) => { if (id) navigate(`/tu-thiet-ke/${encodeURIComponent(id)}`); else setRefresh((value) => value + 1); }} />
       <div className="page-heading"><h2>Yêu cầu của tôi</h2><button className="outline-button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}>Tải lại danh sách</button></div>
       {listError && <div className="form-error" role="alert">{listError}</div>}
       {loading ? <p role="status">Đang tải yêu cầu…</p> : !listError && <>
@@ -63,7 +158,7 @@ export function DesignRequestDetailPage() {
 function DesignRequestDetail({ id }) {
   const [request, setRequest] = useState(null);
   const [proposals, setProposals] = useState([]);
-  const [schedule,setSchedule] = useState(null);
+  const [schedule, setSchedule] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
   const [choosing, setChoosing] = useState('');
@@ -77,7 +172,7 @@ function DesignRequestDetail({ id }) {
     Promise.all([api.designRequestDetail(id), api.designProposals(id)]).then(async ([detail, plans]) => {
       const current = trim(detail.data.maTourTao) ? (await api.currentDesignSchedule(id)).data : null;
       if (active) {
-        setRequest(current ? {...detail.data,trangThai:current.trangThai,lyDo:current.lyDo,nguonLyDo:current.nguonLyDo} : detail.data);
+        setRequest(current ? { ...detail.data, trangThai: current.trangThai, lyDo: current.lyDo, nguonLyDo: current.nguonLyDo } : detail.data);
         setProposals(itemsOf(plans)); setSchedule(current);
       }
     }).catch((err) => { if (active) setLoadError(api.errorMessage(err, 'Không tải được chi tiết và đề xuất.')); })
@@ -98,15 +193,15 @@ function DesignRequestDetail({ id }) {
     } finally { setChoosing(''); }
   };
   const respond = async (lyDo) => {
-    if (choosing || loading || request?.trangThai!=='ChoKhachXacNhan') return;
-    if (lyDo===null && !window.confirm('Bạn đồng ý với lịch trình và giá hiện tại?')) return;
-    setChoosing(lyDo===null?'agree':'revise');setError('');setOk('');
+    if (choosing || loading || request?.trangThai !== 'ChoKhachXacNhan') return;
+    if (lyDo === null && !window.confirm('Bạn đồng ý với lịch trình và giá hiện tại?')) return;
+    setChoosing(lyDo === null ? 'agree' : 'revise'); setError(''); setOk('');
     try {
-      if(lyDo===null)await api.agreeDesignSchedule(id);else await api.requestDesignRevision(id,lyDo);
-      setOk(lyDo===null?'Đã đồng ý lịch. Yêu cầu đang chờ Admin duyệt.':'Đã gửi yêu cầu chỉnh lại cho Admin/Sale.');
-      setLoading(true);setRefresh(x=>x+1);
-    } catch(err) { setError(api.errorMessage(err));if(err.response?.status===409){setLoading(true);setRefresh(x=>x+1);} }
-    finally {setChoosing('');}
+      if (lyDo === null) await api.agreeDesignSchedule(id); else await api.requestDesignRevision(id, lyDo);
+      setOk(lyDo === null ? 'Đã đồng ý lịch. Yêu cầu đang chờ Admin duyệt.' : 'Đã gửi yêu cầu chỉnh lại cho Admin/Sale.');
+      setLoading(true); setRefresh((x) => x + 1);
+    } catch (err) { setError(api.errorMessage(err)); if (err.response?.status === 409) { setLoading(true); setRefresh((x) => x + 1); } }
+    finally { setChoosing(''); }
   };
   const canChoose = trim(request?.trangThai) === 'Moi' && !trim(request?.maTourTao);
 
@@ -123,22 +218,24 @@ function DesignRequestDetail({ id }) {
         <article className="design-form">
           <h2>{request.diemDenMongMuon || 'Chưa chọn điểm đến'}</h2><span className="status">{statusLabel(request.trangThai)}</span>
           <dl className="detail-summary">
-            <dt>Ngày dự kiến đi</dt><dd>{dateText(request.ngayDuKienDi)}</dd>
+            <dt>Xuất phát</dt><dd>{request.maTinhXuatPhat || '—'}</dd>
+            <dt>Ngày / giờ đi</dt><dd>{dateText(request.ngayDuKienDi)} {request.gioKhoiHanh || ''}</dd>
             <dt>Thời gian</dt><dd>{request.soNgay ?? '—'} ngày</dd>
             <dt>Hành khách</dt><dd>{request.soNguoiLon} người lớn · {request.soTreEm} trẻ em</dd>
             <dt>Ngân sách</dt><dd>{request.nganSachDuKien == null ? 'Chưa cập nhật' : money(request.nganSachDuKien)}</dd>
-            <dt>Sở thích / ghi chú</dt><dd>{request.soThichGhiChu || 'Không có'}</dd>
+            <dt>Mục đích</dt><dd>{request.mucDich || '—'}</dd>
+            <dt>Ghi chú</dt><dd>{request.soThichGhiChu || 'Không có'}</dd>
             {trim(request.maTourTao) && <><dt>Tour đã tạo</dt><dd>{trim(request.maTourTao)}</dd></>}
           </dl>
-          {request.lyDo && <p className="notice">{request.nguonLyDo==='KhachHang'?'Bạn đã gửi yêu cầu chỉnh: ':'Lý do Admin cần chỉnh / từ chối: '}{request.lyDo}</p>}
+          {request.lyDo && <p className="notice">{request.nguonLyDo === 'KhachHang' ? 'Bạn đã gửi yêu cầu chỉnh: ' : 'Lý do Admin cần chỉnh / từ chối: '}{request.lyDo}</p>}
           {trim(request.trangThai) === 'DaDuyet' && trim(request.maTourTao) && <>
             <p>Tour đã được duyệt. Xem lịch trình, giá và lịch khởi hành cuối cùng trước khi đặt.</p>
             <Link className="primary-button" to={`/tour/${encodeURIComponent(trim(request.maTourTao))}`}>Đặt tour này</Link>
           </>}
         </article>
-        {schedule&&<CurrentDesignSchedule schedule={schedule} busy={Boolean(choosing)} onRespond={respond}/>}
-        <h2>Đề xuất lịch trình ban đầu</h2>
-        <p>Sale có thể điều chỉnh theo thỏa thuận. Chọn đề xuất chưa phải là đặt tour hay thanh toán.</p>
+        {schedule && <CurrentDesignSchedule schedule={schedule} busy={Boolean(choosing)} onRespond={respond} />}
+        <h2>Đề xuất lịch trình</h2>
+        <p>Sale có thể điều chỉnh. Chọn đề xuất chưa phải đặt tour hay thanh toán.</p>
         {!proposals.length && <div className="empty-state">Hệ thống chưa ghép được điểm phù hợp — Sale sẽ xử lý.</div>}
         <div className="proposal-grid">{proposals.map((proposal) => {
           const state = trim(proposal.trangThai);
@@ -165,3 +262,4 @@ function DesignRequestDetail({ id }) {
     </section>
   );
 }
+

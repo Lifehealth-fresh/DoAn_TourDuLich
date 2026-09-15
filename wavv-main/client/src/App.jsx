@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fa';
 import * as api from './api';
 import { DesignRequestsPage, DesignRequestDetailPage } from './DesignRequests';
+import SupportChat from './DesignChat.jsx';
 import imgHaLong from './assets/vietnam/halong.jpg';
 import imgHoiAn from './assets/vietnam/hoian.jpg';
 import imgHaNoi from './assets/vietnam/hanoi.jpg';
@@ -235,6 +236,7 @@ function Layout() {
         </nav>
       </header>
       <main><Outlet /></main>
+      <SupportChat />
       <footer className="footer">
         <div>
           <Brand />

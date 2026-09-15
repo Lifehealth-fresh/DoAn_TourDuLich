@@ -21,7 +21,8 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
     public async Task<IReadOnlyList<LichTrinhDeXuat>> GenerateAsync(
         YeuCauThietKe request, DesignPlannerContext? extras = null, CancellationToken cancellationToken = default)
     {
-        var match = await _destinations.ResolveAsync(request.DiemDenMongMuon, extras?.MaTinhDen, cancellationToken);
+        extras ??= DesignPlannerContext.From(request);
+        var match = await _destinations.ResolveAsync(request.DiemDenMongMuon, extras.MaTinhDen ?? request.MaTinhDen, cancellationToken);
         var provinceId = match?.Province?.MaTinh;
         var regionId = match?.Province?.MaKhuVuc ?? match?.Region?.MaKhuVuc;
         if (provinceId is null && regionId is null)

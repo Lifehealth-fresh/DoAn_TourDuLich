@@ -197,15 +197,27 @@ public class YeuCauThietKeController : ControllerBase
             SoTreEm = request.SoTreEm,
             NganSachDuKien = request.NganSachDuKien,
             SoThichGhiChu = request.SoThichGhiChu?.Trim(),
+            MucDich = request.MucDich?.Trim(),
+            TenChuyenDi = request.TenChuyenDi?.Trim(),
             MaGoiYthamKhao = maGoiYThamKhaoDb,
             LyDoTuChoiGoiY = request.LyDoTuChoiGoiY?.Trim(),
             TrangThai = FixedLengthHelper.PadTo20("Moi"),
             NgayGui = DateTime.UtcNow,
-            MaTourTao = null
+            MaTourTao = null,
+            GioKhoiHanh = request.GioKhoiHanh,
+            GioKetThuc = request.GioKetThuc,
+            NgayKetThuc = request.NgayKetThuc
         };
+        if (!string.IsNullOrWhiteSpace(request.MaTinhXuatPhat))
+            yeuCau.MaTinhXuatPhat = FixedLengthHelper.PadTo20(request.MaTinhXuatPhat);
         var match = await _destinations.ResolveAsync(yeuCau.DiemDenMongMuon, request.MaTinhDen);
         if (match?.Province is not null)
+        {
             yeuCau.DiemDenMongMuon = match.Province.TenTinh;
+            yeuCau.MaTinhDen = match.Province.MaTinh;
+        }
+        if (yeuCau.NgayDuKienDi is { } start && yeuCau.SoNgay is > 0 && yeuCau.NgayKetThuc is null)
+            yeuCau.NgayKetThuc = start.AddDays(yeuCau.SoNgay.Value - 1);
 
         _context.YeuCauThietKes.Add(yeuCau);
         await _context.SaveChangesAsync();
@@ -217,7 +229,7 @@ public class YeuCauThietKeController : ControllerBase
         // Yêu cầu đã được lưu độc lập; sinh đề xuất thất bại không làm mất yêu cầu.
         try
         {
-            var proposals = await _deXuatService.GenerateAsync(yeuCau);
+            var proposals = await _deXuatService.GenerateAsync(yeuCau, DesignPlannerContext.From(yeuCau));
             if (proposals.Count == 0)
                 _logger.LogWarning("Chưa ghép được đề xuất cho yêu cầu {RequestId}.", maYeuCau);
         }
@@ -314,7 +326,7 @@ public class YeuCauThietKeController : ControllerBase
         if (!YeuCauThietKeStateMachine.CanGenerateProposals(requestState))
             return Conflict(new { message = $"Không thể sinh đề xuất. {YeuCauThietKeStateMachine.Describe(requestState)}" });
 
-        var proposals = await _deXuatService.GenerateAsync(request, null, cancellationToken);
+        var proposals = await _deXuatService.GenerateAsync(request, DesignPlannerContext.From(request), cancellationToken);
         if (proposals.Count == 0)
             return BadRequest(new { message = "Không tìm thấy điểm tham quan cùng khu vực hoặc chưa có khách sạn (LuuTru) gắn khu vực đó." });
         var saved = await _context.LichTrinhDeXuats.AsNoTracking()

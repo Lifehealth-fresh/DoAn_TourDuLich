@@ -42,6 +42,11 @@
   "GoogleMaps": {
     "ApiKey": ""
   },
+  "Llm": {
+    "Provider": "Gemini",
+    "Model": "gemini-2.0-flash",
+    "ApiKey": ""
+  },
   "AiService": {
     "BaseUrl": "http://localhost:8000/",
     "ApiKey": "change-this-in-development"

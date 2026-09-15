@@ -16,6 +16,10 @@ public sealed class DesignRequestView
     public int? SoTreEm { get; set; }
     public int? NganSachDuKien { get; set; }
     public string? SoThichGhiChu { get; set; }
+    public string? MucDich { get; set; }
+    public string? MaTinhXuatPhat { get; set; }
+    public string? MaTinhDen { get; set; }
+    public TimeSpan? GioKhoiHanh { get; set; }
     public string? MaGoiYThamKhao { get; set; }
     public string? LyDoTuChoiGoiY { get; set; }
     public string? TrangThai { get; set; }
@@ -25,13 +29,16 @@ public sealed class DesignRequestView
     public string? LyDo => DesignRevisionReason.Read(StoredReason).LyDo;
     public string? NguonLyDo => DesignRevisionReason.Read(StoredReason).NguonLyDo;
 
-    // Only SQL-translatable expressions here. Prefix parsing happens during JSON serialization.
     public static Expression<Func<YeuCauThietKe, DesignRequestView>> Projection => r => new DesignRequestView
     {
         MaYeuCau = r.MaYeuCau.Trim(), MaUser = r.MaUser.Trim(),
         DiemDenMongMuon = r.DiemDenMongMuon, NgayDuKienDi = r.NgayDuKienDi,
         SoNgay = r.SoNgay, SoNguoiLon = r.SoNguoiLon, SoTreEm = r.SoTreEm, NganSachDuKien = r.NganSachDuKien,
-        SoThichGhiChu = r.SoThichGhiChu, MaGoiYThamKhao = r.MaGoiYthamKhao == null ? null : r.MaGoiYthamKhao.Trim(),
+        SoThichGhiChu = r.SoThichGhiChu, MucDich = r.MucDich,
+        MaTinhXuatPhat = r.MaTinhXuatPhat == null ? null : r.MaTinhXuatPhat.Trim(),
+        MaTinhDen = r.MaTinhDen == null ? null : r.MaTinhDen.Trim(),
+        GioKhoiHanh = r.GioKhoiHanh,
+        MaGoiYThamKhao = r.MaGoiYthamKhao == null ? null : r.MaGoiYthamKhao.Trim(),
         LyDoTuChoiGoiY = r.LyDoTuChoiGoiY, StoredReason = r.LyDoTuChoiBoiSale,
         TrangThai = r.TrangThai == null ? null : r.TrangThai.Trim(), NgayGui = r.NgayGui,
         MaTourTao = r.MaTourTao == null ? null : r.MaTourTao.Trim()

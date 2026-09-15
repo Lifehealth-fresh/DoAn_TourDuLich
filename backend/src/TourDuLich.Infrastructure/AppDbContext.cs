@@ -1121,6 +1121,12 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.TrangThai)
                 .HasMaxLength(20)
                 .IsFixedLength();
+            entity.Property(e => e.TenChuyenDi).HasMaxLength(150);
+            entity.Property(e => e.MucDich).HasMaxLength(30);
+            entity.Property(e => e.MaTinhXuatPhat).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.MaTinhDen).HasMaxLength(20).IsFixedLength();
+            entity.Property(e => e.GioKhoiHanh).HasColumnType("time(0)");
+            entity.Property(e => e.GioKetThuc).HasColumnType("time(0)");
 
             entity.HasOne(d => d.MaGoiYthamKhaoNavigation).WithMany(p => p.YeuCauThietKes)
                 .HasForeignKey(d => d.MaGoiYthamKhao)
