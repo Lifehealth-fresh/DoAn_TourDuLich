@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
-import { ExpandRecord, Notice } from './components';
+import { ExpandRecord, Notice, OpenPanel } from './components';
 import { useAuth } from './context';
 
 const types = [
@@ -117,9 +117,9 @@ export default function PartnersManagement() {
     <p className="muted">Khách sạn (LuuTru) bắt buộc chọn khu vực để tự thiết kế ghép đúng vùng.</p>
     <Notice error={error} />{message && <div className="notice ok">{message}</div>}
     {canThem && <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(emptyPartner()); requestAnimationFrame(() => document.getElementById('partner-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm đối tác</button>}
-    {creating && <div id="partner-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
+    {creating && <OpenPanel id="partner-create" onClose={() => setCreating(false)}>{editor}</OpenPanel>}
     <div className="table">
-      {partners.map((item) => <ExpandRecord key={item.maDoiTac} open={selected === item.maDoiTac} summary={
+      {partners.map((item) => <ExpandRecord key={item.maDoiTac} open={selected === item.maDoiTac} onClose={() => toggle(item)} summary={
         <div className="row" style={{ cursor: busy ? 'wait' : 'pointer' }} onClick={() => { if (!busy) toggle(item); }}>
           <b>{item.tenDoiTac}</b><span>{types.find((t) => t.id === item.loaiDoiTac)?.label || item.loaiDoiTac}</span>
           <span>{item.tenKhuVuc || item.maKhuVuc || '—'}</span>

@@ -165,6 +165,7 @@ function DesignRequestDetail({ id }) {
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
+  const [openPlans, setOpenPlans] = useState({});
 
   useEffect(() => {
     let active = true;
@@ -241,9 +242,18 @@ function DesignRequestDetail({ id }) {
           const state = trim(proposal.trangThai);
           const details = [...(proposal.chiTiets || [])].sort((a, b) => a.ngayThu - b.ngayThu || a.thuTuTrongNgay - b.thuTuTrongNgay);
           const days = [...new Set(details.map((detail) => detail.ngayThu))];
-          return <article className={`proposal-card${state === 'DaChon' ? ' chosen' : ''}`} key={proposal.maDeXuat}>
-            <span className="proposal-label">Phương án {proposal.thuTuPhuongAn} · {({ DeXuat: 'Đề xuất', DaChon: 'Đã chọn', KhongChon: 'Không chọn' })[state] || state}</span>
-            <h2>{proposal.tenPhuongAn}</h2><b>{money(proposal.tongTienDuKien)}</b><p>{proposal.ghiChu}</p>
+          const expanded = Boolean(openPlans[proposal.maDeXuat]);
+          return <article className={`proposal-card${state === 'DaChon' ? ' chosen' : ''}${expanded ? ' open' : ' collapsed'}`} key={proposal.maDeXuat}>
+            <header className="proposal-head" onClick={() => { if (!expanded) setOpenPlans((current) => ({ ...current, [proposal.maDeXuat]: true })); }}>
+              <span className="proposal-label">Phương án {proposal.thuTuPhuongAn} · {({ DeXuat: 'Đề xuất', DaChon: 'Đã chọn', KhongChon: 'Không chọn' })[state] || state}</span>
+              <h2>{proposal.tenPhuongAn}</h2>
+              <b>{money(proposal.tongTienDuKien)}</b>
+              {expanded
+                ? <button type="button" className="panel-close" aria-label="Đóng phương án" onClick={(event) => { event.stopPropagation(); setOpenPlans((current) => ({ ...current, [proposal.maDeXuat]: false })); }}>×</button>
+                : <small className="muted">Nhấn để xem lịch trình</small>}
+            </header>
+            {expanded && <>
+            <p>{proposal.ghiChu}</p>
             <div className="proposal-days">{days.map((day) => <section className="day-card" key={day}>
               <header><b>Ngày {day}</b></header>
               <ol>{details.filter((detail) => detail.ngayThu === day).map((detail) => <li key={detail.maChiTiet}>
@@ -256,6 +266,7 @@ function DesignRequestDetail({ id }) {
             {canChoose && state === 'DeXuat' && <button className="primary-button full" disabled={Boolean(choosing)} onClick={() => choose(proposal.maDeXuat)}>
               {choosing === proposal.maDeXuat ? 'Đang chọn…' : 'Chọn đề xuất'}
             </button>}
+            </>}
           </article>;
         })}</div>
       </>}

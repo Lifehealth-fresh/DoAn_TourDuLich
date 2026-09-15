@@ -10,6 +10,7 @@ public sealed class DesignPlannerContext
     public DateOnly? NgayKetThuc { get; init; }
     public TimeSpan? GioKetThuc { get; init; }
     public int? SoSuKienMoiNgay { get; init; }
+    public int MaxPlans { get; set; }
 
     public static DesignPlannerContext From(YeuCauThietKe request) => new()
     {

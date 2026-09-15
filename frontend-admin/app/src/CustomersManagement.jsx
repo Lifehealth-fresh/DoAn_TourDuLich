@@ -114,7 +114,7 @@ export default function CustomersManagement() {
         <button className="primary" disabled={busy} type="submit">{busy ? 'Đang tìm…' : 'Tìm'}</button>
       </form>
       {items.length === 0 ? <p className="muted">Chưa có khách khớp.</p> : items.map((row) => (
-        <ExpandRecord key={row.maKhachHang} open={open === row.maKhachHang} summary={(
+        <ExpandRecord key={row.maKhachHang} open={open === row.maKhachHang} onClose={() => openCustomer(row.maKhachHang)} summary={(
           <button type="button" className="row" onClick={() => openCustomer(row.maKhachHang)}>
             <b>{row.maKhachHang}</b>
             <span>{[row.ho, row.ten].filter(Boolean).join(' ')}</span>

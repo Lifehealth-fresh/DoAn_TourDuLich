@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
-import { ExpandRecord, Notice } from './components';
+import { ExpandRecord, Notice, OpenPanel } from './components';
 import { useAuth } from './context';
 
 const asUtc = (value) => value ? new Date(/[zZ]$|[+-]\d\d:\d\d$/.test(value) ? value : value + 'Z') : null;
@@ -172,9 +172,9 @@ export default function PromotionsManagement() {
         await loadList(); if (selected) await loadDetail(selected);
       }, 'Không tải lại được ưu đãi.')}>Tải lại ưu đãi</button>
     </div>
-    {creating && <div id="promo-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
+    {creating && <OpenPanel id="promo-create" onClose={() => setCreating(false)}>{editor}</OpenPanel>}
     <div className="table" aria-label="Danh sách ưu đãi">
-      {items.map((item) => <ExpandRecord key={item.maKm} open={selected === item.maKm} summary={
+      {items.map((item) => <ExpandRecord key={item.maKm} open={selected === item.maKm} onClose={() => toggleRow(item.maKm)} summary={
         <div className="row" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,140px),1fr))', cursor: busy ? 'wait' : 'pointer' }}
           onClick={() => { if (!busy) toggleRow(item.maKm); }}>
           <b>{item.maCode}</b><span>{item.tenKm}</span><span>{item.donVi === '%' ? item.giamGia + '%' : money(item.giamGia)}</span>

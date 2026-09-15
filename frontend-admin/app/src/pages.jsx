@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as api from './api';
 import DepartureGuests from './DepartureGuests';
 import { useAuth } from './context';
-import { ExpandRecord, Notice, BarList, StatusMix, LineChart } from './components';
+import { ExpandRecord, Notice, BarList, StatusMix, LineChart, OpenPanel, SearchSelect } from './components';
 export { DesignRequests } from './DesignRequests';
 
 const v = (o, ...ks) => ks.map((k) => o?.[k]).find((x) => x !== undefined && x !== null);
@@ -301,7 +301,7 @@ export function BookingManagement() {
 
       <div className="table">
         {items.map((x) => (
-          <ExpandRecord key={x.maBooking} open={item?.maBooking === x.maBooking} summary={
+          <ExpandRecord key={x.maBooking} open={item?.maBooking === x.maBooking} onClose={() => { setItem(null); setId(''); }} summary={
             <button
               type="button"
               className={`row booking-row ${item?.maBooking === x.maBooking ? 'on' : ''}`}
@@ -355,15 +355,19 @@ export function BookingManagement() {
 
 export function TourAdminPage() {
   const { can } = useAuth();
+  const nav = useNavigate();
   const canThem = can('Tour', 'Them');
   const canSua = can('Tour', 'Sua');
   const canXoa = can('Tour', 'Xoa');
   const emptyTour = () => ({
     MaTour: '', TenTour: '', Mota: '', ThoiGian: 1, GiaTour: 0, Slkhach: 1,
     SlhuongDanVien: 1, LoaiTour: 'Chuan', TrangThai: 'HoatDong', DieuKhoan: '',
+    SoNguoiLon: 1, SoTreEm: 0, SoDienThoaiKhach: '', NganSachDuKien: '',
+    MaTinhXuatPhat: '', MaTinhDen: '', NgayKhoiHanh: '', NgayKetThuc: '', DiaDiemKhoiHanh: '',
   });
   const emptySchedule = () => ({ NgayThu: 1, ThuTuTrongNgay: 1, MaDthamQuan: '', MaSanPham: '', Mota: '', SoLuong: 1 });
   const emptyMedia = () => ({ File: null, ThuTu: 0, IsAvatar: false });
+  const emptyDepartureDraft = () => ({ ngayKhoiHanh: '', ngayKetThuc: '', diaDiem: '', soCho: '' });
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -373,10 +377,14 @@ export function TourAdminPage() {
   const [detail, setDetail] = useState(null);
   const [schedule, setSchedule] = useState(null);
   const [places, setPlaces] = useState([]);
+  const [provinces, setProvinces] = useState([]);
   const [media, setMedia] = useState(null);
   const [form, setForm] = useState(emptyTour);
   const [scheduleForm, setScheduleForm] = useState(emptySchedule);
   const [mediaForm, setMediaForm] = useState(emptyMedia);
+  const [draftDepartures, setDraftDepartures] = useState([emptyDepartureDraft()]);
+  const [draftLines, setDraftLines] = useState([]);
+  const [draftFiles, setDraftFiles] = useState([]);
   const [fileKey, setFileKey] = useState(0);
   const [busy, setBusy] = useState(true);
   const [e, setE] = useState('');
@@ -430,7 +438,7 @@ export function TourAdminPage() {
   };
   useEffect(() => {
     let active = true;
-    Promise.allSettled([api.tours({ page: 1, pageSize: 50 }), api.sightseeingPlaces()]).then(([toursResult, placesResult]) => {
+    Promise.allSettled([api.tours({ page: 1, pageSize: 50 }), api.sightseeingPlaces(), api.provinces()]).then(([toursResult, placesResult, provincesResult]) => {
       if (!active) return;
       const errors = [];
       if (toursResult.status === 'fulfilled') {
@@ -439,6 +447,7 @@ export function TourAdminPage() {
       } else errors.push(api.errorMessage(toursResult.reason, 'Không tải được tour.'));
       if (placesResult.status === 'fulfilled') setPlaces(itemsOf(placesResult.value));
       else errors.push(api.errorMessage(placesResult.reason, 'Không tải được danh sách điểm. Bạn vẫn có thể nhập mã điểm.'));
+      if (provincesResult.status === 'fulfilled') setProvinces(itemsOf(provincesResult.value));
       setE(errors.join(' '));
       setBusy(false);
     });
@@ -459,6 +468,9 @@ export function TourAdminPage() {
     setForm(emptyTour());
     setScheduleForm(emptySchedule());
     setMediaForm(emptyMedia());
+    setDraftDepartures([emptyDepartureDraft()]);
+    setDraftLines([]);
+    setDraftFiles([]);
     setFileKey((key) => key + 1);
     setE('');
     setMessage('');
@@ -470,15 +482,49 @@ export function TourAdminPage() {
       const optionalNumber = (value) => value === '' ? null : Number(value);
       const optionalText = (key) => form[key] === '' && selected && v(detail, key[0].toLowerCase() + key.slice(1), key) == null
         ? null : form[key];
+      const isCustom = form.LoaiTour === 'TuThietKe';
+      if (!form.TenTour.trim() || (!selected && !isCustom && !form.MaTour.trim())) {
+        setE('Hãy nhập mã và tên tour.'); return;
+      }
+      if (isCustom && !selected) {
+        if (!/^0\d{9}$/.test(form.SoDienThoaiKhach.trim())) {
+          setE('Số điện thoại khách phải gồm 10 chữ số và bắt đầu bằng 0.'); return;
+        }
+        if (!form.MaTinhDen && !form.DiaDiemKhoiHanh.trim()) {
+          setE('Hãy chọn tỉnh/thành đến hoặc nhập địa điểm.'); return;
+        }
+        const dest = provinces.find((item) => item.maTinh === form.MaTinhDen);
+        const payload = {
+          maTour: form.MaTour.trim() || null,
+          tenTour: form.TenTour.trim(),
+          mota: form.Mota,
+          thoiGian: optionalNumber(form.ThoiGian),
+          dieuKhoan: form.DieuKhoan,
+          slhuongDanVien: optionalNumber(form.SlhuongDanVien),
+          soDienThoaiKhach: form.SoDienThoaiKhach.trim(),
+          soNguoiLon: Number(form.SoNguoiLon),
+          soTreEm: Number(form.SoTreEm),
+          nganSachDuKien: optionalNumber(form.NganSachDuKien),
+          maTinhXuatPhat: form.MaTinhXuatPhat || null,
+          maTinhDen: form.MaTinhDen || null,
+          diemDenMongMuon: dest?.tenTinh || form.DiaDiemKhoiHanh.trim(),
+          ngayKhoiHanh: form.NgayKhoiHanh ? new Date(form.NgayKhoiHanh).toISOString() : null,
+          ngayKetThuc: form.NgayKetThuc ? new Date(form.NgayKetThuc).toISOString() : null,
+          diaDiem: form.DiaDiemKhoiHanh.trim() || dest?.tenTinh || null,
+        };
+        const response = await api.createAdminDesignedTour(payload);
+        const maYeuCau = v(response.data, 'maYeuCau', 'MaYeuCau');
+        setCreating(false);
+        setMessage('Đã tạo tour thiết kế riêng. Chuyển sang mục Thiết kế để sinh 1 đề xuất.');
+        nav(`/thiet-ke?yeuCau=${encodeURIComponent(maYeuCau)}`);
+        return;
+      }
       const data = {
         TenTour: form.TenTour.trim(), Mota: optionalText('Mota'), ThoiGian: optionalNumber(form.ThoiGian),
         GiaTour: Number(form.GiaTour), Slkhach: Number(form.Slkhach),
         SlhuongDanVien: optionalNumber(form.SlhuongDanVien), LoaiTour: form.LoaiTour,
         TrangThai: form.TrangThai, DieuKhoan: optionalText('DieuKhoan'),
       };
-      if (!data.TenTour || !data.LoaiTour || (!selected && !form.MaTour.trim())) {
-        setE('Hãy nhập mã, tên và loại tour.'); return;
-      }
       let id = selected;
       if (id) {
         await api.updateTour(id, data);
@@ -486,6 +532,25 @@ export function TourAdminPage() {
       } else {
         const response = await api.createTour({ MaTour: form.MaTour.trim(), ...data });
         id = v(response.data, 'maTour', 'MaTour') || form.MaTour.trim();
+        for (const row of draftDepartures.filter((item) => item.ngayKhoiHanh)) {
+          await api.createDeparture({
+            maTour: id,
+            ngayKhoiHanh: new Date(row.ngayKhoiHanh).toISOString(),
+            ngayKetThuc: row.ngayKetThuc ? new Date(row.ngayKetThuc).toISOString() : null,
+            diaDiem: row.diaDiem || null,
+            soCho: row.soCho === '' ? null : Number(row.soCho),
+          });
+        }
+        for (const line of draftLines) {
+          await api.createTourSchedule({
+            MaTour: id, NgayThu: Number(line.NgayThu), ThuTuTrongNgay: Number(line.ThuTuTrongNgay),
+            MaDthamQuan: line.MaDthamQuan.trim() || null, MaSanPham: line.MaSanPham.trim() || null,
+            SoLuong: Number(line.SoLuong), Mota: line.Mota,
+          });
+        }
+        for (const file of draftFiles) {
+          if (file.File) await api.uploadTourMedia(id, file.File, Number(file.ThuTu), file.IsAvatar);
+        }
         setSelected(id);
         setCreating(false);
         setDetail({ ...response.data, trangThai: data.TrangThai });
@@ -590,46 +655,106 @@ export function TourAdminPage() {
           </select>
         </label>
       </div>
-      {creating && <div id="tour-create" className="create-slot record open"><div className="record-body">
+      {creating && <OpenPanel id="tour-create" onClose={() => setCreating(false)}>
       <section className="panel" id="tour-create-form" style={{ margin: 0, boxShadow: 'none', border: 0, padding: 0 }}>
         <h2>Thêm tour</h2>
         <form onSubmit={save} aria-label="Thông tin tour">
           <fieldset disabled={busy || !canThem} style={fieldset}>
             <div style={grid}>
-              <label style={field}>Mã tour<input style={control} maxLength={20} required
+              <label style={field}>Loại tour<select aria-label="Loại tour" style={control} required value={form.LoaiTour} onChange={(event) => {
+                const loai = event.target.value;
+                setForm((current) => ({ ...current, LoaiTour: loai, TrangThai: loai === 'TuThietKe' ? 'Nhap' : 'HoatDong' }));
+              }}>
+                <option value="Chuan">Chuẩn</option>
+                <option value="TuThietKe">Thiết kế riêng</option>
+              </select></label>
+              <label style={field}>Mã tour<input style={control} maxLength={20} required={form.LoaiTour !== 'TuThietKe'}
+                placeholder={form.LoaiTour === 'TuThietKe' ? 'Để trống: hệ thống tự sinh' : ''}
                 value={form.MaTour} onChange={setTourField('MaTour')} /></label>
               <label style={field}>Tên tour<input style={control} maxLength={150} required
                 value={form.TenTour} onChange={setTourField('TenTour')} /></label>
-              <label style={field}>Số ngày (ThoiGian)<input style={control} type="number" min="1" max="2147483647" step="1"
+              <label style={field}>Số ngày<input style={control} type="number" min="1" max="2147483647" step="1"
                 required value={form.ThoiGian} onChange={setTourField('ThoiGian')} /></label>
-              <label style={field}>Giá tour (đ)<input style={control} type="number" min="0" max="2147483647" step="1" required
-                value={form.GiaTour} onChange={setTourField('GiaTour')} /></label>
-              <label style={field}>Số khách<input style={control} type="number" min="1" max="2147483647" step="1" required
-                value={form.Slkhach} onChange={setTourField('Slkhach')} /></label>
+              {form.LoaiTour === 'TuThietKe' ? <>
+                <label style={field}>Số người lớn<input style={control} type="number" min="1" required value={form.SoNguoiLon} onChange={setTourField('SoNguoiLon')} /></label>
+                <label style={field}>Số trẻ em<input style={control} type="number" min="0" required value={form.SoTreEm} onChange={setTourField('SoTreEm')} /></label>
+                <label style={field}>Số điện thoại khách<input style={control} required maxLength={10} placeholder="0xxxxxxxxx" value={form.SoDienThoaiKhach} onChange={setTourField('SoDienThoaiKhach')} /></label>
+                <label style={field}>Ngân sách dự kiến (đ)<input style={control} type="number" min="0" value={form.NganSachDuKien} onChange={setTourField('NganSachDuKien')} /></label>
+                <label style={field}>Tỉnh/thành xuất phát
+                  <SearchSelect value={form.MaTinhXuatPhat} onChange={(value) => setForm((current) => ({ ...current, MaTinhXuatPhat: value }))}
+                    options={provinces.map((item) => ({ value: item.maTinh, label: item.tenTinh }))} emptyLabel="— chọn tỉnh —" placeholder="Tìm tỉnh xuất phát" />
+                </label>
+                <label style={field}>Tỉnh/thành đến
+                  <SearchSelect value={form.MaTinhDen} onChange={(value) => setForm((current) => ({ ...current, MaTinhDen: value }))}
+                    options={provinces.map((item) => ({ value: item.maTinh, label: item.tenTinh }))} emptyLabel="— chọn tỉnh —" placeholder="Tìm tỉnh đến" />
+                </label>
+                <label style={field}>Khởi hành<input style={control} type="datetime-local" required value={form.NgayKhoiHanh} onChange={setTourField('NgayKhoiHanh')} /></label>
+                <label style={field}>Kết thúc<input style={control} type="datetime-local" required value={form.NgayKetThuc} onChange={setTourField('NgayKetThuc')} /></label>
+                <label style={field}>Địa điểm<input style={control} value={form.DiaDiemKhoiHanh} onChange={setTourField('DiaDiemKhoiHanh')} placeholder="Điểm tập trung / địa chỉ" /></label>
+                <label style={field}>Trạng thái tour<input style={control} readOnly value="Nháp" /></label>
+              </> : <>
+                <label style={field}>Giá tour (đ)<input style={control} type="number" min="0" max="2147483647" step="1" required
+                  value={form.GiaTour} onChange={setTourField('GiaTour')} /></label>
+                <label style={field}>Số khách<input style={control} type="number" min="1" max="2147483647" step="1" required
+                  value={form.Slkhach} onChange={setTourField('Slkhach')} /></label>
+                <label style={field}>Trạng thái tour<select aria-label="Trạng thái tour" style={control} required value={form.TrangThai} onChange={setTourField('TrangThai')}>
+                  {Object.entries(stateNames).map(([key, name]) => <option key={key} value={key}>{name} ({key})</option>)}
+                </select></label>
+              </>}
               <label style={field}>Số hướng dẫn viên<input style={control} type="number" min="0" max="2147483647" step="1"
                 value={form.SlhuongDanVien} onChange={setTourField('SlhuongDanVien')} /></label>
-              <label style={field}>Loại tour<input style={control} readOnly required value={form.LoaiTour} /></label>
-              <label style={field}>Trạng thái tour<select aria-label="Trạng thái tour" style={control} required value={form.TrangThai} onChange={setTourField('TrangThai')}>
-                {Object.entries(stateNames).map(([key, name]) => <option key={key} value={key}>{name} ({key})</option>)}
-              </select></label>
               <label style={{ ...field, gridColumn: '1 / -1' }}>Mô tả tour<textarea aria-label="Mô tả tour" style={control} rows={3}
                 value={form.Mota} onChange={setTourField('Mota')} /></label>
               <label style={{ ...field, gridColumn: '1 / -1' }}>Điều khoản<textarea aria-label="Điều khoản" style={control} rows={3}
                 value={form.DieuKhoan} onChange={setTourField('DieuKhoan')} /></label>
             </div>
-            <p className="muted">Tour mới thuộc loại Chuan.</p>
-            <button type="submit">Thêm tour</button>
+            {form.LoaiTour === 'TuThietKe'
+              ? <p className="muted">Sau khi thêm, hệ thống mở mục Thiết kế. Bấm Sinh đề xuất — chỉ sinh 1 lịch trình. Khách có SĐT trên sẽ thấy yêu cầu trong Tự thiết kế.</p>
+              : <>
+                <h3>Lịch khởi hành</h3>
+                <p className="muted">Mã lịch do hệ thống tự sinh. Có thể thêm nhiều lịch.</p>
+                {draftDepartures.map((row, index) => (
+                  <div key={index} style={{ ...grid, marginBottom: 12 }}>
+                    <label style={field}>Khởi hành<input style={control} type="datetime-local" value={row.ngayKhoiHanh} onChange={(event) => setDraftDepartures((current) => current.map((item, i) => i === index ? { ...item, ngayKhoiHanh: event.target.value } : item))} /></label>
+                    <label style={field}>Kết thúc<input style={control} type="datetime-local" value={row.ngayKetThuc} onChange={(event) => setDraftDepartures((current) => current.map((item, i) => i === index ? { ...item, ngayKetThuc: event.target.value } : item))} /></label>
+                    <label style={field}>Địa điểm<input style={control} value={row.diaDiem} onChange={(event) => setDraftDepartures((current) => current.map((item, i) => i === index ? { ...item, diaDiem: event.target.value } : item))} /></label>
+                    <label style={field}>Số chỗ<input style={control} type="number" min="0" value={row.soCho} onChange={(event) => setDraftDepartures((current) => current.map((item, i) => i === index ? { ...item, soCho: event.target.value } : item))} /></label>
+                  </div>
+                ))}
+                <button type="button" onClick={() => setDraftDepartures((current) => [...current, emptyDepartureDraft()])}>Thêm lịch khởi hành</button>
+                <h3>Lịch trình</h3>
+                {draftLines.map((row, index) => (
+                  <div key={index} style={{ ...grid, marginBottom: 12 }}>
+                    <label style={field}>Ngày thứ<input style={control} type="number" min="1" value={row.NgayThu} onChange={(event) => setDraftLines((current) => current.map((item, i) => i === index ? { ...item, NgayThu: event.target.value } : item))} /></label>
+                    <label style={field}>Thứ tự<input style={control} type="number" min="1" value={row.ThuTuTrongNgay} onChange={(event) => setDraftLines((current) => current.map((item, i) => i === index ? { ...item, ThuTuTrongNgay: event.target.value } : item))} /></label>
+                    <label style={field}>Mã điểm<input style={control} list="tour-places-create" value={row.MaDthamQuan} onChange={(event) => setDraftLines((current) => current.map((item, i) => i === index ? { ...item, MaDthamQuan: event.target.value } : item))} /></label>
+                    <label style={field}>Mã sản phẩm<input style={control} value={row.MaSanPham} onChange={(event) => setDraftLines((current) => current.map((item, i) => i === index ? { ...item, MaSanPham: event.target.value } : item))} /></label>
+                    <label style={field}>Số lượng<input style={control} type="number" min="1" value={row.SoLuong} onChange={(event) => setDraftLines((current) => current.map((item, i) => i === index ? { ...item, SoLuong: event.target.value } : item))} /></label>
+                    <label style={{ ...field, gridColumn: '1 / -1' }}>Mô tả<input style={control} value={row.Mota} onChange={(event) => setDraftLines((current) => current.map((item, i) => i === index ? { ...item, Mota: event.target.value } : item))} /></label>
+                  </div>
+                ))}
+                <datalist id="tour-places-create">{places.map((place) => <option key={place.maDthamQuan} value={place.maDthamQuan}>{place.tenDiaDanh}</option>)}</datalist>
+                <button type="button" onClick={() => setDraftLines((current) => [...current, emptySchedule()])}>Thêm dòng lịch trình</button>
+                <h3>Ảnh / video</h3>
+                <label style={field}>File<input style={control} type="file" accept=".jpg,.jpeg,.png,.webp,.mp4,.webm,image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) setDraftFiles((current) => [...current, { File: file, ThuTu: current.length, IsAvatar: current.length === 0 }]);
+                  }} /></label>
+                {draftFiles.map((item, index) => <p key={index}>{item.File?.name}{item.IsAvatar ? ' · đại diện' : ''}</p>)}
+              </>}
+            <button type="submit" style={{ marginTop: 16 }}>{form.LoaiTour === 'TuThietKe' ? 'Thêm và mở thiết kế' : 'Thêm tour'}</button>
           </fieldset>
         </form>
       </section>
-      </div></div>}
+      </OpenPanel>}
       <div className="table" aria-label="Danh sách tour">
         {items.map((item) => {
           const id = v(item, 'maTour', 'MaTour');
           const state = String(v(item, 'trangThai', 'TrangThai') || '').trim();
           const open = selected === id && !creating;
           return (
-            <ExpandRecord key={id} open={open} summary={
+            <ExpandRecord key={id} open={open} onClose={() => { setSelected(''); setCreating(false); }} summary={
               <div className={'row' + (open ? ' on' : '')}
                 style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', cursor: busy ? 'wait' : 'pointer' }}
                 onClick={() => {
@@ -686,7 +811,7 @@ export function TourAdminPage() {
                     </fieldset>
                   </form>
                 </section>
-        <DepartureGuests key={selected} tourId={selected} defaultCapacity={detail?.slkhach??Number(form.Slkhach)} disabled={busy}/>
+        <DepartureGuests key={selected} tourId={selected} defaultCapacity={detail?.slkhach??Number(form.Slkhach)} disabled={busy} hideCapacity={form.LoaiTour==='TuThietKe'}/>
         <section className="panel" style={{ marginBottom: 24 }}>
           <h2>Lịch trình tour {selected}</h2>
           <p className="muted">Chỉ sửa lịch trình khi tour Nhap/HoatDong và chưa có hợp đồng DaKy. Thêm/xóa dòng sẽ tính lại giá tour theo tổng thành tiền. Điểm không gắn sản phẩm đối tác có đơn giá 0 theo API hiện tại.</p>

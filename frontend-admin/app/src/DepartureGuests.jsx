@@ -23,7 +23,7 @@ const emptyProfile = () => ({
 });
 const emptyDoc = () => ({ loaiGiayTo: 'CCCD', soTrenGiayTo: '', ngayCap: '', ngayHetHan: '', noiCap: '' });
 
-export default function DepartureGuests({ tourId, defaultCapacity, disabled = false }) {
+export default function DepartureGuests({ tourId, defaultCapacity, disabled = false, hideCapacity = false }) {
   const { can } = useAuth();
   const canSuaTour = can('Tour', 'Sua');
   const canXoaTour = can('Tour', 'Xoa');
@@ -94,7 +94,7 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
     setBusy(true); setError(''); setOk('');
     try {
       const payload = {
-        ...form, maTour: tourId, soCho: form.soCho === '' ? null : Number(form.soCho),
+        ...form, maTour: tourId, maKhoiHanh: editing || undefined, soCho: hideCapacity || form.soCho === '' ? null : Number(form.soCho),
         ngayKhoiHanh: form.ngayKhoiHanh ? new Date(form.ngayKhoiHanh).toISOString() : null,
         ngayKetThuc: form.ngayKetThuc ? new Date(form.ngayKetThuc).toISOString() : null,
       };
@@ -170,7 +170,7 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
           const open = departureId === d.maKhoiHanh;
           const fill = d.sucChua ? Math.round((Number(d.daDat || 0) / Number(d.sucChua)) * 100) : 0;
           return (
-            <ExpandRecord key={d.maKhoiHanh} open={open} summary={
+            <ExpandRecord key={d.maKhoiHanh} open={open} onClose={() => { setDepartureId(''); setRoster(null); setBookingId(''); setProfile(null); }} summary={
               <div className="row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', cursor: 'pointer' }}
                 onClick={() => {
                   if (blocked) return;
@@ -275,13 +275,12 @@ export default function DepartureGuests({ tourId, defaultCapacity, disabled = fa
       </div>
       <form onSubmit={saveDeparture}>
         <fieldset disabled={blocked || !canSuaTour} style={{ border: 0, padding: 0 }}>
-          <h3>{editing ? 'Sửa lịch ' + editing : 'Thêm lịch khởi hành'}</h3>
+          <h3>{editing ? 'Sửa lịch khởi hành' : 'Thêm lịch khởi hành'}</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-            <label>Mã lịch<input required maxLength={20} readOnly={!!editing} value={form.maKhoiHanh} onChange={(e) => setForm({ ...form, maKhoiHanh: e.target.value })} /></label>
             <label>Khởi hành<input type="datetime-local" required value={form.ngayKhoiHanh} onChange={(e) => setForm({ ...form, ngayKhoiHanh: e.target.value })} /></label>
             <label>Kết thúc<input type="datetime-local" value={form.ngayKetThuc} onChange={(e) => setForm({ ...form, ngayKetThuc: e.target.value })} /></label>
             <label>Địa điểm<input maxLength={100} value={form.diaDiem || ''} onChange={(e) => setForm({ ...form, diaDiem: e.target.value })} /></label>
-            <label>Số chỗ<input type="number" min="0" max="2147483647" step="1" value={form.soCho} onChange={(e) => setForm({ ...form, soCho: e.target.value })} /><small>Để trống: theo tour ({defaultCapacity}).</small></label>
+            {!hideCapacity && <label>Số chỗ<input type="number" min="0" max="2147483647" step="1" value={form.soCho} onChange={(e) => setForm({ ...form, soCho: e.target.value })} /><small>Để trống: theo tour ({defaultCapacity}).</small></label>}
           </div>
           <button>Lưu lịch</button>
           {editing && <button type="button" onClick={() => { setEditing(''); setForm(emptyDeparture(defaultCapacity)); }}>Thêm lịch khác</button>}

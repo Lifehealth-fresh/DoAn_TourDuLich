@@ -44,7 +44,12 @@ export function ModuleGate({ module, children }) {
 
 export const Notice = ({ error }) => (error ? <div className="notice error">{error}</div> : null);
 
-export function ExpandRecord({ open, summary, children }) {
+export function PanelClose({ onClose, label = 'Đóng' }) {
+  if (!onClose) return null;
+  return <button type="button" className="panel-close" aria-label={label} onClick={onClose}>×</button>;
+}
+
+export function ExpandRecord({ open, summary, children, onClose }) {
   const body = useRef(null);
   useEffect(() => {
     if (open) body.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -52,8 +57,16 @@ export function ExpandRecord({ open, summary, children }) {
   return (
     <article className={'record' + (open ? ' open' : '')}>
       <div className="record-head">{summary}</div>
-      {open ? <div className="record-body" ref={body}>{children}</div> : null}
+      {open ? <div className="record-body" ref={body}><PanelClose onClose={onClose} />{children}</div> : null}
     </article>
+  );
+}
+
+export function OpenPanel({ id, children, onClose }) {
+  return (
+    <div id={id} className="create-slot record open">
+      <div className="record-body"><PanelClose onClose={onClose} />{children}</div>
+    </div>
   );
 }
 

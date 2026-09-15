@@ -62,12 +62,22 @@ public class LichKhoiHanhController : ControllerBase
     [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Sua)]
     public async Task<ActionResult> CreateLichKhoiHanh([FromBody] LichKhoiHanhCreateDto dto)
     {
-        var maKhoiHanh = FixedLengthHelper.PadTo20(dto.MaKhoiHanh);
         var maTour = FixedLengthHelper.PadTo20(dto.MaTour);
-
-        if (await _context.LichKhoiHanhs.AnyAsync(x => x.MaKhoiHanh == maKhoiHanh))
-            return Conflict(new { message = "MaKhoiHanh đã tồn tại." });
-
+        string maKhoiHanh;
+        if (string.IsNullOrWhiteSpace(dto.MaKhoiHanh))
+        {
+            do
+            {
+                maKhoiHanh = FixedLengthHelper.PadTo20($"KH{Guid.NewGuid():N}"[..20].ToUpperInvariant());
+            }
+            while (await _context.LichKhoiHanhs.AnyAsync(x => x.MaKhoiHanh == maKhoiHanh));
+        }
+        else
+        {
+            maKhoiHanh = FixedLengthHelper.PadTo20(dto.MaKhoiHanh);
+            if (await _context.LichKhoiHanhs.AnyAsync(x => x.MaKhoiHanh == maKhoiHanh))
+                return Conflict(new { message = "MaKhoiHanh đã tồn tại." });
+        }
         if (!await _context.Tours.AnyAsync(t => t.MaTour == maTour))
             return BadRequest(new { message = $"MaTour '{FixedLengthHelper.TrimSafe(maTour)}' không tồn tại." });
 

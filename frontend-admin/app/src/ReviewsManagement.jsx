@@ -63,6 +63,7 @@ export default function ReviewsManagement() {
         <ExpandRecord
           key={row.maTour}
           open={open === row.maTour}
+          onClose={() => openTour(row.maTour)}
           summary={(
             <button type="button" className="row" onClick={() => openTour(row.maTour)}>
               <b>{row.maTour}</b>

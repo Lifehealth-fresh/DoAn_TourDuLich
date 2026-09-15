@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
-import { ExpandRecord, Notice } from './components';
+import { ExpandRecord, Notice, OpenPanel } from './components';
 import { MODULES, useAuth } from './context';
 
 const emptyGrant = () => MODULES.map((module) => ({
@@ -264,13 +264,13 @@ export default function AccountsManagement() {
         {canThem && <button type="button" disabled={busy} onClick={fresh}>Thêm tài khoản</button>}
         <button type="button" disabled={busy} onClick={() => run(load, 'Không tải được danh sách tài khoản.')}>Tải lại</button>
       </div>
-      {creating && <div id="account-create" className="create-slot record open"><div className="record-body">
+      {creating && <OpenPanel id="account-create" onClose={() => setCreating(false)}>
         <h2>Tạo tài khoản nhân viên</h2>
         {editor(true)}
-      </div></div>}
+      </OpenPanel>}
       <div className="table" aria-label="Danh sách tài khoản">
         {items.map((item) => (
-          <ExpandRecord key={item.maUser} open={selected === item.maUser && !creating} summary={
+          <ExpandRecord key={item.maUser} open={selected === item.maUser && !creating} onClose={() => setSelected('')} summary={
             <div className="row" style={{ gridTemplateColumns: '1.2fr 1fr auto 2fr auto auto', cursor: busy ? 'wait' : 'pointer' }}
               onClick={() => { if (!busy) (selected === item.maUser ? setSelected('') : open(item)); }}>
               <b>{[item.ho, item.ten].filter(Boolean).join(' ') || item.soDienThoai}</b>

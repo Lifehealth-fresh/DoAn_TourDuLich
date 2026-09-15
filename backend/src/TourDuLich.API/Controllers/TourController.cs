@@ -231,6 +231,9 @@ public class TourController : ControllerBase
     [RequirePermission(PermissionCatalog.Tour, PermissionCatalog.Them)]
     public async Task<ActionResult> CreateTour([FromBody] TourCreateDto dto)
     {
+        if (string.Equals(dto.LoaiTour?.Trim(), "TuThietKe", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Tour thiết kế riêng hãy dùng chức năng Thêm tour → Thiết kế riêng." });
+
         var maTour = FixedLengthHelper.PadTo20(dto.MaTour);
 
         if (await _context.Tours.AnyAsync(t => t.MaTour == maTour))

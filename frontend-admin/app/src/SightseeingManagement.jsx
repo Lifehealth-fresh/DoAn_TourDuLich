@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
-import { ExpandRecord, Notice } from './components';
+import { ExpandRecord, Notice, OpenPanel } from './components';
 import { useAuth } from './context';
 
 const rows = (response) => Array.isArray(response.data) ? response.data : response.data.items || [];
@@ -75,9 +75,9 @@ export default function SightseeingManagement() {
     <h1>Điểm tham quan</h1>
     <Notice error={error} />{message && <div className="notice ok">{message}</div>}
     {canThem && <button disabled={busy} onClick={() => { setSelected(''); setCreating(true); setForm(empty()); requestAnimationFrame(() => document.getElementById('sight-create')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }}>Thêm mới</button>}
-    {creating && <div id="sight-create" className="create-slot record open"><div className="record-body">{editor}</div></div>}
+    {creating && <OpenPanel id="sight-create" onClose={() => setCreating(false)}>{editor}</OpenPanel>}
     <div className="table">
-      {items.map((item) => <ExpandRecord key={item.maDthamQuan} open={selected === item.maDthamQuan} summary={
+      {items.map((item) => <ExpandRecord key={item.maDthamQuan} open={selected === item.maDthamQuan} onClose={() => toggle(item)} summary={
         <div className="row" style={{ cursor: busy ? 'wait' : 'pointer' }} onClick={() => { if (!busy) toggle(item); }}>
           <b>{item.tenDiaDanh}</b><span>{item.tenKhuVuc || item.maKhuVuc || '—'}</span><span>{item.diaChi || '—'}</span>
           <div className="inline" style={{ margin: 0 }}>

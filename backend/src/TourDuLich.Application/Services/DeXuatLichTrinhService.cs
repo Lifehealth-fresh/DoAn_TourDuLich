@@ -82,22 +82,26 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
         var backLeg = inbound.Count == 0 ? null : _travel.BestOutbound(inbound, new TimeSpan(8, 0, 0));
 
         var budget = request.NganSachDuKien;
+        var maxPlans = extras?.MaxPlans is > 0 and <= 3 ? extras.MaxPlans : 3;
         var plans = new List<LichTrinhDeXuat>();
-        for (var planNumber = 1; planNumber <= 3; planNumber++)
+        for (var planNumber = 1; planNumber <= maxPlans; planNumber++)
         {
-            var hotel = SelectHotel(hotels, planNumber, budget, nights, guests);
-            var ratio = planNumber switch { 1 => 0.88, 2 => 1.0, _ => 1.12 };
+            var hotelPlan = maxPlans == 1 ? 2 : planNumber;
+            var hotel = SelectHotel(hotels, hotelPlan, budget, nights, guests);
+            var ratio = maxPlans == 1 ? 1.0 : planNumber switch { 1 => 0.88, 2 => 1.0, _ => 1.12 };
             var plan = new LichTrinhDeXuat
             {
                 MaDeXuat = await GeneratePlanIdAsync(cancellationToken),
                 MaYeuCau = request.MaYeuCau,
                 ThuTuPhuongAn = planNumber,
-                TenPhuongAn = planNumber switch
-                {
-                    1 => "Phương án tiết kiệm",
-                    2 => "Phương án cân bằng",
-                    _ => "Phương án cao cấp"
-                },
+                TenPhuongAn = maxPlans == 1
+                    ? "Phương án đề xuất"
+                    : planNumber switch
+                    {
+                        1 => "Phương án tiết kiệm",
+                        2 => "Phương án cân bằng",
+                        _ => "Phương án cao cấp"
+                    },
                 GhiChu = BudgetNote(placeName, hotel, goLeg, budget, ratio),
                 TrangThai = FixedLengthHelper.PadTo20("DeXuat"),
                 NgayTao = DateTime.UtcNow
@@ -106,9 +110,9 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
             var smart = extras?.GioKhoiHanh is not null || origin is not null;
             for (var day = 1; day <= days; day++)
             {
-                var visit = visits[(day - 1 + planNumber - 1) % visits.Count];
-                var play = plays.Count == 0 ? null : plays[(day + planNumber) % plays.Count];
-                var meal = meals.Count == 0 ? null : meals[(day - 1 + planNumber - 1) % meals.Count];
+                var visit = visits[(day - 1 + hotelPlan - 1) % visits.Count];
+                var play = plays.Count == 0 ? null : plays[(day + hotelPlan) % plays.Count];
+                var meal = meals.Count == 0 ? null : meals[(day - 1 + hotelPlan - 1) % meals.Count];
                 var ticket = tickets.FirstOrDefault(item => item.MaDthamQuan == visit.MaDthamQuan);
                 var playTicket = play is null ? null : tickets.FirstOrDefault(item => item.MaDthamQuan == play.MaDthamQuan);
                 var order = 1;

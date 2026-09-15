@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import * as api from './api';
 import { ExpandRecord, Notice, SearchSelect } from './components';
 import { useAuth } from './context';
@@ -15,9 +16,10 @@ const toRow = (item = {}) => ({ ngayThu: item.ngayThu ?? 1, thuTuTrongNgay: item
 
 export function DesignRequests() {
   const { can } = useAuth();
+  const [params] = useSearchParams();
   const allowed = can('ThietKe', 'Sua');
   const [items, setItems] = useState([]);
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(params.get('yeuCau') || '');
   const [plans, setPlans] = useState([]);
   const [schedule, setSchedule] = useState(null);
   const [rows, setRows] = useState([]);
@@ -106,7 +108,9 @@ export function DesignRequests() {
     try {
       if (action === 'generate') {
         await api.generate(selectedId);
-        setOk(`Đã sinh đề xuất cho ${selectedId}. Khách có thể xem và chọn phương án.`);
+        setOk(trim(selected?.maTourTao)
+          ? `Đã sinh 1 đề xuất và gắn vào tour. Kiểm tra lịch, chỉnh sửa rồi gửi khách xác nhận.`
+          : `Đã sinh đề xuất cho ${selectedId}. Khách có thể xem và chọn phương án.`);
       } else if (action === 'save') {
         const result = await api.editDesignSchedule(selectedId, payload);
         setEditing(false); setOk(`Đã lưu lịch trình. Giá tour hiện tại: ${money(result.data.giaTour)}.`);
@@ -172,7 +176,7 @@ export function DesignRequests() {
       <p className="notice">Chỉ được duyệt sau khi khách bấm Đồng ý lịch này. Khi khách yêu cầu chỉnh lại, sửa và gửi khách xác nhận lần nữa.</p>
       <Notice error={listError} /><Notice error={error} />{ok && <div className="notice ok" role="status">{ok}</div>}
       {loading ? <p role="status">Đang tải yêu cầu…</p> : !listError && <div className="table">
-        {items.map((item) => <ExpandRecord key={item.maYeuCau} open={selectedId === item.maYeuCau} summary={
+        {items.map((item) => <ExpandRecord key={item.maYeuCau} open={selectedId === item.maYeuCau} onClose={() => select(item)} summary={
           <button type="button" className={`row booking-row${selectedId === item.maYeuCau ? ' on' : ''}`} aria-pressed={selectedId === item.maYeuCau} disabled={Boolean(busy) || (editing && selectedId !== item.maYeuCau)} onClick={() => select(item)}>
             <b>{item.maYeuCau}</b><span>{item.diemDenMongMuon || 'Chưa chọn điểm đến'}</span><span>Ngày đi: {dateText(item.ngayDuKienDi)}</span>
             <span>{item.soNgay ?? '—'} ngày</span><span>{item.nganSachDuKien == null ? 'Chưa có ngân sách' : money(item.nganSachDuKien)}</span><span className="badge">{statusLabel(item.trangThai)}</span>
@@ -184,9 +188,9 @@ export function DesignRequests() {
         {tourId && <p>Tour đã tạo: <b>{tourId}</b></p>}
         {revision?.lyDo && <p className="notice">{revision.nguonLyDo==='KhachHang'?'Khách đã gửi yêu cầu chỉnh: ':'Lý do Admin cần chỉnh / từ chối: '}{revision.lyDo}</p>}
         {state==='ChoKhachXacNhan'&&<p className="notice">Đang chờ khách xác nhận lịch đã lưu. Không thể gửi lại hoặc duyệt lúc này.</p>}
-        {state === 'Moi' && <p>Sinh lại sẽ thay thế các phương án chưa được khách chọn. Chỉ thực hiện khi cần xử lý lại.</p>}
+        {state === 'Moi' && <p>{trim(selected.maTourTao) ? 'Tour đã tạo sẵn. Sinh đề xuất sẽ tạo 1 lịch trình rồi chuyển sang Đang thiết kế để bạn chỉnh và gửi khách.' : 'Sinh lại sẽ thay thế các phương án chưa được khách chọn. Chỉ thực hiện khi cần xử lý lại.'}</p>}
         <div className="inline">
-          {actionButton('generate', plans.length ? 'Sinh lại đề xuất' : 'Sinh đề xuất', canGenerate)}
+          {actionButton('generate', plans.length ? 'Sinh lại đề xuất' : (trim(selected.maTourTao) ? 'Sinh 1 đề xuất' : 'Sinh đề xuất'), canGenerate)}
           {actionButton('submit', 'Gửi duyệt', canSubmit)}
           {actionButton('approve', 'Duyệt', canApprove)}
         </div>

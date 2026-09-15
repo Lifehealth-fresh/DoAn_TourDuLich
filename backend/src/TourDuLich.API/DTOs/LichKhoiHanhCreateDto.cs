@@ -1,8 +1,8 @@
-﻿namespace TourDuLich.API.DTOs;
+namespace TourDuLich.API.DTOs;
 
 public class LichKhoiHanhCreateDto
 {
-    public string MaKhoiHanh { get; set; } = null!;
+    public string? MaKhoiHanh { get; set; }
     public string MaTour { get; set; } = null!;
     public DateTime? NgayKhoiHanh { get; set; }
     public DateTime? NgayKetThuc { get; set; }
