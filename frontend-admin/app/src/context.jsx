@@ -22,6 +22,7 @@ export const MODULES = [
   { ma: 'DiemThamQuan', ten: 'Điểm tham quan' },
   { ma: 'DoiTac', ten: 'Đối tác' },
   { ma: 'ThietKe', ten: 'Thiết kế' },
+  { ma: 'DanhGia', ten: 'Đánh giá nhận xét' },
   { ma: 'TaiKhoan', ten: 'Tài khoản' },
 ];
 
@@ -33,6 +34,7 @@ const NAV = [
   { module: 'DiemThamQuan', to: '/diem-tham-quan', label: 'Điểm tham quan' },
   { module: 'DoiTac', to: '/doi-tac', label: 'Đối tác' },
   { module: 'ThietKe', to: '/thiet-ke', label: 'Thiết kế' },
+  { module: 'DanhGia', to: '/danh-gia', label: 'Đánh giá nhận xét' },
   { module: 'TaiKhoan', to: '/tai-khoan', label: 'Tài khoản' },
 ];
 

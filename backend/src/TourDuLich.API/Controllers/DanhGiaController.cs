@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TourDuLich.API.Authorization;
 using TourDuLich.API.DTOs;
+using TourDuLich.API.Services;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
@@ -29,43 +31,78 @@ public class DanhGiaController : ControllerBase
     {
         var maTourDb = FixedLengthHelper.PadTo20(maTour);
 
-        var tourTonTai = await _context.Tours
-            .AnyAsync(item => item.MaTour == maTourDb);
+        var tour = await _context.Tours
+            .AsNoTracking()
+            .Select(item => new { item.MaTour, item.LoaiTour, item.TenTour })
+            .FirstOrDefaultAsync(item => item.MaTour == maTourDb);
 
-        if (!tourTonTai)
+        if (tour is null)
         {
             return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
         }
 
+        var isSelfDesigned = ReviewDashboardBuilder.IsSelfDesigned(tour.LoaiTour);
+        var isStaff = User.IsInRole("Admin") || User.IsInRole("Sale");
         var query = _context.DanhGiaTours
             .AsNoTracking()
             .Where(item => item.MaTour == maTourDb);
+        var publicQuery = query.Where(item => item.CongKhai);
+        var listQuery = isStaff ? query : publicQuery;
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var tongDanhGia = await query.CountAsync();
+        var tongDanhGia = await listQuery.CountAsync();
         var diemTrungBinh = tongDanhGia == 0
             ? (double?)null
-            : await query.AverageAsync(item => (double?)(item.SaoDanhGia ?? 0));
+            : await listQuery.AverageAsync(item => (double?)(item.SaoDanhGia ?? 0));
 
-        var danhGias = await query
+        var rawDanhGias = await listQuery
             .OrderByDescending(item => item.ThoiGian)
             .ThenBy(item => item.MaDanhGiaTour)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(item => new
             {
-                maDanhGiaTour = FixedLengthHelper.TrimSafe(item.MaDanhGiaTour),
-                saoDanhGia = item.SaoDanhGia,
-                nhanXet = item.NhanXet,
-                thoiGian = item.ThoiGian,
+                item.MaDanhGiaTour,
+                item.SaoDanhGia,
+                item.NhanXet,
+                item.ThoiGian,
+                item.MaUser,
+                item.CongKhai,
                 media = item.MediaDanhGiaTours.OrderBy(media => media.ThuTu).Select(media => new
                 {
                     url = media.Url,
-                    loaiMedia = FixedLengthHelper.TrimSafe(media.LoaiMedia),
+                    loaiMedia = media.LoaiMedia,
                     thuTu = media.ThuTu
                 })
             })
             .ToListAsync();
+
+        var userIds = rawDanhGias.Select(item => item.MaUser).Where(id => id != null).Distinct().ToList();
+        var guests = await _context.KhachHangs.AsNoTracking()
+            .Where(kh => userIds.Contains(kh.MaUser))
+            .Select(kh => new { kh.MaUser, kh.Ho, kh.Ten })
+            .ToListAsync();
+        var guestMap = guests
+            .GroupBy(kh => kh.MaUser)
+            .ToDictionary(g => g.Key, g => ReviewDashboardBuilder.GuestName(g.First().Ho, g.First().Ten));
+
+        var danhGias = rawDanhGias.Select(item => new
+        {
+            maDanhGiaTour = FixedLengthHelper.TrimSafe(item.MaDanhGiaTour),
+            saoDanhGia = item.SaoDanhGia,
+            nhanXet = item.NhanXet,
+            thoiGian = item.ThoiGian,
+            tenKhachHang = item.MaUser != null && guestMap.TryGetValue(item.MaUser, out var ten)
+                ? ten
+                : "Khách ANAM",
+            congKhai = item.CongKhai,
+            media = item.media.Select(media => new
+            {
+                url = media.url,
+                loaiMedia = FixedLengthHelper.TrimSafe(media.loaiMedia),
+                thuTu = media.thuTu
+            })
+        }).ToList();
 
         // Return only the viewer's review separately, including when it is outside this page.
         var maUser = GetCurrentMaUser();
@@ -77,12 +114,16 @@ public class DanhGiaController : ControllerBase
                 maDanhGiaTour = FixedLengthHelper.TrimSafe(item.MaDanhGiaTour),
                 saoDanhGia = item.SaoDanhGia,
                 nhanXet = item.NhanXet,
-                thoiGian = item.ThoiGian
+                thoiGian = item.ThoiGian,
+                congKhai = item.CongKhai
             }).FirstOrDefaultAsync();
 
         return Ok(new
         {
             maTour = FixedLengthHelper.TrimSafe(maTourDb),
+            tenTour = tour.TenTour,
+            loaiTour = FixedLengthHelper.TrimSafe(tour.LoaiTour),
+            noiBo = isSelfDesigned,
             danhGiaCuaToi,
             diemTrungBinh,
             tongDanhGia,
@@ -247,6 +288,13 @@ public class DanhGiaController : ControllerBase
             });
         }
 
+        var tour = await _context.Tours
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.MaTour == maTourDb);
+        if (tour is null)
+            return BadRequest(new { message = "Tour không tồn tại." });
+        var congKhai = !ReviewDashboardBuilder.IsSelfDesigned(tour.LoaiTour);
+
         var daDanhGia = await _context.DanhGiaTours
             .AnyAsync(item =>
                 item.MaUser == maUserDb &&
@@ -273,7 +321,8 @@ public class DanhGiaController : ControllerBase
             MaTour = maTourDb,
             SaoDanhGia = request.SaoDanhGia,
             NhanXet = request.NhanXet?.Trim(),
-            ThoiGian = DateTime.UtcNow
+            ThoiGian = DateTime.UtcNow,
+            CongKhai = congKhai
         };
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -300,7 +349,8 @@ public class DanhGiaController : ControllerBase
             maTour = FixedLengthHelper.TrimSafe(danhGia.MaTour),
             saoDanhGia = danhGia.SaoDanhGia,
             nhanXet = danhGia.NhanXet,
-            thoiGian = danhGia.ThoiGian
+            thoiGian = danhGia.ThoiGian,
+            congKhai = danhGia.CongKhai
         });
     }
 
@@ -579,6 +629,166 @@ public class DanhGiaController : ControllerBase
             nhanXet = danhGia.NhanXet,
             thoiGian = danhGia.ThoiGian
         });
+    }
+
+    [HttpGet("quan-ly")]
+    [Authorize(Roles = "Admin,Sale")]
+    [RequirePermission(PermissionCatalog.DanhGia, PermissionCatalog.Xem)]
+    public async Task<ActionResult> SearchReviews(
+        [FromQuery] string? q,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var needle = (q ?? string.Empty).Trim();
+
+        var tours = _context.Tours.AsNoTracking();
+        var reviews = _context.DanhGiaTours.AsNoTracking();
+        var guests = _context.KhachHangs.AsNoTracking();
+
+        IQueryable<string> matchedTours = tours.Select(t => t.MaTour);
+        if (!string.IsNullOrEmpty(needle))
+        {
+            matchedTours = (
+                from t in tours
+                join r in reviews on t.MaTour equals r.MaTour into tr
+                from r in tr.DefaultIfEmpty()
+                join k in guests on r.MaUser equals k.MaUser into gk
+                from k in gk.DefaultIfEmpty()
+                where (t.MaTour != null && t.MaTour.Contains(needle))
+                    || (t.TenTour != null && t.TenTour.Contains(needle))
+                    || (k.MaKhachHang != null && k.MaKhachHang.Contains(needle))
+                    || (k.Ho != null && k.Ho.Contains(needle))
+                    || (k.Ten != null && k.Ten.Contains(needle))
+                    || ((k.Ho ?? "") + " " + (k.Ten ?? "")).Contains(needle)
+                select t.MaTour
+            ).Distinct();
+        }
+        else
+        {
+            matchedTours = reviews.Select(r => r.MaTour!).Distinct();
+        }
+
+        var totalCount = await matchedTours.CountAsync();
+        var pageIds = await matchedTours
+            .OrderBy(id => id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var stats = await (
+            from t in tours
+            where pageIds.Contains(t.MaTour)
+            join r in reviews on t.MaTour equals r.MaTour into tr
+            select new
+            {
+                maTour = t.MaTour,
+                tenTour = t.TenTour,
+                loaiTour = t.LoaiTour,
+                soDanhGia = tr.Count(),
+                soCongKhai = tr.Count(x => x.CongKhai),
+                soNoiBo = tr.Count(x => !x.CongKhai),
+                diemTrungBinh = tr.Where(x => x.SaoDanhGia != null).Average(x => (double?)x.SaoDanhGia),
+                tyLeTieuCuc = tr.Count() == 0 ? 0 : tr.Count(x => (x.SaoDanhGia ?? 0) <= 2) / (double)tr.Count(),
+                tyLeTichCuc = tr.Count() == 0 ? 0 : tr.Count(x => (x.SaoDanhGia ?? 0) >= 4) / (double)tr.Count()
+            }).ToListAsync();
+
+        var items = pageIds.Select(id =>
+        {
+            var row = stats.FirstOrDefault(s => s.maTour == id);
+            return new
+            {
+                maTour = FixedLengthHelper.TrimSafe(id),
+                tenTour = row?.tenTour,
+                loaiTour = FixedLengthHelper.TrimSafe(row?.loaiTour),
+                noiBo = ReviewDashboardBuilder.IsSelfDesigned(row?.loaiTour),
+                soDanhGia = row?.soDanhGia ?? 0,
+                soCongKhai = row?.soCongKhai ?? 0,
+                soNoiBo = row?.soNoiBo ?? 0,
+                diemTrungBinh = row?.diemTrungBinh is null ? null : Math.Round(row.diemTrungBinh.Value, 2),
+                tyLeTieuCuc = Math.Round(row?.tyLeTieuCuc ?? 0, 4),
+                tyLeTichCuc = Math.Round(row?.tyLeTichCuc ?? 0, 4)
+            };
+        }).ToList();
+
+        return Ok(new { q = needle, page, pageSize, totalCount, items });
+    }
+
+    [HttpGet("quan-ly/{maTour}")]
+    [Authorize(Roles = "Admin,Sale")]
+    [RequirePermission(PermissionCatalog.DanhGia, PermissionCatalog.Xem)]
+    public async Task<ActionResult> GetTourReviewsForStaff(string maTour)
+    {
+        var maTourDb = FixedLengthHelper.PadTo20(maTour);
+        var tour = await _context.Tours.AsNoTracking()
+            .FirstOrDefaultAsync(item => item.MaTour == maTourDb);
+        if (tour is null)
+            return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
+
+        var raw = await _context.DanhGiaTours.AsNoTracking()
+            .Where(item => item.MaTour == maTourDb)
+            .OrderByDescending(item => item.ThoiGian)
+            .Select(item => new
+            {
+                item.MaDanhGiaTour,
+                item.ThoiGian,
+                item.MaUser,
+                item.SaoDanhGia,
+                item.NhanXet,
+                item.CongKhai
+            }).ToListAsync();
+
+        var userIds = raw.Select(item => item.MaUser).Where(id => id != null).Distinct().ToList();
+        var guests = await _context.KhachHangs.AsNoTracking()
+            .Where(kh => userIds.Contains(kh.MaUser))
+            .Select(kh => new { kh.MaUser, kh.MaKhachHang, kh.Ho, kh.Ten })
+            .ToListAsync();
+        var guestMap = guests.GroupBy(kh => kh.MaUser)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var danhGias = raw.Select(item =>
+        {
+            guestMap.TryGetValue(item.MaUser ?? "", out var kh);
+            return new
+            {
+                maDanhGiaTour = FixedLengthHelper.TrimSafe(item.MaDanhGiaTour),
+                thoiGian = item.ThoiGian,
+                maKhachHang = FixedLengthHelper.TrimSafe(kh?.MaKhachHang),
+                tenKhachHang = ReviewDashboardBuilder.GuestName(kh?.Ho, kh?.Ten),
+                saoDanhGia = item.SaoDanhGia,
+                nhanXet = item.NhanXet,
+                congKhai = item.CongKhai
+            };
+        }).ToList();
+
+        return Ok(new
+        {
+            maTour = FixedLengthHelper.TrimSafe(tour.MaTour),
+            tenTour = tour.TenTour,
+            loaiTour = FixedLengthHelper.TrimSafe(tour.LoaiTour),
+            noiBo = ReviewDashboardBuilder.IsSelfDesigned(tour.LoaiTour),
+            soDanhGia = danhGias.Count,
+            danhGias
+        });
+    }
+
+    [HttpGet("thong-ke")]
+    [Authorize(Roles = "Admin,Sale")]
+    [RequirePermission(PermissionCatalog.DanhGia, PermissionCatalog.Xem)]
+    public async Task<ActionResult> ThongKe(CancellationToken cancellationToken)
+    {
+        var rows = await _context.DanhGiaTours.AsNoTracking()
+            .Where(r => r.SaoDanhGia != null && r.ThoiGian != null && r.MaTour != null)
+            .Select(r => new ReviewFact(r.SaoDanhGia!.Value, r.ThoiGian!.Value, r.MaTour!, r.CongKhai))
+            .ToListAsync(cancellationToken);
+        var names = await _context.Tours.AsNoTracking()
+            .Select(t => new { t.MaTour, t.TenTour })
+            .ToListAsync(cancellationToken);
+        var map = names
+            .GroupBy(t => t.MaTour)
+            .ToDictionary(g => g.Key, g => g.First().TenTour);
+        return Ok(ReviewDashboardBuilder.Build(rows, map, DateTime.UtcNow));
     }
 
     private string? GetCurrentMaUser()

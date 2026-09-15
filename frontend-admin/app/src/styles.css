@@ -122,6 +122,17 @@ button {
 .status-mix li { display: flex; gap: 8px; align-items: center; }
 .status-mix i { width: 12px; height: 12px; border: 2px solid var(--ink); display: inline-block; }
 
+.section-title { font-family: Fraunces, serif; margin: 8px 0 4px; }
+.line-chart { display: grid; gap: 8px; }
+.line-chart svg { width: 100%; height: auto; max-height: 160px; }
+.line-legend { list-style: none; margin: 0; padding: 0; display: flex; gap: 16px; font-size: 0.82rem; }
+.line-legend i { width: 14px; height: 8px; display: inline-block; margin-right: 6px; border: 1px solid var(--ink); }
+.line-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: #5c6570; }
+.review-staff-list { display: grid; gap: 12px; }
+.review-staff-card { border: 2px solid var(--ink); padding: 12px 14px; background: #fffdf8; }
+.review-staff-card header { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; margin-bottom: 8px; }
+.star-line { color: #c9a227; letter-spacing: 1px; font-size: 1.05rem; }
+
 @media (max-width: 800px) {
   .charts { grid-template-columns: 1fr; }
   .chart-row { grid-template-columns: 1fr; }

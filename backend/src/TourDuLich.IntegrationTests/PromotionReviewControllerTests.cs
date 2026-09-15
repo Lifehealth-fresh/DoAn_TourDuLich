@@ -71,6 +71,31 @@ public sealed class PromotionReviewControllerTests
         Assert.IsType<NoContentResult>(await controller.UpdateTourReview(row.MaDanhGiaTour.Trim(),
             new DanhGiaTourUpdateDto { SaoDanhGia = 4, NhanXet = "Đã sửa" }));
         Assert.Equal(4, row.SaoDanhGia); Assert.Equal("Đã sửa", row.NhanXet);
+        Assert.True(row.CongKhai);
+    }
+
+    [Fact]
+    public async Task Review_SelfDesignedIsInternalAndHiddenFromPublic()
+    {
+        using var db = new MemoryContext();
+        db.Booking.TrangThai = Key("HoanThanh");
+        db.TourRows[0].LoaiTour = Key("TuThietKe");
+        var controller = Reviews(db);
+        var created = Assert.IsType<ObjectResult>(await controller.CreateTourReview(Review()));
+        Assert.Equal(201, created.StatusCode);
+        var row = Assert.Single(db.ReviewRows);
+        Assert.False(row.CongKhai);
+
+        var anon = new DanhGiaController(db, new NoopLogger())
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() } }
+        };
+        var publicList = Assert.IsType<OkObjectResult>(await anon.GetTourReviews("TOUR1"));
+        var json = JsonSerializer.Serialize(publicList.Value);
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal(0, doc.RootElement.GetProperty("tongDanhGia").GetInt32());
+        Assert.True(doc.RootElement.GetProperty("noiBo").GetBoolean());
+        Assert.Equal(0, doc.RootElement.GetProperty("danhGias").GetArrayLength());
     }
 
     [Fact]
@@ -317,6 +342,7 @@ public sealed class PromotionReviewControllerTests
         public List<DatDichVuKhuyenMai> Discounts { get; } = [];
         public List<ThanhToan> Payments { get; } = [];
         public List<DanhGiaTour> ReviewRows { get; } = [];
+        public List<Tour> TourRows { get; } = [new Tour { MaTour = Key("TOUR1"), TenTour = "Test", LoaiTour = Key("Chuan") }];
         public RecordingConnection Connection { get; }
         public DatDichVu Booking => Bookings[0];
         public KhuyenMai Promotion => Promos[0];
@@ -334,7 +360,8 @@ public sealed class PromotionReviewControllerTests
             DieuKienKms = new QuerySet<DieuKienKm>(this, Conditions); KmTours = new QuerySet<KmTour>(this, TourRules);
             DatDichVuKhuyenMais = new QuerySet<DatDichVuKhuyenMai>(this, Discounts);
             ThanhToans = new QuerySet<ThanhToan>(this, Payments); DanhGiaTours = new QuerySet<DanhGiaTour>(this, ReviewRows);
-            Tours = new QuerySet<Tour>(this, [new Tour { MaTour = Key("TOUR1"), TenTour = "Test", LoaiTour = Key("Chuan") }]);
+            Tours = new QuerySet<Tour>(this, TourRows);
+            KhachHangs = new QuerySet<KhachHang>(this, []);
             NhomKhuyenMais = new QuerySet<NhomKhuyenMai>(this, []);
             connection.OnWrite = command =>
             {

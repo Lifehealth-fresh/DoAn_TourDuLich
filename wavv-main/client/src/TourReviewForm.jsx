@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as api from './api';
 
-export default function TourReviewForm({ tourId, ownReview, onSaved }) {
+export default function TourReviewForm({ tourId, ownReview, onSaved, internal = false }) {
   const [eligible, setEligible] = useState(null);
   const [stars, setStars] = useState(ownReview?.saoDanhGia || 0);
   const [hover, setHover] = useState(0);
@@ -10,16 +10,17 @@ export default function TourReviewForm({ tourId, ownReview, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+
   useEffect(() => {
     setStars(ownReview?.saoDanhGia || 0);
     setComment(ownReview?.nhanXet || '');
     if (ownReview?.maDanhGiaTour) setSavedId(ownReview.maDanhGiaTour);
   }, [ownReview]);
+
   useEffect(() => {
     let active = true;
     const check = async () => {
       try {
-        // A completed booking may be older than the first page of the customer's tickets.
         for (let page = 1; active; page++) {
           const response = await api.bookings({ page, pageSize: 100 });
           if (!active) return;
@@ -48,29 +49,36 @@ export default function TourReviewForm({ tourId, ownReview, onSaved }) {
       if (savedId) await api.updateTourReview(savedId, data);
       else {
         const response = await api.createTourReview({ maTour: tourId, ...data });
-        // Retain the ID if reloading fails, so retrying never creates a duplicate review.
         setSavedId(response.data.maDanhGiaTour);
       }
-      setMessage(savedId ? 'Đã cập nhật đánh giá.' : 'Đã gửi đánh giá. Cảm ơn bạn!');
+      setMessage(internal
+        ? (savedId ? 'Đã cập nhật nhận xét nội bộ.' : 'Đã gửi nhận xét. Chỉ bộ phận vận hành xem được.')
+        : (savedId ? 'Đã cập nhật đánh giá.' : 'Đã gửi đánh giá. Cảm ơn bạn!'));
       await onSaved();
     } catch (e) { setError(api.errorMessage(e, 'Không gửi được đánh giá hoặc tải lại danh sách.')); }
     finally { setBusy(false); }
   };
 
+  const filled = hover || stars;
   return <div className="tour-review-form" style={{ marginTop: 24 }}>
     {error && <div className="form-error" role="alert">{error}</div>}
     {message && <div className="success-message" role="status">{message}</div>}
     {eligible === null ? <p>Đang kiểm tra điều kiện đánh giá…</p> : !eligible
-      ? <p className="muted">Đánh giá khi tour đã hoàn thành</p>
-      : <form onSubmit={submit} aria-label="Đánh giá tour">
-        <h3>{savedId ? 'Đánh giá của bạn' : 'Chia sẻ cảm nhận về tour'}</h3>
+      ? <p className="muted">{internal
+        ? 'Gửi nhận xét nội bộ sau khi hoàn thành chuyến đi tự thiết kế.'
+        : 'Đánh giá khi tour đã hoàn thành'}</p>
+      : <form onSubmit={submit} aria-label={internal ? 'Nhận xét nội bộ' : 'Đánh giá tour'}>
+        <h3>{internal
+          ? (savedId ? 'Nhận xét nội bộ của bạn' : 'Gửi nhận xét nội bộ')
+          : (savedId ? 'Đánh giá của bạn' : 'Chia sẻ cảm nhận về tour')}</h3>
+        {internal && <p className="muted">Tour tự thiết kế không đăng công khai. Chỉ admin/sale xem được bài này.</p>}
         <div role="group" aria-label="Chọn số sao" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} onMouseLeave={() => setHover(0)}>
           {[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" disabled={busy}
             aria-label={value + ' sao'} aria-pressed={stars === value}
             onMouseEnter={() => setHover(value)} onFocus={() => setHover(value)} onBlur={() => setHover(0)}
             onClick={() => setStars(value)}
             style={{ fontSize: 32, lineHeight: 1, background: 'transparent', border: 'none', boxShadow: 'none',
-              padding: 6, cursor: busy ? 'wait' : 'pointer', color: value <= (hover || stars) ? '#e4a400' : '#b5b5b5' }}>★</button>)}
+              padding: 6, cursor: busy ? 'wait' : 'pointer', color: value <= filled ? '#e4a400' : '#d0d0d0' }}>★</button>)}
         </div>
         <p aria-live="polite">{stars ? stars + '/5 sao' : 'Chọn từ 1 đến 5 sao'}</p>
         <label style={{ display: 'grid', gap: 8 }}>Nhận xét
@@ -78,7 +86,7 @@ export default function TourReviewForm({ tourId, ownReview, onSaved }) {
             disabled={busy} value={comment} onChange={(event) => setComment(event.target.value)} />
         </label>
         <button className="primary-button" style={{ marginTop: 12 }} disabled={busy}>
-          {busy ? 'Đang gửi…' : savedId ? 'Lưu đánh giá' : 'Gửi đánh giá'}
+          {busy ? 'Đang gửi…' : savedId ? 'Lưu' : (internal ? 'Gửi nhận xét nội bộ' : 'Gửi đánh giá')}
         </button>
       </form>}
   </div>;

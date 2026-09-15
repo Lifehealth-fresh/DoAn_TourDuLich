@@ -233,6 +233,7 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(20)
                 .IsFixedLength();
             entity.Property(e => e.ThoiGian).HasColumnType("datetime");
+            entity.Property(e => e.CongKhai).HasDefaultValue(true);
 
             entity.HasOne(d => d.MaTourNavigation).WithMany(p => p.DanhGiaTours)
                 .HasForeignKey(d => d.MaTour)

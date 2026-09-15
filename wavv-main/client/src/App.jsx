@@ -599,21 +599,24 @@ function TourDetail() {
       </div>
 
       <section className="reviews-section">
-        <p className="stamp">Cảm nhận</p>
-        <h2>Người đi trước<br /><em>nói gì?</em></h2>
-        {list.length ? (
+        <p className="stamp">{tour.loaiTour === 'TuThietKe' ? 'Nội bộ' : 'Cảm nhận'}</p>
+        <h2>{tour.loaiTour === 'TuThietKe' ? <>Nhận xét<br /><em>nội bộ.</em></> : <>Người đi trước<br /><em>nói gì?</em></>}</h2>
+        {tour.loaiTour === 'TuThietKe' ? (
+          <p className="muted">Tour tự thiết kế không đăng đánh giá công khai. Sau khi hoàn thành chuyến đi, bạn gửi nhận xét nội bộ cho vận hành.</p>
+        ) : list.length ? (
           <div className="review-grid">
             {list.map((review, n) => (
               <div className="review-card" key={review.maDanhGiaTour || n}>
-                <div className="stars">{'★'.repeat(review.saoDanhGia || 0)}</div>
+                <div className="stars" aria-label={`${review.saoDanhGia || 0} sao`}>{'★'.repeat(review.saoDanhGia || 0)}{'☆'.repeat(Math.max(0, 5 - (review.saoDanhGia || 0)))}</div>
                 <p>“{review.nhanXet || 'Chuyến đi đáng nhớ.'}”</p>
-                <b>Khách ANAM</b>
+                <b>{review.tenKhachHang || 'Khách ANAM'}</b>
                 <small>{dateText(review.thoiGian)}</small>
               </div>
             ))}
           </div>
         ) : <p className="muted">Chưa có đánh giá cho tour này.</p>}
         {token() && <TourReviewForm key={id} tourId={id} ownReview={reviewData.danhGiaCuaToi}
+          internal={tour.loaiTour === 'TuThietKe' || reviewData.noiBo}
           onSaved={async () => setReviewData((await api.reviews(id)).data || {})} />}
       </section>
 
@@ -1117,6 +1120,13 @@ function BookingDetailPage() {
           {remain <= 0 && <div className="success-message">Đã thanh toán đủ.</div>}
         </div>
       </div>
+      {trim(item.trangThai) === 'HoanThanh' && item.maTour && (
+        <TourReviewForm
+          tourId={String(item.maTour).trim()}
+          internal={trim(item.loaiTour) === 'TuThietKe'}
+          onSaved={load}
+        />
+      )}
     </section>
   );
 }

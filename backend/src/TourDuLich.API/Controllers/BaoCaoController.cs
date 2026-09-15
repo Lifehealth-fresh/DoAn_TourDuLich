@@ -105,7 +105,7 @@ public class BaoCaoController : ControllerBase
             .Select(t => new { t.MaTour, t.TenTour })
             .ToListAsync(cancellationToken);
         var ratings = await _context.DanhGiaTours.AsNoTracking()
-            .Where(r => r.MaTour != null && r.SaoDanhGia != null)
+            .Where(r => r.MaTour != null && r.SaoDanhGia != null && r.CongKhai)
             .GroupBy(r => r.MaTour!)
             .Select(g => new { MaTour = g.Key, Diem = g.Average(x => (double)x.SaoDanhGia!) })
             .ToListAsync(cancellationToken);
@@ -160,6 +160,15 @@ public class BaoCaoController : ControllerBase
             })
             .ToList();
 
+        var reviewFacts = await _context.DanhGiaTours.AsNoTracking()
+            .Where(r => r.SaoDanhGia != null && r.ThoiGian != null && r.MaTour != null)
+            .Select(r => new ReviewFact(r.SaoDanhGia!.Value, r.ThoiGian!.Value, r.MaTour!, r.CongKhai))
+            .ToListAsync(cancellationToken);
+        var reviewNames = tourNames
+            .GroupBy(t => t.MaTour)
+            .ToDictionary(g => g.Key, g => g.First().TenTour);
+        var danhGia = ReviewDashboardBuilder.Build(reviewFacts, reviewNames, now);
+
         return Ok(new
         {
             toursDangBan,
@@ -172,7 +181,8 @@ public class BaoCaoController : ControllerBase
             theoTrangThai,
             doanhThuTheoThang,
             topTour,
-            lichSapKhoiHanh
+            lichSapKhoiHanh,
+            danhGia
         });
     }
 }

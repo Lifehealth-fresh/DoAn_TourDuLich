@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as api from './api';
 import DepartureGuests from './DepartureGuests';
 import { useAuth } from './context';
-import { ExpandRecord, Notice, BarList, StatusMix } from './components';
+import { ExpandRecord, Notice, BarList, StatusMix, LineChart } from './components';
 export { DesignRequests } from './DesignRequests';
 
 const v = (o, ...ks) => ks.map((k) => o?.[k]).find((x) => x !== undefined && x !== null);
@@ -84,11 +84,13 @@ export function Dashboard() {
   const paid = bookings.filter((x) => /DaThanhToan|HoanThanh/.test(String(x.trangThai || '').trim()));
   const revenue = stats?.daThu ?? paid.reduce((sum, x) => sum + Number(x.thanhTien || 0), 0);
   const percent = (value) => `${Math.round(Number(value || 0) * 1000) / 10}%`;
+  const dg = stats?.danhGia || {};
+  const starColor = (sao) => (sao >= 4 ? 'var(--jade)' : sao === 3 ? 'var(--gold)' : 'var(--coral)');
 
   return (
     <>
       <h1>Tổng quan vận hành</h1>
-      <p className="muted">Số liệu gộp từ vé, thanh toán đã xác nhận và lịch khởi hành sắp chạy — dùng để định hướng chỗ, giá và tour đẩy mạnh.</p>
+      <p className="muted">Số liệu gộp từ vé, thanh toán đã xác nhận, lịch khởi hành và đánh giá công khai của khách.</p>
       <Notice error={error} />
       <div className="stats">
         <div><b>{stats?.toursDangBan ?? tours.length}</b><span>Tour đang bán</span></div>
@@ -97,6 +99,19 @@ export function Dashboard() {
         <div><b>{money(revenue)}</b><span>Đã thu (thanh toán xác nhận)</span></div>
         <div><b>{money(stats?.conPhaiThu)}</b><span>Còn phải thu</span></div>
         <div><b>{percent(stats?.tyLeHuy)}</b><span>Tỷ lệ hủy / hoàn tiền</span></div>
+      </div>
+      <h2 className="section-title">Sức khỏe đánh giá</h2>
+      <p className="muted">KPI công khai trên website khách. Feedback tour tự thiết kế chỉ đếm ở cột nội bộ.</p>
+      <div className="stats">
+        <div><b>{dg.tongSo ?? 0}</b><span>Tổng số đánh giá</span></div>
+        <div><b>{dg.diemTrungBinh ?? '—'}</b><span>Điểm trung bình</span></div>
+        <div><b>{dg.diemTrungVi ?? '—'}</b><span>Điểm trung vị</span></div>
+        <div><b>{percent(dg.tyLeTichCuc)}</b><span>Tỷ lệ 4–5 sao</span></div>
+        <div><b>{percent(dg.tyLeTieuCuc)}</b><span>Tỷ lệ 1–2 sao</span></div>
+        <div><b>{dg.diem30Ngay ?? '—'}</b><span>Điểm 30 ngày gần nhất</span></div>
+        <div><b>{dg.soMoiThang ?? 0}</b><span>Đánh giá mới (tháng)</span></div>
+        <div><b>{percent(dg.tocDoTang)}</b><span>Tốc độ tăng so với tháng trước</span></div>
+        <div><b>{dg.noiBo ?? 0}</b><span>Feedback nội bộ (tự thiết kế)</span></div>
       </div>
       <div className="charts">
         <section className="panel">
@@ -131,6 +146,33 @@ export function Dashboard() {
             hint: `Còn ${row.conTrong} chỗ`,
             color: Number(row.tyLeLapDay) >= 0.8 ? 'var(--coral)' : 'var(--jade)',
           }))} empty="Chưa có lịch khởi hành trong tương lai." />
+        </section>
+      </div>
+      <div className="charts">
+        <section className="panel">
+          <h2>Phân bố điểm sao</h2>
+          <p className="muted">Đừng chỉ nhìn điểm TB — cùng 4.6 có thể lệch 5 sao hoặc nhiều 1–2 sao.</p>
+          <BarList rows={(dg.phanBoSao || []).map((row) => ({
+            id: row.sao, label: `${row.sao} sao`, value: row.soLuong,
+            display: `${row.soLuong} · ${percent(row.tyLe)}`,
+            color: starColor(row.sao),
+          }))} empty="Chưa có đánh giá công khai." />
+        </section>
+        <section className="panel">
+          <h2>Xu hướng 6 tháng</h2>
+          <p className="muted">Điểm trung bình (nét liền) và số review (nét đứt). Giảm liên tục cần kiểm tra HDV / KS / lịch trình.</p>
+          <LineChart points={dg.xuHuong || []} empty="Chưa đủ dữ liệu theo tháng." />
+        </section>
+        <section className="panel" style={{ gridColumn: '1 / -1' }}>
+          <h2>Đánh giá theo tour</h2>
+          <BarList rows={(dg.theoTour || []).map((row) => ({
+            id: row.maTour,
+            label: row.tenTour,
+            value: Number(row.diemTb || 0),
+            display: `${row.diemTb || '—'}/5 · ${row.soDanhGia} bài`,
+            hint: `Tiêu cực ${percent(row.tyLeTieuCuc)} · Tích cực ${percent(row.tyLeTichCuc)}`,
+            color: Number(row.tyLeTieuCuc) >= 0.12 ? 'var(--coral)' : 'var(--navy)',
+          }))} empty="Chưa có đánh giá theo tour." />
         </section>
       </div>
       <section className="panel">

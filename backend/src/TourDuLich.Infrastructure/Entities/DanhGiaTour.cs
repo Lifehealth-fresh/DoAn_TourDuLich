@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace TourDuLich.Infrastructure.Entities;
@@ -16,6 +16,9 @@ public partial class DanhGiaTour
     public int? SaoDanhGia { get; set; }
 
     public string? NhanXet { get; set; }
+
+    /// <summary>True = hiện trên trang khách. False = feedback nội bộ (tour tự thiết kế).</summary>
+    public bool CongKhai { get; set; } = true;
 
     public virtual Tour? MaTourNavigation { get; set; }
 

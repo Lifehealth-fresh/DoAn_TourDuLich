@@ -6,6 +6,7 @@ import PromotionsManagement from './PromotionsManagement.jsx';
 import SightseeingManagement from './SightseeingManagement.jsx';
 import PartnersManagement from './PartnersManagement.jsx';
 import AccountsManagement from './AccountsManagement.jsx';
+import ReviewsManagement from './ReviewsManagement.jsx';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
               <Route path="/diem-tham-quan" element={<ModuleGate module="DiemThamQuan"><SightseeingManagement /></ModuleGate>} />
               <Route path="/doi-tac" element={<ModuleGate module="DoiTac"><PartnersManagement /></ModuleGate>} />
               <Route path="/thiet-ke" element={<ModuleGate module="ThietKe"><DesignRequests /></ModuleGate>} />
+              <Route path="/danh-gia" element={<ModuleGate module="DanhGia"><ReviewsManagement /></ModuleGate>} />
               <Route path="/tai-khoan" element={<ModuleGate module="TaiKhoan"><AccountsManagement /></ModuleGate>} />
             </Route>
           </Route>

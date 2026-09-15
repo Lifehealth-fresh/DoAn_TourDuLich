@@ -65,6 +65,36 @@ export function BarList({ rows, empty = 'Chưa có dữ liệu.' }) {
   );
 }
 
+export function LineChart({ points, empty = 'Chưa có dữ liệu.' }) {
+  if (!points.length) return <p className="muted">{empty}</p>;
+  const w = 320;
+  const h = 120;
+  const pad = 18;
+  const values = points.map((p) => Number(p.diemTb || 0));
+  const counts = points.map((p) => Number(p.soDanhGia || 0));
+  const maxV = Math.max(5, ...values);
+  const maxC = Math.max(1, ...counts);
+  const x = (i) => pad + (i * (w - pad * 2)) / Math.max(1, points.length - 1);
+  const yV = (v) => h - pad - (v / maxV) * (h - pad * 2);
+  const yC = (v) => h - pad - (v / maxC) * (h - pad * 2);
+  return (
+    <div className="line-chart">
+      <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Xu hướng đánh giá">
+        <polyline fill="none" stroke="var(--navy)" strokeWidth="2.5" points={values.map((v, i) => `${x(i)},${yV(v)}`).join(' ')} />
+        <polyline fill="none" stroke="var(--coral)" strokeWidth="2" strokeDasharray="4 3" points={counts.map((v, i) => `${x(i)},${yC(v)}`).join(' ')} />
+        {points.map((p, i) => (
+          <circle key={p.nhan} cx={x(i)} cy={yV(Number(p.diemTb || 0))} r="3" fill="var(--navy)" />
+        ))}
+      </svg>
+      <ul className="line-legend">
+        <li><i style={{ background: 'var(--navy)' }} /> Điểm trung bình</li>
+        <li><i style={{ background: 'var(--coral)' }} /> Số review</li>
+      </ul>
+      <div className="line-labels">{points.map((p) => <span key={p.nhan}>{p.nhan}</span>)}</div>
+    </div>
+  );
+}
+
 const MIX = {
   ChoXacNhan: '#ffe08a', DaXacNhan: '#7aa7d9', DaThanhToan: '#1e5c45',
   HoanThanh: '#163041', DaHuy: '#b33a1a', ChoHoanTien: '#c49a3c',

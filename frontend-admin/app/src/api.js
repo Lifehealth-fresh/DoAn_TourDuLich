@@ -86,6 +86,9 @@ export const addGuestDocument=(id,data)=>api.post('/api/DatDichVu/'+encodeURICom
 export const updateGuestDocument=(id,docId,data)=>api.put('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach/giay-to/'+encodeURIComponent(docId),data);
 export const deleteGuestDocument=(id,docId)=>api.delete('/api/DatDichVu/'+encodeURIComponent(id)+'/ho-so-khach/giay-to/'+encodeURIComponent(docId));
 export const overview=()=>api.get('/api/BaoCao/tong-quan');
+export const reviewSearch=(params)=>api.get('/api/DanhGia/quan-ly',{params});
+export const reviewTour=id=>api.get(`/api/DanhGia/quan-ly/${encodeURIComponent(id)}`);
+export const reviewStats=()=>api.get('/api/DanhGia/thong-ke');
 export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');
 export const me=()=>api.get('/api/Auth/toi');
 export const accounts=(params)=>api.get('/api/Admin/tai-khoan',{params});
