@@ -149,8 +149,7 @@ public sealed class PlannerCatalog
                 id = item.MaSanPham.Trim(),
                 name = item.TenSanPham,
                 partner = item.MaDoiTacNavigation.TenDoiTac,
-                pricePerNight = item.GiaNiemYet,
-                address = item.MaDoiTacNavigation.DiaChi
+                pricePerNight = item.GiaNiemYet
             });
         return JsonSerializer.SerializeToElement(new { province = match.Label, items = hotels });
     }
