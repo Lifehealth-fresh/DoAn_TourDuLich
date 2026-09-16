@@ -76,8 +76,8 @@ public virtual DbSet<SanPhamDoiTac> SanPhamDoiTacs { get; set; }
     public virtual DbSet<YeuCauThietKe> YeuCauThietKes { get; set; }
     public virtual DbSet<TinhThanhAlias> TinhThanhAliases { get; set; }
     public virtual DbSet<MatranDiChuyen> MatranDiChuyens { get; set; }
-protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {);
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
 
         modelBuilder.Entity<AigoiY>(entity =>
         {
@@ -131,8 +131,6 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_AnhTour_Tour");
         });
-);
-);
 
         modelBuilder.Entity<DanhGiaTour>(entity =>
         {
@@ -178,8 +176,6 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_MediaDanhGiaTour_DanhGiaTour");
         });
-);
-);
 
         modelBuilder.Entity<DanhSachYeuThich>(entity =>
         {
@@ -455,8 +451,6 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
                 .HasForeignKey(d => d.NguoiDaiDien)
                 .HasConstraintName("FK_HopDong_NguoiSuDung");
         });
-);
-
         modelBuilder.Entity<KhachHang>(entity =>
         {
             entity.HasKey(e => e.MaKhachHang).HasName("PK__KhachHan__88D2F0E5AD907E53");
@@ -542,8 +536,6 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
             entity.Property(e => e.MaTinhDen).HasMaxLength(20).IsFixedLength();
             entity.Property(e => e.PhuongTien).HasMaxLength(20).IsFixedLength();
         });
-);
-);
 
         modelBuilder.Entity<KhuyenMai>(entity =>
         {
@@ -607,8 +599,6 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_KMTour_Tour");
         });
-);
-
         modelBuilder.Entity<LichKhoiHanh>(entity =>
         {
             entity.HasKey(e => e.MaKhoiHanh).HasName("PK__LichKhoi__B8672C9C9AA07494");
@@ -787,8 +777,6 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
                 .HasMaxLength(50)
                 .HasColumnName("TenNhomKM");
         });
-);
-
         modelBuilder.Entity<SanPhamDoiTac>(entity =>
         {
             entity.HasKey(e => e.MaSanPham).HasName("PK__SanPhamD__FAC7442DB9C6A617");

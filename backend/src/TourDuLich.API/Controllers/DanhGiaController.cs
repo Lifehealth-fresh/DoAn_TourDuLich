@@ -599,8 +599,17 @@ public class DanhGiaController : ControllerBase
         return result;
     }
 
-    private async Task<string> GenerateMediaTourIdAsync() => await GenerateMediaIdAsync(
-        id => _context.MediaDanhGiaTours.AnyAsync(item => item.MaMedia == id), "MT");
+    private async Task<string> GenerateMediaTourIdAsync()
+    {
+        string maMediaDb;
+        do
+        {
+            var maMedia = $"MT{Guid.NewGuid():N}"[..20].ToUpperInvariant();
+            maMediaDb = FixedLengthHelper.PadTo20(maMedia);
+        }
+        while (await _context.MediaDanhGiaTours.AnyAsync(item => item.MaMedia == maMediaDb));
+        return maMediaDb;
+    }
 
 
     private sealed record MediaInput(string Url, string LoaiMedia, int ThuTu);
