@@ -88,7 +88,6 @@ builder.Services.AddScoped<ITravelTimeService, TravelTimeService>();
 builder.Services.AddScoped<DeXuatLichTrinhService>();
 builder.Services.AddScoped<IDeXuatLichTrinhService>(sp => sp.GetRequiredService<DeXuatLichTrinhService>());
 builder.Services.AddScoped<IDestinationResolver, DestinationResolver>();
-builder.Services.AddScoped<IDesignChatService, DesignChatService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ITourMediaStorage, TourMediaStorage>();
 builder.Services.AddHttpClient();

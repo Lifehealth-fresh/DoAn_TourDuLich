@@ -28,6 +28,7 @@ database. Không có `CREATE DATABASE` hoặc `USE`; hãy mở đúng database t
 28. `028_ReviewEditMediaVaKhachHang.sql` — hạn sửa đánh giá 5 ngày (`ThoiGianSua`), Cloudinary media đánh giá, ảnh CCCD giấy tờ, quyền module `KhachHang`. Chạy sau 027.
 29. `029_TaiKhoanNhanVienVaHoTro.sql` — hồ sơ nhân viên (`NhanVien`), `NguoiSuDung.TrangThai` (xóa = VoHieu), chat khách–admin (`CuocTroChuyen`/`TinNhanHoTro`), quyền module `HoTro`. Chạy sau 028.
 30. `030_DiaChiLoaiDongAnUong.sql` — `DoiTac.DiaChi`, `LichTrinh.LoaiDong`, nhà hàng `AnUong` mỗi tỉnh, ma trận bay HN/HCM–đảo. Chạy sau 029.
+31. `031_DropUnusedGroupB.sql` — xóa bảng không dùng (HDV, đánh giá phụ, chat thiết kế, Quyen cũ, JobRunLog).
 
 **CẤM chạy lại `025_DropUnusedAndWipeExceptAnhTour.sql` trên database có dữ liệu thật** — script này xóa gần hết dữ liệu (chỉ giữ ảnh tour).
 
