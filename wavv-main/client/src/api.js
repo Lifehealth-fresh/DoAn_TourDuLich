@@ -201,7 +201,6 @@ export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURICo
 export const agreeDesignSchedule=id=>api.put('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/dong-y-lich');
 export const requestDesignRevision=(id,lyDo)=>api.put('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/yeu-cau-chinh-sua',{lyDo});
 export const provinces = (q) => api.get('/api/TinhThanh', { params: q ? { q } : {} });
-export const supportChat = (data) => api.post('/api/HoTro/chat', data);
 export const mySupport = (danhDauDoc = false) => api.get('/api/HoTro/cua-toi', { params: { danhDauDoc } });
 export const sendSupport = (noiDung) => api.post('/api/HoTro/cua-toi', { noiDung });
 export const startSupportSession = () => api.post('/api/HoTro/cua-toi/phien-moi');

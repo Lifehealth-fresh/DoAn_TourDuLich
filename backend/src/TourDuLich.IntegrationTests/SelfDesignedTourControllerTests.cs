@@ -230,7 +230,6 @@ public sealed class SelfDesignedTourControllerTests
     context,
     new NoBehaviorLogger(),
     service ?? new ProposalService(_ => []),
-    new StubChat(),
     new StubDestinations(),
     NullLogger<YeuCauThietKeController>.Instance)
     {
@@ -245,13 +244,6 @@ public sealed class SelfDesignedTourControllerTests
     private sealed class NoBehaviorLogger : IHanhViLogger
     {
         public Task LogAsync(string user, string? tour, string action) => Task.CompletedTask;
-    }
-    private sealed class StubChat : IDesignChatService
-    {
-        public Task<DesignChatTurn> StartOrContinueAsync(string maUser, DesignChatRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult(new DesignChatTurn());
-        public Task<DesignChatTurn> GetAsync(string maUser, string maHoiThoai, CancellationToken cancellationToken = default)
-            => Task.FromResult(new DesignChatTurn());
     }
     private sealed class StubDestinations : IDestinationResolver
     {

@@ -21,8 +21,6 @@ public partial class SanPhamDoiTac
 
     public string? TrangThai { get; set; }
 
-    public virtual ICollection<DanhGiaSanPhamDoiTac> DanhGiaSanPhamDoiTacs { get; set; } = new List<DanhGiaSanPhamDoiTac>();
-
     public virtual ICollection<LichTrinh> LichTrinhs { get; set; } = new List<LichTrinh>();
 
     public virtual DoiTac MaDoiTacNavigation { get; set; } = null!;

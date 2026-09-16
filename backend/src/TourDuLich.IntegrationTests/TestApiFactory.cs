@@ -177,12 +177,8 @@ public abstract class ApiTestBase : IAsyncLifetime
             DELETE FROM dbo.ThanhToan WHERE MaBooking IN (SELECT MaBooking FROM dbo.DatDichVu WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));
             DELETE FROM dbo.HopDong WHERE MaBooking IN (SELECT MaBooking FROM dbo.DatDichVu WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));
             DELETE FROM dbo.MediaDanhGiaTour WHERE MaDanhGiaTour IN (SELECT MaDanhGiaTour FROM dbo.DanhGiaTour WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));
-            DELETE FROM dbo.MediaDanhGiaHdv WHERE MaDanhGiaHdv IN (SELECT MaDanhGiaHdv FROM dbo.DanhGiaHDV WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));
-            DELETE FROM dbo.MediaDanhGiaSanPham WHERE MaDanhGia IN (SELECT MaDanhGia FROM dbo.DanhGiaSanPhamDoiTac WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));
             DELETE FROM dbo.DatDichVu_KhuyenMai WHERE MaBooking IN (SELECT MaBooking FROM dbo.DatDichVu WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));
             DELETE FROM dbo.DanhGiaTour WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%');
-            DELETE FROM dbo.DanhGiaHDV WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%');
-            DELETE FROM dbo.DanhGiaSanPhamDoiTac WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%');
             DELETE FROM dbo.HanhViKhachHang WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%');
             DELETE FROM dbo.DatDichVu WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%');
             DELETE FROM dbo.GiayTo WHERE MaKhachHang IN (SELECT MaKhachHang FROM dbo.KhachHang WHERE MaUser IN (SELECT MaUser FROM dbo.NguoiSuDung WHERE SoDienThoai LIKE N'0777%'));

@@ -181,10 +181,9 @@ public class LichKhoiHanhController : ControllerBase
             return NotFound();
 
         var hasDatDichVu = await _context.DatDichVus.AnyAsync(d => d.MaKhoiHanh == key);
-        var hasLichDanTour = await _context.LichDanTours.AnyAsync(l => l.MaKhoiHanh == key);
 
-        if (hasDatDichVu || hasLichDanTour)
-            return BadRequest(new { message = "Không thể xóa lịch khởi hành vì đã có booking hoặc lịch dẫn tour tham chiếu." });
+        if (hasDatDichVu)
+            return BadRequest(new { message = "Không thể xóa lịch khởi hành vì đã có booking tham chiếu." });
 
         _context.LichKhoiHanhs.Remove(existing);
         await _context.SaveChangesAsync();

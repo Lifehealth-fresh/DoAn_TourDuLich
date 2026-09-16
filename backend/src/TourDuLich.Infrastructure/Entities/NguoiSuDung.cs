@@ -15,10 +15,6 @@ public partial class NguoiSuDung
 
     public virtual ICollection<AigoiY> AigoiYs { get; set; } = new List<AigoiY>();
 
-    public virtual ICollection<DanhGiaHdv> DanhGiaHdvs { get; set; } = new List<DanhGiaHdv>();
-
-    public virtual ICollection<DanhGiaSanPhamDoiTac> DanhGiaSanPhamDoiTacs { get; set; } = new List<DanhGiaSanPhamDoiTac>();
-
     public virtual ICollection<DanhGiaTour> DanhGiaTours { get; set; } = new List<DanhGiaTour>();
 
     public virtual ICollection<DanhSachYeuThich> DanhSachYeuThiches { get; set; } = new List<DanhSachYeuThich>();

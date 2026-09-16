@@ -23,8 +23,6 @@ public class HanhViKhachHangController : ControllerBase
         "DatTour",
         "ThanhToan",
         "DanhGiaTour",
-        "DanhGiaHdv",
-        "DanhGiaSanPham",
         "TuChoiGoiY",
         "HoanThanh"
     };

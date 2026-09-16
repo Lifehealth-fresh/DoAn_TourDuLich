@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.Authorization;
@@ -40,7 +40,7 @@ public class DanhGiaController : ControllerBase
 
         if (tour is null)
         {
-            return NotFound(new { message = $"KhÃ´ng tÃ¬m tháº¥y tour '{maTour}'." });
+            return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
         }
 
         var isSelfDesigned = ReviewDashboardBuilder.IsSelfDesigned(tour.LoaiTour);
@@ -96,7 +96,7 @@ public class DanhGiaController : ControllerBase
             thoiGian = item.ThoiGian,
             tenKhachHang = item.MaUser != null && guestMap.TryGetValue(item.MaUser, out var ten)
                 ? ten
-                : "KhÃ¡ch ANAM",
+                : "Khách ẩn danh",
             congKhai = item.CongKhai,
             media = item.media.Select(media => new
             {
@@ -158,7 +158,7 @@ public class DanhGiaController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(request.MaTour))
         {
-            return BadRequest(new { message = "MaTour khÃ´ng Ä‘Æ°á»£c Ä‘á»ƒ trá»‘ng." });
+            return BadRequest(new { message = "MaTour không được để trống." });
         }
 
         var saoValidation = ValidateSaoDanhGia(request.SaoDanhGia);
@@ -182,7 +182,7 @@ public class DanhGiaController : ControllerBase
         {
             return BadRequest(new
             {
-                message = "Báº¡n cáº§n hoÃ n thÃ nh tour nÃ y trÆ°á»›c khi Ä‘Ã¡nh giÃ¡."
+                message = "Bạn cần hoàn thành tour này trước khi đánh giá."
             });
         }
 
@@ -190,7 +190,7 @@ public class DanhGiaController : ControllerBase
             .AsNoTracking()
             .FirstOrDefaultAsync(item => item.MaTour == maTourDb);
         if (tour is null)
-            return BadRequest(new { message = "Tour khÃ´ng tá»“n táº¡i." });
+            return BadRequest(new { message = "Tour không tồn tại." });
         var congKhai = !ReviewDashboardBuilder.IsSelfDesigned(tour.LoaiTour);
 
         var daDanhGia = await _context.DanhGiaTours
@@ -202,7 +202,7 @@ public class DanhGiaController : ControllerBase
         {
             return Conflict(new
             {
-                message = "Báº¡n Ä‘Ã£ Ä‘Ã¡nh giÃ¡ tour nÃ y. DÃ¹ng PUT Ä‘á»ƒ cáº­p nháº­t Ä‘Ã¡nh giÃ¡."
+                message = "Bạn đã đánh giá tour này. Dùng PUT để cập nhật đánh giá."
             });
         }
 
@@ -264,9 +264,9 @@ public class DanhGiaController : ControllerBase
         var maUser = GetCurrentMaUser();
         if (maUser is null) return Unauthorized();
         if (file is null || file.Length == 0)
-            return BadRequest(new { message = "ChÆ°a chá»n file áº£nh hoáº·c video." });
+            return BadRequest(new { message = "Chưa chọn file ảnh hoặc video." });
         if (_storage is null)
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "ChÆ°a cáº¥u hÃ¬nh lÆ°u media." });
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Chưa cấu hình lưu media." });
         var validation = await MediaUploadRules.ValidateAsync(file, allowVideo: true, cancellationToken);
         if (!validation.IsValid)
             return BadRequest(new { message = validation.Error });
@@ -322,14 +322,14 @@ public class DanhGiaController : ControllerBase
 
         if (danhGia is null)
         {
-            return NotFound(new { message = "KhÃ´ng tÃ¬m tháº¥y Ä‘Ã¡nh giÃ¡ cá»§a báº¡n." });
+            return NotFound(new { message = "Không tìm thấy đánh giá của bạn." });
         }
 
         if (!ReviewDashboardBuilder.CanEdit(danhGia.ThoiGian, DateTime.UtcNow))
         {
             return StatusCode(StatusCodes.Status403Forbidden, new
             {
-                message = $"Chá»‰ Ä‘Æ°á»£c sá»­a Ä‘Ã¡nh giÃ¡ trong {ReviewDashboardBuilder.ReviewEditDays} ngÃ y sau khi gá»­i."
+                message = $"Chỉ được sửa đánh giá trong {ReviewDashboardBuilder.ReviewEditDays} ngày sau khi gửi."
             });
         }
 
@@ -456,7 +456,7 @@ public class DanhGiaController : ControllerBase
         var tour = await _context.Tours.AsNoTracking()
             .FirstOrDefaultAsync(item => item.MaTour == maTourDb);
         if (tour is null)
-            return NotFound(new { message = $"KhÃ´ng tÃ¬m tháº¥y tour '{maTour}'." });
+            return NotFound(new { message = $"Không tìm thấy tour '{maTour}'." });
 
         var raw = await _context.DanhGiaTours.AsNoTracking()
             .Where(item => item.MaTour == maTourDb)
@@ -542,7 +542,7 @@ public class DanhGiaController : ControllerBase
         {
             return new BadRequestObjectResult(new
             {
-                message = "SaoDanhGia pháº£i náº±m trong khoáº£ng 1-5."
+                message = "SaoDanhGia phải nằm trong khoảng 1-5."
             });
         }
 
@@ -576,7 +576,7 @@ public class DanhGiaController : ControllerBase
         }
         if (items.Count > 6)
         {
-            error = "Tá»‘i Ä‘a 6 áº£nh/video má»—i bÃ i Ä‘Ã¡nh giÃ¡.";
+            error = "Tối đa 6 ảnh/video mỗi bài đánh giá.";
             return result;
         }
 
@@ -584,12 +584,12 @@ public class DanhGiaController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(item.Url))
             {
-                error = "MediaUrl khÃ´ng Ä‘Æ°á»£c Ä‘á»ƒ trá»‘ng.";
+                error = "MediaUrl không được để trống.";
                 return result;
             }
             if (item.LoaiMedia is not ("Anh" or "Video"))
             {
-                error = "LoaiMedia chá»‰ nháº­n Anh hoáº·c Video.";
+                error = "LoaiMedia chỉ nhận Anh hoặc Video.";
                 return result;
             }
             result.Add(new MediaInput(item.Url.Trim(), item.LoaiMedia, result.Count));

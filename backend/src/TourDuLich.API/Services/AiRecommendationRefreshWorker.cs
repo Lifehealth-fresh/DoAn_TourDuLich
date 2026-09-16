@@ -36,27 +36,16 @@ public sealed class AiRecommendationRefreshWorker : BackgroundService
 
     private async Task RefreshAllAsync(CancellationToken cancellationToken)
     {
-        JobRunLog? jobRun = null;
-        AppDbContext? context = null;
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var client = scope.ServiceProvider.GetRequiredService<IAiRecommendationClient>();
-            jobRun = new JobRunLog
-            {
-                TenJob = "AiRecommendationRefresh",
-                ThoiDiemBatDau = DateTime.UtcNow,
-                TrangThai = "DangChay"
-            };
-            context.JobRunLogs.Add(jobRun);
-            await context.SaveChangesAsync(cancellationToken);
 
             var userIds = await context.NguoiSuDungs.AsNoTracking()
                 .Select(item => item.MaUser)
                 .ToListAsync(cancellationToken);
             var refreshedCount = 0;
-            var errors = new List<string>();
 
             foreach (var userId in userIds)
             {
@@ -70,33 +59,14 @@ public sealed class AiRecommendationRefreshWorker : BackgroundService
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
                     _logger.LogError(error, "AI refresh failed for user {MaUser}.", userId);
-                    errors.Add($"{userId.Trim()}: {error.Message}");
                 }
             }
 
-            jobRun.ThoiDiemKetThuc = DateTime.UtcNow;
-            jobRun.SoBanGhi = refreshedCount;
-            jobRun.TrangThai = errors.Count == 0 ? "ThanhCong" : "LoiMotPhan";
-            jobRun.Loi = errors.Count == 0 ? null : string.Join(" | ", errors)[..Math.Min(2000, string.Join(" | ", errors).Length)];
-            await context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("AI recommendation refresh wrote {Count} rows.", refreshedCount);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             _logger.LogError(error, "Scheduled AI recommendation refresh failed.");
-            if (context is not null && jobRun is not null)
-            {
-                try
-                {
-                    jobRun.ThoiDiemKetThuc = DateTime.UtcNow;
-                    jobRun.TrangThai = "ThatBai";
-                    jobRun.Loi = error.Message[..Math.Min(2000, error.Message.Length)];
-                    await context.SaveChangesAsync(cancellationToken);
-                }
-                catch (Exception loggingError)
-                {
-                    _logger.LogError(loggingError, "Could not persist the AI job failure log.");
-                }
-            }
         }
     }
 

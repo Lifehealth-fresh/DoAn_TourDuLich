@@ -18,7 +18,6 @@ public class YeuCauThietKeController : ControllerBase
     private readonly AppDbContext _context;
     private readonly IHanhViLogger _hanhViLogger;
     private readonly IDeXuatLichTrinhService _deXuatService;
-    private readonly IDesignChatService _chat;
     private readonly IDestinationResolver _destinations;
     private readonly ILogger<YeuCauThietKeController> _logger;
 
@@ -26,48 +25,14 @@ public class YeuCauThietKeController : ControllerBase
         AppDbContext context,
         IHanhViLogger hanhViLogger,
         IDeXuatLichTrinhService deXuatService,
-        IDesignChatService chat,
         IDestinationResolver destinations,
         ILogger<YeuCauThietKeController> logger)
     {
         _context = context;
         _hanhViLogger = hanhViLogger;
         _deXuatService = deXuatService;
-        _chat = chat;
         _destinations = destinations;
         _logger = logger;
-    }
-
-    [HttpPost("chat")]
-    [Authorize(Roles = "KhachHang")]
-    public async Task<ActionResult> Chat([FromBody] DesignChatRequest request, CancellationToken cancellationToken)
-    {
-        var maUser = GetCurrentMaUser();
-        if (maUser is null) return Unauthorized();
-        try
-        {
-            return Ok(await _chat.StartOrContinueAsync(maUser, request, cancellationToken));
-        }
-        catch (InvalidOperationException exception)
-        {
-            return NotFound(new { message = exception.Message });
-        }
-    }
-
-    [HttpGet("chat/{maHoiThoai}")]
-    [Authorize(Roles = "KhachHang")]
-    public async Task<ActionResult> ChatDetail(string maHoiThoai, CancellationToken cancellationToken)
-    {
-        var maUser = GetCurrentMaUser();
-        if (maUser is null) return Unauthorized();
-        try
-        {
-            return Ok(await _chat.GetAsync(maUser, maHoiThoai, cancellationToken));
-        }
-        catch (InvalidOperationException exception)
-        {
-            return NotFound(new { message = exception.Message });
-        }
     }
 
     [HttpGet("cua-toi")]

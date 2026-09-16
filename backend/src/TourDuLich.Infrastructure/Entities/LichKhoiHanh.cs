@@ -19,7 +19,5 @@ public partial class LichKhoiHanh
 
     public virtual ICollection<DatDichVu> DatDichVus { get; set; } = new List<DatDichVu>();
 
-    public virtual ICollection<LichDanTour> LichDanTours { get; set; } = new List<LichDanTour>();
-
     public virtual Tour MaTourNavigation { get; set; } = null!;
 }

@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.Authorization;
 using TourDuLich.API.Hubs;
 using TourDuLich.Application.Helpers;
-using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
 
@@ -16,30 +15,13 @@ namespace TourDuLich.API.Controllers;
 [Authorize]
 public class HoTroController : ControllerBase
 {
-    private readonly IDesignChatService _chat;
     private readonly AppDbContext _context;
     private readonly IHubContext<HoTroHub> _hub;
 
-    public HoTroController(IDesignChatService chat, AppDbContext context, IHubContext<HoTroHub> hub)
+    public HoTroController(AppDbContext context, IHubContext<HoTroHub> hub)
     {
-        _chat = chat;
         _context = context;
         _hub = hub;
-    }
-
-    [HttpPost("chat")]
-    public async Task<ActionResult> Chat([FromBody] DesignChatRequest request, CancellationToken cancellationToken)
-    {
-        var maUser = User.FindFirst("MaUser")?.Value;
-        if (string.IsNullOrWhiteSpace(maUser)) return Unauthorized();
-        try
-        {
-            return Ok(await _chat.StartOrContinueAsync(FixedLengthHelper.PadTo20(maUser), request, cancellationToken));
-        }
-        catch (InvalidOperationException exception)
-        {
-            return NotFound(new { message = exception.Message });
-        }
     }
 
     [HttpGet("cua-toi")]

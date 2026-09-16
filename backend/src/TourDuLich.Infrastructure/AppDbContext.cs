@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.Infrastructure.Entities;
@@ -15,18 +15,10 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<AigoiY> AigoiYs { get; set; }
 
     public virtual DbSet<AnhTour> AnhTours { get; set; }
-
-    public virtual DbSet<DanhGiaHdv> DanhGiaHdvs { get; set; }
-
-    public virtual DbSet<DanhGiaSanPhamDoiTac> DanhGiaSanPhamDoiTacs { get; set; }
-
-    public virtual DbSet<DanhGiaTour> DanhGiaTours { get; set; }
+public virtual DbSet<DanhGiaTour> DanhGiaTours { get; set; }
 
     public virtual DbSet<MediaDanhGiaTour> MediaDanhGiaTours { get; set; }
-    public virtual DbSet<MediaDanhGiaHdv> MediaDanhGiaHdvs { get; set; }
-    public virtual DbSet<MediaDanhGiaSanPham> MediaDanhGiaSanPhams { get; set; }
-
-    public virtual DbSet<DanhSachYeuThich> DanhSachYeuThiches { get; set; }
+public virtual DbSet<DanhSachYeuThich> DanhSachYeuThiches { get; set; }
 
     public virtual DbSet<DatDichVu> DatDichVus { get; set; }
 
@@ -43,10 +35,7 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<HanhViKhachHang> HanhViKhachHangs { get; set; }
 
     public virtual DbSet<HopDong> HopDongs { get; set; }
-
-    public virtual DbSet<HuongDanVien> HuongDanViens { get; set; }
-
-    public virtual DbSet<KhachHang> KhachHangs { get; set; }
+public virtual DbSet<KhachHang> KhachHangs { get; set; }
 
     public virtual DbSet<KhuVuc> KhuVucs { get; set; }
 
@@ -55,19 +44,13 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<KhuyenMai> KhuyenMais { get; set; }
 
     public virtual DbSet<KmTour> KmTours { get; set; }
-
-    public virtual DbSet<LichDanTour> LichDanTours { get; set; }
-
-    public virtual DbSet<LichKhoiHanh> LichKhoiHanhs { get; set; }
+public virtual DbSet<LichKhoiHanh> LichKhoiHanhs { get; set; }
 
     public virtual DbSet<LichTrinh> LichTrinhs { get; set; }
 
     public virtual DbSet<LichTrinhDeXuat> LichTrinhDeXuats { get; set; }
     public virtual DbSet<LichTrinhDeXuatChiTiet> LichTrinhDeXuatChiTiets { get; set; }
-
-    public virtual DbSet<JobRunLog> JobRunLogs { get; set; }
-
-    public virtual DbSet<NguoiSuDung> NguoiSuDungs { get; set; }
+public virtual DbSet<NguoiSuDung> NguoiSuDungs { get; set; }
 
     public virtual DbSet<NhanVien> NhanViens { get; set; }
 
@@ -80,10 +63,7 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
 
     public virtual DbSet<NhomKhuyenMai> NhomKhuyenMais { get; set; }
-
-    public virtual DbSet<Quyen> Quyens { get; set; }
-
-    public virtual DbSet<SanPhamDoiTac> SanPhamDoiTacs { get; set; }
+public virtual DbSet<SanPhamDoiTac> SanPhamDoiTacs { get; set; }
 
     public virtual DbSet<ThanhToan> ThanhToans { get; set; }
 
@@ -96,21 +76,8 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<YeuCauThietKe> YeuCauThietKes { get; set; }
     public virtual DbSet<TinhThanhAlias> TinhThanhAliases { get; set; }
     public virtual DbSet<MatranDiChuyen> MatranDiChuyens { get; set; }
-    public virtual DbSet<HoiThoaiThietKe> HoiThoaiThietKes { get; set; }
-    public virtual DbSet<TinNhanThietKe> TinNhanThietKes { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<JobRunLog>(entity =>
-        {
-            entity.HasKey(e => e.MaJobRun);
-            entity.ToTable("JobRunLog");
-            entity.Property(e => e.TenJob).HasMaxLength(100);
-            entity.Property(e => e.ThoiDiemBatDau).HasColumnType("datetime2");
-            entity.Property(e => e.ThoiDiemKetThuc).HasColumnType("datetime2");
-            entity.Property(e => e.TrangThai).HasMaxLength(20);
-            entity.Property(e => e.Loi).HasMaxLength(2000);
-        });
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {);
 
         modelBuilder.Entity<AigoiY>(entity =>
         {
@@ -164,64 +131,8 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_AnhTour_Tour");
         });
-
-        modelBuilder.Entity<DanhGiaHdv>(entity =>
-        {
-            entity.HasKey(e => e.MaDanhGiaHdv).HasName("PK__DanhGiaH__B5C25953990767E5");
-
-            entity.ToTable("DanhGiaHDV");
-
-            entity.Property(e => e.MaDanhGiaHdv)
-                .HasMaxLength(20)
-                .IsFixedLength()
-                .HasColumnName("MaDanhGiaHDV");
-            entity.Property(e => e.MaHdv)
-                .HasMaxLength(20)
-                .IsFixedLength()
-                .HasColumnName("MaHDV");
-            entity.Property(e => e.MaUser)
-                .HasMaxLength(20)
-                .IsFixedLength();
-            entity.Property(e => e.ThoiGian).HasColumnType("datetime");
-
-            entity.HasOne(d => d.MaHdvNavigation).WithMany(p => p.DanhGiaHdvs)
-                .HasForeignKey(d => d.MaHdv)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_DanhGiaHDV_HDV");
-
-            entity.HasOne(d => d.MaUserNavigation).WithMany(p => p.DanhGiaHdvs)
-                .HasForeignKey(d => d.MaUser)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_DanhGiaHDV_NguoiSuDung");
-        });
-
-        modelBuilder.Entity<DanhGiaSanPhamDoiTac>(entity =>
-        {
-            entity.HasKey(e => e.MaDanhGia).HasName("PK__DanhGiaS__AA9515BFC96F0F08");
-
-            entity.ToTable("DanhGiaSanPhamDoiTac");
-
-            entity.Property(e => e.MaDanhGia)
-                .HasMaxLength(20)
-                .IsFixedLength();
-            entity.Property(e => e.MaSanPham)
-                .HasMaxLength(20)
-                .IsFixedLength();
-            entity.Property(e => e.MaUser)
-                .HasMaxLength(20)
-                .IsFixedLength();
-            entity.Property(e => e.ThoiGian).HasColumnType("datetime");
-
-            entity.HasOne(d => d.MaSanPhamNavigation).WithMany(p => p.DanhGiaSanPhamDoiTacs)
-                .HasForeignKey(d => d.MaSanPham)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_DanhGiaSPDT_SanPham");
-
-            entity.HasOne(d => d.MaUserNavigation).WithMany(p => p.DanhGiaSanPhamDoiTacs)
-                .HasForeignKey(d => d.MaUser)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_DanhGiaSPDT_NguoiSuDung");
-        });
+);
+);
 
         modelBuilder.Entity<DanhGiaTour>(entity =>
         {
@@ -267,36 +178,8 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_MediaDanhGiaTour_DanhGiaTour");
         });
-
-        modelBuilder.Entity<MediaDanhGiaHdv>(entity =>
-        {
-            entity.HasKey(e => e.MaMedia).HasName("PK_MediaDanhGiaHdv");
-            entity.ToTable("MediaDanhGiaHdv");
-            entity.Property(e => e.MaMedia).HasMaxLength(20).IsFixedLength();
-            entity.Property(e => e.MaDanhGiaHdv).HasMaxLength(20).IsFixedLength();
-            entity.Property(e => e.LoaiMedia).HasMaxLength(10).IsRequired();
-            entity.Property(e => e.Url).HasMaxLength(300).IsRequired();
-            entity.HasOne(e => e.MaDanhGiaHdvNavigation)
-                .WithMany(e => e.MediaDanhGiaHdvs)
-                .HasForeignKey(e => e.MaDanhGiaHdv)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK_MediaDanhGiaHdv_DanhGiaHdv");
-        });
-
-        modelBuilder.Entity<MediaDanhGiaSanPham>(entity =>
-        {
-            entity.HasKey(e => e.MaMedia).HasName("PK_MediaDanhGiaSanPham");
-            entity.ToTable("MediaDanhGiaSanPham");
-            entity.Property(e => e.MaMedia).HasMaxLength(20).IsFixedLength();
-            entity.Property(e => e.MaDanhGia).HasMaxLength(20).IsFixedLength();
-            entity.Property(e => e.LoaiMedia).HasMaxLength(10).IsRequired();
-            entity.Property(e => e.Url).HasMaxLength(300).IsRequired();
-            entity.HasOne(e => e.MaDanhGiaNavigation)
-                .WithMany(e => e.MediaDanhGiaSanPhams)
-                .HasForeignKey(e => e.MaDanhGia)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK_MediaDanhGiaSanPham_DanhGia");
-        });
+);
+);
 
         modelBuilder.Entity<DanhSachYeuThich>(entity =>
         {
@@ -572,26 +455,7 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.NguoiDaiDien)
                 .HasConstraintName("FK_HopDong_NguoiSuDung");
         });
-
-        modelBuilder.Entity<HuongDanVien>(entity =>
-        {
-            entity.HasKey(e => e.MaHuongDanVien).HasName("PK__HuongDan__D3D8C377AB40C50B");
-
-            entity.ToTable("HuongDanVien");
-
-            entity.Property(e => e.MaHuongDanVien)
-                .HasMaxLength(20)
-                .IsFixedLength();
-            entity.Property(e => e.Cccd)
-                .HasMaxLength(30)
-                .HasColumnName("CCCD");
-            entity.Property(e => e.Email).HasMaxLength(50);
-            entity.Property(e => e.HoTen).HasMaxLength(50);
-            entity.Property(e => e.QueQuan).HasMaxLength(100);
-            entity.Property(e => e.SoDienThoai)
-                .HasMaxLength(20)
-                .IsFixedLength();
-        });
+);
 
         modelBuilder.Entity<KhachHang>(entity =>
         {
@@ -678,29 +542,8 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.MaTinhDen).HasMaxLength(20).IsFixedLength();
             entity.Property(e => e.PhuongTien).HasMaxLength(20).IsFixedLength();
         });
-
-        modelBuilder.Entity<HoiThoaiThietKe>(entity =>
-        {
-            entity.ToTable("HoiThoaiThietKe");
-            entity.HasKey(e => e.MaHoiThoai);
-            entity.Property(e => e.MaHoiThoai).HasMaxLength(20).IsFixedLength();
-            entity.Property(e => e.MaUser).HasMaxLength(20).IsFixedLength();
-            entity.Property(e => e.MaYeuCau).HasMaxLength(20).IsFixedLength();
-            entity.Property(e => e.TrangThai).HasMaxLength(20).IsFixedLength();
-            entity.HasOne(e => e.MaUserNavigation).WithMany().HasForeignKey(e => e.MaUser);
-            entity.HasOne(e => e.MaYeuCauNavigation).WithMany().HasForeignKey(e => e.MaYeuCau);
-        });
-
-        modelBuilder.Entity<TinNhanThietKe>(entity =>
-        {
-            entity.ToTable("TinNhanThietKe");
-            entity.HasKey(e => e.MaTinNhan);
-            entity.Property(e => e.MaTinNhan).HasMaxLength(20).IsFixedLength();
-            entity.Property(e => e.MaHoiThoai).HasMaxLength(20).IsFixedLength();
-            entity.Property(e => e.VaiTro).HasMaxLength(20).IsFixedLength();
-            entity.HasOne(e => e.MaHoiThoaiNavigation).WithMany(e => e.TinNhans)
-                .HasForeignKey(e => e.MaHoiThoai);
-        });
+);
+);
 
         modelBuilder.Entity<KhuyenMai>(entity =>
         {
@@ -764,42 +607,7 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_KMTour_Tour");
         });
-
-        modelBuilder.Entity<LichDanTour>(entity =>
-        {
-            entity.HasKey(e => e.MaLichDanTour).HasName("PK__LichDanT__D22F397F992D2E75");
-
-            entity.ToTable("LichDanTour");
-
-            entity.Property(e => e.MaLichDanTour)
-                .HasMaxLength(20)
-                .IsFixedLength();
-            entity.Property(e => e.MaHdv)
-                .HasMaxLength(20)
-                .IsFixedLength()
-                .HasColumnName("MaHDV");
-            entity.Property(e => e.MaKhoiHanh)
-                .HasMaxLength(20)
-                .IsFixedLength();
-            entity.Property(e => e.MaTour)
-                .HasMaxLength(20)
-                .IsFixedLength();
-
-            entity.HasOne(d => d.MaHdvNavigation).WithMany(p => p.LichDanTours)
-                .HasForeignKey(d => d.MaHdv)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_LichDanTour_HDV");
-
-            entity.HasOne(d => d.MaKhoiHanhNavigation).WithMany(p => p.LichDanTours)
-                .HasForeignKey(d => d.MaKhoiHanh)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_LichDanTour_KhoiHanh");
-
-            entity.HasOne(d => d.MaTourNavigation).WithMany(p => p.LichDanTours)
-                .HasForeignKey(d => d.MaTour)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_LichDanTour_Tour");
-        });
+);
 
         modelBuilder.Entity<LichKhoiHanh>(entity =>
         {
@@ -979,22 +787,7 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .HasColumnName("TenNhomKM");
         });
-
-        modelBuilder.Entity<Quyen>(entity =>
-        {
-            entity.HasKey(e => e.MaQuyen).HasName("PK__Quyen__1D4B7ED47DADFDD6");
-
-            entity.ToTable("Quyen");
-
-            entity.Property(e => e.MaQuyen).ValueGeneratedNever();
-            entity.Property(e => e.Mota).HasMaxLength(100);
-            entity.Property(e => e.TenQuyen).HasMaxLength(50);
-
-            entity.HasOne(d => d.MaVaiTroNavigation).WithMany(p => p.Quyens)
-                .HasForeignKey(d => d.MaVaiTro)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Quyen_VaiTro");
-        });
+);
 
         modelBuilder.Entity<SanPhamDoiTac>(entity =>
         {

@@ -39,8 +39,6 @@ public partial class Tour
 
     public virtual ICollection<KmTour> KmTours { get; set; } = new List<KmTour>();
 
-    public virtual ICollection<LichDanTour> LichDanTours { get; set; } = new List<LichDanTour>();
-
     public virtual ICollection<LichKhoiHanh> LichKhoiHanhs { get; set; } = new List<LichKhoiHanh>();
 
     public virtual ICollection<LichTrinh> LichTrinhs { get; set; } = new List<LichTrinh>();
