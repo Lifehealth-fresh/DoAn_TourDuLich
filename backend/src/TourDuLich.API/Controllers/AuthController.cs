@@ -150,6 +150,16 @@ public class AuthController : ControllerBase
         if (!string.IsNullOrWhiteSpace(maUser))
         {
             await _refreshTokenService.RevokeAllForUserAsync(maUser);
+            var maUserDb = FixedLengthHelper.PadTo20(maUser);
+            var openChats = await _context.CuocTroChuyens
+                .Where(item => item.MaUserKhach == maUserDb && item.TrangThai.Trim() == "Mo")
+                .ToListAsync();
+            foreach (var thread in openChats)
+            {
+                thread.TrangThai = "Dong";
+                thread.ThoiGianCapNhat = DateTime.UtcNow;
+            }
+            if (openChats.Count > 0) await _context.SaveChangesAsync();
             return Ok(new { message = "Đã đăng xuất." });
         }
 

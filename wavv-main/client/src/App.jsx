@@ -239,7 +239,7 @@ function Layout() {
         </nav>
       </header>
       <main><Outlet /></main>
-      {!hideChat && <SupportChat />}
+      {!hideChat && <SupportChat key={user?.maUser || 'guest'} />}
       <footer className="footer">
         <div>
           <Brand />
@@ -672,6 +672,7 @@ function AuthPage({ register = false }) {
           maVaiTro: data.maVaiTro,
           tenVaiTro: data.tenVaiTro,
         });
+        try { await api.startSupportSession(); } catch { /* phiên chat mới không chặn đăng ký */ }
         navigate('/ho-so-moi');
       } else {
         const { data } = await api.login({ SoDienThoai: form.phone.trim(), MatKhau: form.password });
@@ -688,6 +689,7 @@ function AuthPage({ register = false }) {
           maVaiTro: data.maVaiTro,
           tenVaiTro: data.tenVaiTro,
         });
+        try { await api.startSupportSession(); } catch { /* phiên chat mới không chặn đăng nhập */ }
         navigate(location.state?.from || '/');
       }
     } catch (e2) {

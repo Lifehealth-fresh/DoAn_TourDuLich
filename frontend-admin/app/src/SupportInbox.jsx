@@ -18,8 +18,8 @@ export default function SupportInbox() {
 
   useEffect(() => {
     loadList();
-    const t = setInterval(loadList, 4000);
-    const stop = api.connectSupportHub(localStorage.getItem('admin_token'), () => { loadList(); if (open) api.supportThread(open).then((r) => setThread(r.data)).catch(() => {}); });
+    const t = setInterval(loadList, 2000);
+    const stop = api.connectSupportHub(() => { loadList(); if (open) api.supportThread(open).then((r) => setThread(r.data)).catch(() => {}); });
     return () => { clearInterval(t); stop(); };
   }, [open]);
 
@@ -38,7 +38,7 @@ export default function SupportInbox() {
     if (!open) return undefined;
     const t = setInterval(() => {
       api.supportThread(open).then((r) => setThread(r.data)).catch(() => {});
-    }, 5000);
+    }, 2000);
     return () => clearInterval(t);
   }, [open]);
 
@@ -68,7 +68,7 @@ export default function SupportInbox() {
           {items.length ? items.map((row) => (
             <button key={row.maCuoc} type="button" className={open === row.maCuoc ? 'on' : ''} onClick={() => openThread(row.maCuoc)}>
               <b>{row.khach?.hoTen}</b>
-              <span className="muted">{row.khach?.soDienThoai} {row.soChuaDoc ? `· ${row.soChuaDoc} chưa đọc` : ''}</span>
+              <span className="muted">{row.khach?.soDienThoai} {row.trangThai === 'Dong' ? '· đã đóng' : ''} {row.soChuaDoc ? `· ${row.soChuaDoc} chưa đọc` : ''}</span>
             </button>
           )) : <p className="muted" style={{ padding: 16 }}>Chưa có cuộc chat.</p>}
         </div>

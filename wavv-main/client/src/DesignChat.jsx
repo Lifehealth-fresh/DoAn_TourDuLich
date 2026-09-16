@@ -57,21 +57,28 @@ export default function SupportChat() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [live, setLive] = useState(false);
   const bottom = useRef(null);
+  const openRef = useRef(false);
+  openRef.current = open;
 
-  const load = async () => {
-    const response = await api.mySupport();
+  const load = async (markRead) => {
+    const response = await api.mySupport(markRead ?? openRef.current);
     setThread(response.data);
   };
 
   useEffect(() => {
-    if (!open || !user) return undefined;
+    if (!user) return undefined;
     let alive = true;
-    load().catch((err) => { if (alive) setError(api.errorMessage(err, 'Không mở được chat với vận hành.')); });
-    const timer = setInterval(() => { load().catch(() => {}); }, 4000);
-    const stopHub = api.connectSupportHub(localStorage.getItem('wavv_token'), () => { load().catch(() => {}); });
-    return () => { alive = false; clearInterval(timer); stopHub(); };
-  }, [open]);
+    load(false).catch((err) => { if (alive) setError(api.errorMessage(err, 'Không mở được chat với vận hành.')); });
+    const timer = setInterval(() => { load(openRef.current).catch(() => {}); }, open ? 1500 : 3000);
+    const stopHub = api.connectSupportHub(() => {
+      setLive(true);
+      load(openRef.current).catch(() => {});
+    });
+    const liveTimer = setTimeout(() => setLive(true), 2500);
+    return () => { alive = false; clearInterval(timer); clearTimeout(liveTimer); stopHub(); };
+  }, [open, user?.maUser]);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread?.tinNhans?.length, open]);
 
@@ -89,6 +96,7 @@ export default function SupportChat() {
   };
 
   if (!user) return null;
+  const unread = Number(thread?.soChuaDoc || 0);
 
   return (
     <div className={`support-dock${open ? ' open' : ''}`}>
@@ -98,7 +106,7 @@ export default function SupportChat() {
             <div>
               <span className="stamp">ANAM hỗ trợ</span>
               <h2>Chat với vận hành</h2>
-              <p>Nhân viên admin/sale sẽ trả lời trực tiếp.</p>
+              <p>{live ? 'Đang kết nối trực tiếp với admin/sale.' : 'Đang đồng bộ tin nhắn…'}</p>
             </div>
             <button className="text-button" type="button" onClick={() => setOpen(false)}>Đóng</button>
           </header>
@@ -108,7 +116,7 @@ export default function SupportChat() {
                 <p>{item.noiDung}</p>
               </article>
             ))}
-            {!thread?.tinNhans?.length && <p className="muted">Gửi tin nhắn để được hỗ trợ đặt tour, thanh toán, hồ sơ…</p>}
+            {!thread?.tinNhans?.length && <p className="muted">Phiên chat mới. Gửi tin để được hỗ trợ đặt tour, thanh toán, hồ sơ…</p>}
             <div ref={bottom} />
           </div>
           {error && <div className="form-error" role="alert">{error}</div>}
@@ -119,7 +127,7 @@ export default function SupportChat() {
         </div>
       )}
       <button type="button" className="support-fab" onClick={() => setOpen((value) => !value)}>
-        {open ? '×' : 'Chat hỗ trợ'}
+        {open ? '×' : (unread ? `Chat hỗ trợ (${unread})` : 'Chat hỗ trợ')}
       </button>
     </div>
   );

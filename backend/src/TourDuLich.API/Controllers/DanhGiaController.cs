@@ -368,12 +368,15 @@ public class DanhGiaController : ControllerBase
     [HttpPost("media/upload")]
     [Authorize(Roles = "KhachHang")]
     [RequestSizeLimit(104_857_600)]
-    public async Task<ActionResult> UploadReviewMedia([FromForm] IFormFile file, CancellationToken cancellationToken)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult> UploadReviewMedia([FromForm] IFormFile? file, CancellationToken cancellationToken)
     {
         if (User.IsInRole("Sale") || User.IsInRole("Admin"))
             return Forbid();
         var maUser = GetCurrentMaUser();
         if (maUser is null) return Unauthorized();
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "Chưa chọn file ảnh hoặc video." });
         if (_storage is null)
             return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Chưa cấu hình lưu media." });
         var validation = await MediaUploadRules.ValidateAsync(file, allowVideo: true, cancellationToken);

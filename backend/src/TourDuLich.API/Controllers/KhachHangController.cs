@@ -395,8 +395,9 @@ public class KhachHangController : ControllerBase
     [HttpPost("{maKhachHang}/giay-to/{maGiayTo}/anh")]
     [Authorize(Roles = "KhachHang")]
     [RequestSizeLimit(10_485_760)]
+    [Consumes("multipart/form-data")]
     public async Task<ActionResult> UploadDocumentImage(
-        string maKhachHang, string maGiayTo, [FromForm] IFormFile file, [FromQuery] string mat = "Truoc",
+        string maKhachHang, string maGiayTo, [FromForm] IFormFile? file, [FromQuery] string mat = "Truoc",
         CancellationToken cancellationToken = default)
     {
         var maUserDb = CurrentUserDb();
@@ -414,8 +415,9 @@ public class KhachHangController : ControllerBase
     [Authorize(Roles = "Sale,Admin")]
     [RequirePermission(PermissionCatalog.KhachHang, PermissionCatalog.Sua)]
     [RequestSizeLimit(10_485_760)]
+    [Consumes("multipart/form-data")]
     public async Task<ActionResult> StaffUploadDocumentImage(
-        string maKhachHang, string maGiayTo, [FromForm] IFormFile file, [FromQuery] string mat = "Truoc",
+        string maKhachHang, string maGiayTo, [FromForm] IFormFile? file, [FromQuery] string mat = "Truoc",
         CancellationToken cancellationToken = default)
     {
         var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
@@ -457,7 +459,7 @@ public class KhachHangController : ControllerBase
     }
 
     private async Task<ActionResult> SaveDocumentImage(
-        GiayTo document, IFormFile file, string mat, CancellationToken cancellationToken)
+        GiayTo document, IFormFile? file, string mat, CancellationToken cancellationToken)
     {
         var side = (mat ?? "Truoc").Trim();
         if (side is not ("Truoc" or "Sau"))

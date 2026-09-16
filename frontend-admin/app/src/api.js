@@ -35,7 +35,7 @@ api.interceptors.response.use(
 );
 export const persistAuth=persistSession;
 export const clearAuth=clearSession;
-export const errorMessage=(e,f='Có lỗi xảy ra.')=>e?.response?.data?.message||e?.response?.data?.title||(e?.response?.status===429?'Quá nhiều lần thử. Vui lòng đợi rồi thử lại.':e?.response?.status===403?'Bạn không có quyền thực hiện thao tác này.':e?.response?.status===401?'Phiên đăng nhập đã hết hạn.':f);
+export const errorMessage=(e,f='Có lỗi xảy ra.')=>{const d=e?.response?.data;if(d?.message)return d.message;const errs=d?.errors&&typeof d.errors==='object'?Object.values(d.errors).flat().filter(Boolean):[];if(errs.length){const j=errs.join(' ');return /file field is required/i.test(j)?'Không nhận được file. Chọn lại ảnh rồi gửi.':j;}if(d?.title&&d.title!=='One or more validation errors occurred.')return d.title;return e?.response?.status===429?'Quá nhiều lần thử. Vui lòng đợi rồi thử lại.':e?.response?.status===403?'Bạn không có quyền thực hiện thao tác này.':e?.response?.status===401?'Phiên đăng nhập đã hết hạn.':f;};
 export const login=data=>api.post('/api/Auth/login',data);
 export const logoutSession=(refreshToken)=>api.post('/api/Auth/logout',{refreshToken});
 export const tours=(params)=>api.get('/api/Tour',{params:{pageSize:100,...params}}); export const createTour=d=>api.post('/api/Tour',d); export const createAdminDesignedTour=d=>api.post('/api/YeuCauThietKe/admin-tao',d); export const updateTour=(id,d)=>api.put(`/api/Tour/${encodeURIComponent(id)}`,d); export const deleteTour=id=>api.delete(`/api/Tour/${encodeURIComponent(id)}`);
@@ -96,12 +96,18 @@ export const staffUpdateDocument=(id,docId,data)=>api.put(`/api/KhachHang/sale/$
 export const staffDeleteDocument=(id,docId)=>api.delete(`/api/KhachHang/sale/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}`);
 export const uploadCustomerDocImage=(id,docId,file,mat='Truoc')=>{const data=new FormData();data.append('file',file);return api.post(`/api/KhachHang/sale/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}/anh?mat=${encodeURIComponent(mat)}`,data)};
 export const staffPaperImage=(id,docId,mat='Truoc')=>api.get(`/api/KhachHang/sale/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}/anh?mat=${encodeURIComponent(mat)}`,{responseType:'blob'});
-export const connectSupportHub=(token,onEvent)=>{
+export const connectSupportHub=(onEvent)=>{
   const Hub=window.signalR?.HubConnectionBuilder;
-  if(!Hub||!token) return ()=>{};
+  const token=()=>localStorage.getItem('admin_token');
+  if(!Hub||!token()) return ()=>{};
+  const T=window.signalR.HttpTransportType||{};
   const connection=new window.signalR.HubConnectionBuilder()
-    .withUrl(`${api.defaults.baseURL}/hubs/hotro`,{accessTokenFactory:()=>token})
-    .withAutomaticReconnect()
+    .withUrl(`${api.defaults.baseURL}/hubs/hotro`,{
+      accessTokenFactory:()=>token()||'',
+      transport:(T.WebSockets||1)|(T.ServerSentEvents||2)|(T.LongPolling||4),
+      withCredentials:true
+    })
+    .withAutomaticReconnect([0,1000,2000,5000,10000])
     .build();
   connection.on('hotro',onEvent);
   connection.start().catch(()=>{});

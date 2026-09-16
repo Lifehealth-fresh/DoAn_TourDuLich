@@ -44,12 +44,23 @@ public class HoTroController : ControllerBase
 
     [HttpGet("cua-toi")]
     [Authorize(Roles = "KhachHang")]
-    public async Task<ActionResult> Mine()
+    public async Task<ActionResult> Mine([FromQuery] bool danhDauDoc = false)
     {
         var maUserDb = CurrentUserDb();
         if (maUserDb is null) return Unauthorized();
         var thread = await OpenOrGetAsync(maUserDb);
-        return Ok(await ToThreadAsync(thread, readerIsStaff: false));
+        return Ok(await ToThreadAsync(thread, readerIsStaff: false, danhDauDoc: danhDauDoc));
+    }
+
+    [HttpPost("cua-toi/phien-moi")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<ActionResult> NewSession()
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+        await CloseOpenThreadsAsync(maUserDb);
+        var thread = await OpenOrGetAsync(maUserDb);
+        return Ok(await ToThreadAsync(thread, readerIsStaff: false, danhDauDoc: false));
     }
 
     [HttpPost("cua-toi")]
@@ -79,7 +90,7 @@ public class HoTroController : ControllerBase
         });
         thread.ThoiGianCapNhat = DateTime.UtcNow;
         await _context.SaveChangesAsync();
-        var payload = await ToThreadAsync(thread, readerIsStaff: false);
+        var payload = await ToThreadAsync(thread, readerIsStaff: false, danhDauDoc: true);
         await NotifyAsync(thread);
         return Ok(payload);
     }
@@ -139,7 +150,7 @@ public class HoTroController : ControllerBase
             .FirstOrDefaultAsync(item => item.MaCuoc == FixedLengthHelper.PadTo20(maCuoc));
         if (thread is null)
             return NotFound(new { message = "Không tìm thấy cuộc trò chuyện." });
-        return Ok(await ToThreadAsync(thread, readerIsStaff: true, includeGuest: true));
+        return Ok(await ToThreadAsync(thread, readerIsStaff: true, includeGuest: true, danhDauDoc: true));
     }
 
     [HttpPost("quan-ly/{maCuoc}")]
@@ -174,7 +185,7 @@ public class HoTroController : ControllerBase
             DaDoc = false
         });
         await _context.SaveChangesAsync();
-        var payload = await ToThreadAsync(thread, readerIsStaff: true, includeGuest: true);
+        var payload = await ToThreadAsync(thread, readerIsStaff: true, includeGuest: true, danhDauDoc: true);
         await NotifyAsync(thread);
         return Ok(payload);
     }
@@ -188,7 +199,7 @@ public class HoTroController : ControllerBase
     private async Task<CuocTroChuyen> OpenOrGetAsync(string maUserKhach)
     {
         var existing = await _context.CuocTroChuyens
-            .Where(item => item.MaUserKhach == maUserKhach)
+            .Where(item => item.MaUserKhach == maUserKhach && item.TrangThai.Trim() == "Mo")
             .OrderByDescending(item => item.ThoiGianCapNhat)
             .FirstOrDefaultAsync();
         if (existing is not null) return existing;
@@ -206,14 +217,30 @@ public class HoTroController : ControllerBase
         return created;
     }
 
-    private async Task<object> ToThreadAsync(CuocTroChuyen thread, bool readerIsStaff, bool includeGuest = false)
+    private async Task CloseOpenThreadsAsync(string maUserKhach)
+    {
+        var open = await _context.CuocTroChuyens
+            .Where(item => item.MaUserKhach == maUserKhach && item.TrangThai.Trim() == "Mo")
+            .ToListAsync();
+        foreach (var thread in open)
+        {
+            thread.TrangThai = "Dong";
+            thread.ThoiGianCapNhat = DateTime.UtcNow;
+        }
+        if (open.Count > 0) await _context.SaveChangesAsync();
+    }
+
+    private async Task<object> ToThreadAsync(CuocTroChuyen thread, bool readerIsStaff, bool includeGuest = false, bool danhDauDoc = false)
     {
         var incoming = readerIsStaff ? "KhachHang" : "NhanVien";
-        var unread = await _context.TinNhanHoTros
-            .Where(item => item.MaCuoc == thread.MaCuoc && item.VaiTroGui == incoming && !item.DaDoc)
-            .ToListAsync();
-        foreach (var item in unread) item.DaDoc = true;
-        if (unread.Count > 0) await _context.SaveChangesAsync();
+        if (danhDauDoc)
+        {
+            var unread = await _context.TinNhanHoTros
+                .Where(item => item.MaCuoc == thread.MaCuoc && item.VaiTroGui == incoming && !item.DaDoc)
+                .ToListAsync();
+            foreach (var item in unread) item.DaDoc = true;
+            if (unread.Count > 0) await _context.SaveChangesAsync();
+        }
 
         var messages = await _context.TinNhanHoTros.AsNoTracking()
             .Where(item => item.MaCuoc == thread.MaCuoc)
@@ -224,7 +251,8 @@ public class HoTroController : ControllerBase
                 vaiTro = item.VaiTroGui,
                 noiDung = item.NoiDung,
                 thoiGian = item.ThoiGian,
-                cuaToi = item.MaUserGui
+                cuaToi = item.MaUserGui,
+                daDoc = item.DaDoc
             })
             .ToListAsync();
 
@@ -257,16 +285,20 @@ public class HoTroController : ControllerBase
                 item.vaiTro,
                 item.noiDung,
                 item.thoiGian,
+                item.daDoc,
                 cuaToi = item.cuaToi == me
-            })
+            }),
+            soChuaDoc = messages.Count(item => item.vaiTro == incoming && !item.daDoc)
         };
     }
 
     private async Task NotifyAsync(CuocTroChuyen thread)
     {
         var maCuoc = FixedLengthHelper.TrimSafe(thread.MaCuoc);
-        await _hub.Clients.Group($"user:{thread.MaUserKhach.Trim()}").SendAsync("hotro", new { maCuoc });
-        await _hub.Clients.Group("staff").SendAsync("hotro", new { maCuoc });
+        var payload = new { maCuoc };
+        var key = thread.MaUserKhach.Trim();
+        await _hub.Clients.Group($"user:{key}").SendAsync("hotro", payload);
+        await _hub.Clients.Group("staff").SendAsync("hotro", payload);
     }
 
     private async Task<string> NewIdAsync()

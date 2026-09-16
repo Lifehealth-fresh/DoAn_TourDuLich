@@ -46,6 +46,10 @@ let refreshing = null;
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    if (typeof config.headers?.delete === 'function') config.headers.delete('Content-Type');
+    else delete config.headers['Content-Type'];
+  }
   return config;
 });
 
@@ -88,7 +92,17 @@ export const errorMessage = (error, fallback = 'Có lỗi xảy ra. Vui lòng th
   const data = error?.response?.data;
   if (typeof data === 'string' && data.trim()) return data;
   if (data?.message) return data.message;
-  if (data?.title) return data.title;
+  const fieldErrors = data?.errors;
+  if (fieldErrors && typeof fieldErrors === 'object') {
+    const parts = Object.values(fieldErrors).flat().filter(Boolean);
+    if (parts.length) {
+      const joined = parts.join(' ');
+      if (/file field is required/i.test(joined) || /the file field/i.test(joined))
+        return 'Không nhận được file. Chọn lại ảnh/video rồi gửi.';
+      return joined;
+    }
+  }
+  if (data?.title && data.title !== 'One or more validation errors occurred.') return data.title;
   if (error?.response?.status === 429) return 'Quá nhiều lần thử. Vui lòng đợi rồi thử lại.';
   if (error?.message === 'Network Error') return 'Không kết nối được máy chủ. Kiểm tra API đang chạy.';
   return fallback;
@@ -161,12 +175,21 @@ export const uploadDocumentImage = (id, docId, file, mat = 'Truoc') => {
 export const paperImageBlob = (id, docId, mat = 'Truoc') =>
   api.get(`/api/KhachHang/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}/anh?mat=${encodeURIComponent(mat)}`, { responseType: 'blob' });
 
-export const connectSupportHub = (token, onEvent) => {
+export const connectSupportHub = (onEvent) => {
   const Hub = window.signalR?.HubConnectionBuilder;
-  if (!Hub || !token) return () => {};
+  const token = () => localStorage.getItem(TOKEN_KEY);
+  if (!Hub || !token()) return () => {};
+  const HttpTransportType = window.signalR.HttpTransportType || {};
+  const transports = (HttpTransportType.WebSockets || 1)
+    | (HttpTransportType.ServerSentEvents || 2)
+    | (HttpTransportType.LongPolling || 4);
   const connection = new window.signalR.HubConnectionBuilder()
-    .withUrl(`${api.defaults.baseURL}/hubs/hotro`, { accessTokenFactory: () => token })
-    .withAutomaticReconnect()
+    .withUrl(`${api.defaults.baseURL}/hubs/hotro`, {
+      accessTokenFactory: () => token() || '',
+      transport: transports,
+      withCredentials: true,
+    })
+    .withAutomaticReconnect([0, 1000, 2000, 5000, 10000])
     .build();
   connection.on('hotro', onEvent);
   connection.start().catch(() => {});
@@ -180,6 +203,7 @@ export const requestDesignRevision=(id,lyDo)=>api.put('/api/YeuCauThietKe/'+enco
 export const provinces = (q) => api.get('/api/TinhThanh', { params: q ? { q } : {} });
 export const designChat = (data) => api.post('/api/YeuCauThietKe/chat', data);
 export const supportChat = (data) => api.post('/api/HoTro/chat', data);
-export const mySupport = () => api.get('/api/HoTro/cua-toi');
+export const mySupport = (danhDauDoc = false) => api.get('/api/HoTro/cua-toi', { params: { danhDauDoc } });
 export const sendSupport = (noiDung) => api.post('/api/HoTro/cua-toi', { noiDung });
+export const startSupportSession = () => api.post('/api/HoTro/cua-toi/phien-moi');
 export const designChatDetail = (id) => api.get('/api/YeuCauThietKe/chat/' + encodeURIComponent(id));

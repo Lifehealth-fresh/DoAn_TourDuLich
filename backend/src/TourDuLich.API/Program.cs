@@ -60,7 +60,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("Frontend", policy =>
         policy.WithOrigins(corsOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .AllowCredentials());
 });
 
 builder.Services.AddSwaggerGen(options =>
@@ -176,7 +177,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<TourDuLich.API.Hubs.HoTroHub>("/hubs/hotro");
+app.MapHub<TourDuLich.API.Hubs.HoTroHub>("/hubs/hotro").RequireCors("Frontend");
 
 app.Run();
 
