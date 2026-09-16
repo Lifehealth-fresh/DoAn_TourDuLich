@@ -161,15 +161,22 @@ public static class ItineraryDayFrame
                 return false;
             foreach (var (gapStart, gapEnd) in timeline.Gaps(from, until))
             {
-                var take = VisitDuration <= gapEnd - gapStart ? VisitDuration : gapEnd - gapStart;
-                if (take < VisitMin)
-                    continue;
-                var point = NextPoint();
-                var ticket = TicketOf(point);
-                timeline.Add(gapStart, take, false,
-                    $"Tham quan {point.TenDiaDanh} — {AddressOf(point, ticket, placeName)} ({DurationText(take)}).",
-                    ItineraryKinds.ThamQuan, point, ticket, ticket?.GiaNiemYet ?? 0, guests);
-                return true;
+                var start = gapStart;
+                while (start + VisitMin <= gapEnd)
+                {
+                    var take = VisitDuration <= gapEnd - start ? VisitDuration : gapEnd - start;
+                    if (take < VisitMin)
+                        break;
+                    var point = NextPoint();
+                    var ticket = TicketOf(point);
+                    var added = timeline.Add(start, take, false,
+                        $"Tham quan {point.TenDiaDanh} — {AddressOf(point, ticket, placeName)} ({DurationText(take)}).",
+                        ItineraryKinds.ThamQuan, point, ticket, ticket?.GiaNiemYet ?? 0, guests);
+                    if (added is not null)
+                        return true;
+                    visitIndex--;
+                    start += TimeSpan.FromMinutes(15);
+                }
             }
             return false;
         }
@@ -392,6 +399,12 @@ public static class ItineraryDayFrame
         public IEnumerable<(TimeSpan Start, TimeSpan End)> Gaps(TimeSpan from, TimeSpan until)
         {
             var cursor = from;
+            var prior = Slots.Where(item => item.End > item.Start && item.End <= from)
+                .Select(item => item.End + Gap)
+                .DefaultIfEmpty(from)
+                .Max();
+            if (prior > cursor)
+                cursor = prior;
             foreach (var slot in Slots.Where(item => item.End > from && item.End > item.Start).OrderBy(item => item.Start))
             {
                 var occupiedStart = slot.Start < from ? from : slot.Start;
