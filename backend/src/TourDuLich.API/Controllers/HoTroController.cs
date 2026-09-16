@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using TourDuLich.API.Authorization;
+using TourDuLich.API.Hubs;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Application.Services;
 using TourDuLich.Infrastructure;
@@ -16,11 +18,13 @@ public class HoTroController : ControllerBase
 {
     private readonly IDesignChatService _chat;
     private readonly AppDbContext _context;
+    private readonly IHubContext<HoTroHub> _hub;
 
-    public HoTroController(IDesignChatService chat, AppDbContext context)
+    public HoTroController(IDesignChatService chat, AppDbContext context, IHubContext<HoTroHub> hub)
     {
         _chat = chat;
         _context = context;
+        _hub = hub;
     }
 
     [HttpPost("chat")]
@@ -75,7 +79,9 @@ public class HoTroController : ControllerBase
         });
         thread.ThoiGianCapNhat = DateTime.UtcNow;
         await _context.SaveChangesAsync();
-        return Ok(await ToThreadAsync(thread, readerIsStaff: false));
+        var payload = await ToThreadAsync(thread, readerIsStaff: false);
+        await NotifyAsync(thread);
+        return Ok(payload);
     }
 
     [HttpGet("quan-ly")]
@@ -168,7 +174,9 @@ public class HoTroController : ControllerBase
             DaDoc = false
         });
         await _context.SaveChangesAsync();
-        return Ok(await ToThreadAsync(thread, readerIsStaff: true, includeGuest: true));
+        var payload = await ToThreadAsync(thread, readerIsStaff: true, includeGuest: true);
+        await NotifyAsync(thread);
+        return Ok(payload);
     }
 
     private string? CurrentUserDb()
@@ -252,6 +260,13 @@ public class HoTroController : ControllerBase
                 cuaToi = item.cuaToi == me
             })
         };
+    }
+
+    private async Task NotifyAsync(CuocTroChuyen thread)
+    {
+        var maCuoc = FixedLengthHelper.TrimSafe(thread.MaCuoc);
+        await _hub.Clients.Group($"user:{thread.MaUserKhach.Trim()}").SendAsync("hotro", new { maCuoc });
+        await _hub.Clients.Group("staff").SendAsync("hotro", new { maCuoc });
     }
 
     private async Task<string> NewIdAsync()

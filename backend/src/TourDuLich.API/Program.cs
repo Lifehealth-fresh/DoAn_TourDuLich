@@ -46,8 +46,13 @@ if (corsOrigins.Length == 0 && builder.Environment.IsDevelopment())
 }
 else if (corsOrigins.Length == 0)
 {
-    throw new InvalidOperationException(
-        "Cors:Origins must contain at least one frontend origin outside Development.");
+    corsOrigins =
+    [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "https://calm-smoke-0872fdc00.azurestaticapps.net",
+        "https://green-sand-09f811a00.azurestaticapps.net"
+    ];
 }
 
 builder.Services.AddCors(options =>
@@ -78,16 +83,16 @@ builder.Services.AddScoped<RefreshTokenService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IHanhViLogger, HanhViLogger>();
 builder.Services.AddScoped<PlannerCatalog>();
-builder.Services.AddHttpClient<GeminiLlmClient>();
+builder.Services.AddScoped<ITravelTimeService, TravelTimeService>();
 builder.Services.AddScoped<DeXuatLichTrinhService>();
-builder.Services.AddScoped<IDeXuatLichTrinhService, AiPlannerDecorator>();
+builder.Services.AddScoped<IDeXuatLichTrinhService>(sp => sp.GetRequiredService<DeXuatLichTrinhService>());
 builder.Services.AddScoped<IDestinationResolver, DestinationResolver>();
-builder.Services.AddHttpClient<ITravelTimeService, TravelTimeService>();
 builder.Services.AddScoped<IDesignChatService, DesignChatService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ITourMediaStorage, TourMediaStorage>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<IAiRecommendationClient, AiRecommendationClient>();
+builder.Services.AddSignalR();
 builder.Services.AddHostedService<AiRecommendationRefreshWorker>();
 
 var authPermitLimit = builder.Environment.IsDevelopment() ? 1000 : 10;
@@ -135,6 +140,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtKey))
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var token = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(token) &&
+                    context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                    context.Token = token;
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization(options =>
@@ -160,6 +176,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<TourDuLich.API.Hubs.HoTroHub>("/hubs/hotro");
 
 app.Run();
 

@@ -69,6 +69,7 @@ public class DoiTacController : ControllerBase
                 nguoiLienHe = item.NguoiLienHe,
                 soDienThoai = FixedLengthHelper.TrimSafe(item.SoDienThoai),
                 email = item.Email,
+                diaChi = item.DiaChi,
                 maKhuVuc = FixedLengthHelper.TrimSafe(item.MaKhuVuc),
                 tenKhuVuc = item.MaKhuVucNavigation!.TenKhuVuc,
                 maTinh = FixedLengthHelper.TrimSafe(item.MaTinh),
@@ -97,6 +98,7 @@ public class DoiTacController : ControllerBase
                 nguoiLienHe = item.NguoiLienHe,
                 soDienThoai = FixedLengthHelper.TrimSafe(item.SoDienThoai),
                 email = item.Email,
+                diaChi = item.DiaChi,
                 maKhuVuc = FixedLengthHelper.TrimSafe(item.MaKhuVuc),
                 tenKhuVuc = item.MaKhuVucNavigation!.TenKhuVuc,
                 maTinh = FixedLengthHelper.TrimSafe(item.MaTinh),
@@ -177,6 +179,7 @@ public class DoiTacController : ControllerBase
             NguoiLienHe = request.NguoiLienHe?.Trim(),
             SoDienThoai = request.SoDienThoai?.Trim(),
             Email = request.Email?.Trim(),
+            DiaChi = request.DiaChi?.Trim(),
             MaKhuVuc = maKhuVucDb,
             PhanTramHoaHong = request.PhanTramHoaHong,
             TrangThai = string.IsNullOrWhiteSpace(request.TrangThai)
@@ -268,6 +271,7 @@ public class DoiTacController : ControllerBase
         doiTac.NguoiLienHe = request.NguoiLienHe?.Trim();
         doiTac.SoDienThoai = request.SoDienThoai?.Trim();
         doiTac.Email = request.Email?.Trim();
+        doiTac.DiaChi = request.DiaChi?.Trim();
         doiTac.MaKhuVuc = maKhuVucDb;
         doiTac.PhanTramHoaHong = request.PhanTramHoaHong;
         doiTac.TrangThai = string.IsNullOrWhiteSpace(request.TrangThai)

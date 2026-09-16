@@ -244,7 +244,7 @@ function DesignRequestDetail({ id }) {
             <dt>Xuất phát</dt><dd>{request.maTinhXuatPhat || '—'}</dd>
             <dt>Ngày / giờ đi</dt><dd>{dateText(request.ngayDuKienDi)} {request.gioKhoiHanh || ''}</dd>
             <dt>Giờ về (điểm xuất phát)</dt><dd>{request.gioKetThuc || '20:00'}</dd>
-            <dt>Thời gian</dt><dd>{request.soNgay ?? '—'} ngày</dd>
+            <dt>Thời gian</dt><dd>{request.soNgay ?? '—'} ngày{request.soDem != null ? ` / ${request.soDem} đêm` : ''}{request.spillSangHomSau ? ` · trả phòng sáng ${request.ngayTraPhong || ''}` : ''}</dd>
             <dt>Hành khách</dt><dd>{request.soNguoiLon} người lớn · {request.soTreEm} trẻ em</dd>
             <dt>Ngân sách</dt><dd>{request.nganSachDuKien == null ? 'Chưa cập nhật' : money(request.nganSachDuKien)}</dd>
             <dt>Mục đích</dt><dd>{request.mucDich || '—'}</dd>

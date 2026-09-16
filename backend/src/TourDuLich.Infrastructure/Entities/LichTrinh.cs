@@ -16,6 +16,7 @@ public partial class LichTrinh
     public int? ThanhTien { get; set; }
     public DateTime? ThoiGianDuKien { get; set; }
     public string? Mota { get; set; }
+    public string? LoaiDong { get; set; }
     public virtual DiemThamQuan? MaDthamQuanNavigation { get; set; }
     public virtual SanPhamDoiTac? MaSanPhamNavigation { get; set; }
     public virtual Tour MaTourNavigation { get; set; } = null!;

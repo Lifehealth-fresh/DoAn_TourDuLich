@@ -52,15 +52,51 @@ public sealed class ItineraryDayFrameTests
     }
 
     [Fact]
+    public void LastEvening_DinnerEndsThirtyMinutesBeforeCheckout()
+    {
+        var stops = Compose(days: 4, depart: new TimeSpan(8, 0, 0), returnBy: new TimeSpan(20, 0, 0));
+        var day4 = stops.Where(item => item.Day == 4).OrderBy(item => item.Start).ToList();
+        var dinner = day4.First(item => item.Kind == ItineraryKinds.AnToi);
+        var checkout = day4.Last(item => item.Kind == ItineraryKinds.CheckOut);
+        Assert.Equal(new TimeSpan(16, 30, 0), dinner.Start);
+        Assert.Equal(new TimeSpan(18, 30, 0), dinner.End);
+        Assert.Equal(new TimeSpan(19, 0, 0), checkout.Start);
+        Assert.True(checkout.Start >= dinner.End + ItineraryDayFrame.Gap);
+        Assert.Equal(checkout, day4[^1]);
+        Assert.Contains(day4, item => item.Kind == ItineraryKinds.AnSang);
+        Assert.Contains(day4, item => item.Kind == ItineraryKinds.ThamQuan);
+        AssertNoOverlap(day4.Where(item => item.End > item.Start).ToList());
+    }
+
+    [Fact]
+    public void LastMorning_OnlyBreakfastAndCheckout()
+    {
+        var stops = Compose(days: 3, depart: new TimeSpan(8, 0, 0), returnBy: new TimeSpan(9, 0, 0));
+        var last = stops.Where(item => item.Day == 3).OrderBy(item => item.Start).ToList();
+        Assert.Contains(last, item => item.Kind == ItineraryKinds.AnSang);
+        Assert.Equal(ItineraryKinds.CheckOut, last[^1].Kind);
+        Assert.DoesNotContain(last, item => item.Kind == ItineraryKinds.AnToi);
+        Assert.DoesNotContain(last, item => item.Kind == ItineraryKinds.ThamQuan);
+    }
+
+    [Fact]
+    public void MiddleDay_HasOneOrTwoVisits()
+    {
+        var stops = Compose(days: 4, depart: new TimeSpan(8, 0, 0), returnBy: new TimeSpan(20, 0, 0));
+        var day2 = stops.Where(item => item.Day == 2 && item.Kind == ItineraryKinds.ThamQuan).ToList();
+        Assert.InRange(day2.Count, 1, 2);
+    }
+
+    [Fact]
     public void HotelStayRules_AllowsFirstAndLastDayWithoutVisit()
     {
         var hotel = Hotel();
-        var error = HotelStayRules.ItineraryStructureMessage(new (int, int, string?, SanPhamDoiTac?)[]
+        var error = HotelStayRules.ItineraryStructureMessage(new (int, int, string?, SanPhamDoiTac?, string?)[]
         {
-            (1, 1, null, hotel),
-            (2, 1, "DT1", hotel),
-            (2, 2, null, Meal()),
-            (3, 1, null, hotel)
+            (1, 1, null, hotel, ItineraryKinds.CheckIn),
+            (2, 1, "DT1", hotel, ItineraryKinds.ThamQuan),
+            (2, 2, null, Meal(), ItineraryKinds.AnTrua),
+            (3, 1, null, hotel, ItineraryKinds.CheckOut)
         });
         Assert.Null(error);
     }

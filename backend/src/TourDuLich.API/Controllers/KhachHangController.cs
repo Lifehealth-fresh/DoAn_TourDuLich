@@ -17,11 +17,24 @@ public class KhachHangController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly ITourMediaStorage? _storage;
+    private readonly IHttpClientFactory _http;
+    private readonly IWebHostEnvironment _env;
 
-    public KhachHangController(AppDbContext context, ITourMediaStorage? storage = null)
+    public KhachHangController(
+        AppDbContext context,
+        IWebHostEnvironment env,
+        ITourMediaStorage? storage = null,
+        IHttpClientFactory? http = null)
     {
         _context = context;
+        _env = env;
         _storage = storage;
+        _http = http ?? new DummyFactory();
+    }
+
+    private sealed class DummyFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new();
     }
 
     [HttpGet("quan-ly")]
@@ -413,6 +426,36 @@ public class KhachHangController : ControllerBase
         return await SaveDocumentImage(document, file, mat, cancellationToken);
     }
 
+    [HttpGet("{maKhachHang}/giay-to/{maGiayTo}/anh")]
+    [Authorize(Roles = "KhachHang")]
+    public async Task<IActionResult> GetDocumentImage(
+        string maKhachHang, string maGiayTo, [FromQuery] string mat = "Truoc", CancellationToken cancellationToken = default)
+    {
+        var maUserDb = CurrentUserDb();
+        if (maUserDb is null) return Unauthorized();
+        var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
+            item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo) &&
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang) &&
+            item.MaKhachHangNavigation.MaUser == maUserDb, cancellationToken);
+        if (document is null)
+            return NotFound(new { message = "Không tìm thấy giấy tờ thuộc hồ sơ của bạn." });
+        return await StreamDocumentImage(document, mat, cancellationToken);
+    }
+
+    [HttpGet("sale/{maKhachHang}/giay-to/{maGiayTo}/anh")]
+    [Authorize(Roles = "Sale,Admin")]
+    [RequirePermission(PermissionCatalog.KhachHang, PermissionCatalog.Xem)]
+    public async Task<IActionResult> StaffGetDocumentImage(
+        string maKhachHang, string maGiayTo, [FromQuery] string mat = "Truoc", CancellationToken cancellationToken = default)
+    {
+        var document = await _context.GiayTos.FirstOrDefaultAsync(item =>
+            item.MaGiayTo == FixedLengthHelper.PadTo20(maGiayTo) &&
+            item.MaKhachHang == FixedLengthHelper.PadTo20(maKhachHang), cancellationToken);
+        if (document is null)
+            return NotFound(new { message = "Không tìm thấy giấy tờ." });
+        return await StreamDocumentImage(document, mat, cancellationToken);
+    }
+
     private async Task<ActionResult> SaveDocumentImage(
         GiayTo document, IFormFile file, string mat, CancellationToken cancellationToken)
     {
@@ -620,9 +663,44 @@ public class KhachHangController : ControllerBase
             ngayCap = document.NgayCap,
             ngayHetHan = document.NgayHetHan,
             noiCap = document.NoiCap,
-            anhMatTruoc = document.AnhMatTruoc,
-            anhMatSau = document.AnhMatSau
+            hasAnhMatTruoc = !string.IsNullOrWhiteSpace(document.AnhMatTruoc),
+            hasAnhMatSau = !string.IsNullOrWhiteSpace(document.AnhMatSau)
         };
+    }
+
+    private async Task<IActionResult> StreamDocumentImage(GiayTo document, string mat, CancellationToken cancellationToken)
+    {
+        var side = (mat ?? "Truoc").Trim();
+        var url = side.Equals("Sau", StringComparison.OrdinalIgnoreCase) ? document.AnhMatSau : document.AnhMatTruoc;
+        if (string.IsNullOrWhiteSpace(url))
+            return NotFound(new { message = "Chưa có ảnh mặt này." });
+        if (url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase) || url.Contains("/uploads/", StringComparison.OrdinalIgnoreCase))
+        {
+            var relative = url[(url.IndexOf("/uploads/", StringComparison.OrdinalIgnoreCase) + "/uploads/".Length)..]
+                .Replace('/', Path.DirectorySeparatorChar);
+            var webRoot = string.IsNullOrWhiteSpace(_env.WebRootPath)
+                ? Path.Combine(_env.ContentRootPath, "wwwroot")
+                : _env.WebRootPath;
+            var full = Path.GetFullPath(Path.Combine(webRoot, "uploads", relative));
+            var root = Path.GetFullPath(Path.Combine(webRoot, "uploads")) + Path.DirectorySeparatorChar;
+            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(full))
+                return NotFound();
+            return PhysicalFile(full, "image/jpeg");
+        }
+        try
+        {
+            var client = _http.CreateClient();
+            using var response = await client.GetAsync(url, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return NotFound();
+            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            var type = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+            return File(bytes, type);
+        }
+        catch
+        {
+            return NotFound();
+        }
     }
 
     private async Task<string> GenerateIdAsync(string prefix, IQueryable<string> existingIds)

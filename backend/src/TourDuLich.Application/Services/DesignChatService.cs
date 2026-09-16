@@ -32,14 +32,10 @@ public sealed class DesignChatService : IDesignChatService
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private readonly AppDbContext _context;
-    private readonly PlannerCatalog _catalog;
-    private readonly GeminiLlmClient _llm;
 
-    public DesignChatService(AppDbContext context, PlannerCatalog catalog, GeminiLlmClient llm)
+    public DesignChatService(AppDbContext context)
     {
         _context = context;
-        _catalog = catalog;
-        _llm = llm;
     }
 
     public async Task<DesignChatTurn> GetAsync(string maUser, string maHoiThoai, CancellationToken cancellationToken = default)
@@ -85,37 +81,10 @@ public sealed class DesignChatService : IDesignChatService
         }
 
         await AddGuest(chat, spoken, cancellationToken);
-        var reply = await ReplyAsync(spoken, cancellationToken);
+        var reply = Faq(spoken);
         await AddBot(chat, reply, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
         return ToTurn(chat);
-    }
-
-    private async Task<string> ReplyAsync(string spoken, CancellationToken cancellationToken)
-    {
-        if (_llm.IsEnabled)
-        {
-            try
-            {
-                var text = await _llm.CompleteWithToolsAsync(
-                    """
-                    Bạn là trợ lý website Tour ANAM. Chỉ hướng dẫn thao tác và tra cứu CSDL qua function.
-                    Không tự tạo tour, giá, hoặc lịch trình. Nếu khách muốn tự thiết kế, bảo họ mở trang Tự thiết kế và điền form.
-                    Trả lời tiếng Việt, ngắn, rõ bước.
-                    """,
-                    spoken,
-                    PlannerCatalog.SupportDeclarations(),
-                    _catalog.ExecuteAsync,
-                    cancellationToken);
-                if (!string.IsNullOrWhiteSpace(text))
-                    return text.Trim();
-            }
-            catch
-            {
-                // FAQ fallback
-            }
-        }
-        return Faq(spoken);
     }
 
     private static string Faq(string spoken)

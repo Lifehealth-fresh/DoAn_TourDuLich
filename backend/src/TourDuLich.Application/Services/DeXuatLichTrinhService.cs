@@ -102,7 +102,7 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
                         2 => "Phương án cân bằng",
                         _ => "Phương án cao cấp"
                     },
-                GhiChu = BudgetNote(placeName, hotel, goLeg, budget, ratio),
+                GhiChu = BudgetNote(placeName, hotel, goLeg, budget, ratio, days, nights, spill),
                 TrangThai = FixedLengthHelper.PadTo20("DeXuat"),
                 NgayTao = DateTime.UtcNow
             };
@@ -134,6 +134,7 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
                     DonGia = stop.DonGia,
                     ThanhTien = TuThietKeTourPricing.CalculateLine(stop.DonGia, stop.SoLuong),
                     GioBatDau = stop.Start,
+                    LoaiDong = FixedLengthHelper.PadTo20(stop.Kind),
                     Mota = HotelStayRules.FormatRange(stop.Start, stop.End, stop.Caption)
                 });
             }
@@ -154,11 +155,14 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
         return plans;
     }
 
-    private static string BudgetNote(string place, SanPhamDoiTac hotel, TravelLeg? go, int? budget, double ratio)
+    private static string BudgetNote(string place, SanPhamDoiTac hotel, TravelLeg? go, int? budget, double ratio, int days, int nights, bool spill)
     {
         var target = budget is > 0 ? $" Mục tiêu khoảng {ratio:P0} ngân sách ({budget * ratio:N0} đ, sai số ±12%)." : "";
-        var ride = go is null ? "" : $" Chiều đi: {go.Label} ~{go.Minutes} phút ({go.Source}).";
-        return $"Lịch {place}. Một khách sạn: {hotel.MaDoiTacNavigation.TenDoiTac}.{ride}{target}";
+        var ride = go is null ? "" : $" Chiều đi: {go.Label} ~{ItineraryDayFrame.DurationText(TimeSpan.FromMinutes(go.Minutes))} ({go.Source}).";
+        var stay = spill
+            ? $" {days} ngày khách chọn / {nights} đêm, trả phòng sáng ngày {days + 1}."
+            : $" {days} ngày / {nights} đêm.";
+        return $"Lịch {place}.{stay} Một khách sạn: {hotel.MaDoiTacNavigation.TenDoiTac}.{ride}{target}";
     }
 
     private static SanPhamDoiTac SelectHotel(IReadOnlyList<SanPhamDoiTac> hotels, int planNumber, int? budget, int nights, int guests)

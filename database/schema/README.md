@@ -27,6 +27,9 @@ database. Không có `CREATE DATABASE` hoặc `USE`; hãy mở đúng database t
 27. `027_DanhGiaCongKhaiVaNoiBo.sql` — cột `CongKhai` trên `DanhGiaTour`, quyền module `DanhGia` (chỉ xem), seed ~90 bài đánh giá công khai. Chạy sau 026.
 28. `028_ReviewEditMediaVaKhachHang.sql` — hạn sửa đánh giá 5 ngày (`ThoiGianSua`), Cloudinary media đánh giá, ảnh CCCD giấy tờ, quyền module `KhachHang`. Chạy sau 027.
 29. `029_TaiKhoanNhanVienVaHoTro.sql` — hồ sơ nhân viên (`NhanVien`), `NguoiSuDung.TrangThai` (xóa = VoHieu), chat khách–admin (`CuocTroChuyen`/`TinNhanHoTro`), quyền module `HoTro`. Chạy sau 028.
+30. `030_DiaChiLoaiDongAnUong.sql` — `DoiTac.DiaChi`, `LichTrinh.LoaiDong`, nhà hàng `AnUong` mỗi tỉnh, ma trận bay HN/HCM–đảo. Chạy sau 029.
+
+**CẤM chạy lại `025_DropUnusedAndWipeExceptAnhTour.sql` trên database có dữ liệu thật** — script này xóa gần hết dữ liệu (chỉ giữ ảnh tour).
 
 Thứ tự chạy thực tế là `001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012`.
 Các file 013–022 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.

@@ -11,11 +11,11 @@ const types = [
 ];
 const money = (n) => Number(n || 0).toLocaleString('vi-VN') + ' đ';
 const rows = (response) => Array.isArray(response.data) ? response.data : response.data.items || [];
-const emptyPartner = () => ({ tenDoiTac: '', loaiDoiTac: 'LuuTru', maKhuVuc: '', nguoiLienHe: '', soDienThoai: '', email: '', trangThai: 'HoatDong' });
+const emptyPartner = () => ({ tenDoiTac: '', loaiDoiTac: 'LuuTru', maKhuVuc: '', nguoiLienHe: '', soDienThoai: '', email: '', diaChi: '', trangThai: 'HoatDong' });
 const emptyRoom = () => ({ tenSanPham: 'Phòng Deluxe', donViTinh: 'dem', giaNiemYet: 1200000, mota: '', trangThai: 'HoatDong' });
 const fill = (item) => ({
   tenDoiTac: item.tenDoiTac || '', loaiDoiTac: item.loaiDoiTac || 'LuuTru', maKhuVuc: item.maKhuVuc || '',
-  nguoiLienHe: item.nguoiLienHe || '', soDienThoai: item.soDienThoai || '', email: item.email || '',
+  nguoiLienHe: item.nguoiLienHe || '', soDienThoai: item.soDienThoai || '', email: item.email || '', diaChi: item.diaChi || '',
   trangThai: item.trangThai || 'HoatDong',
 });
 
@@ -105,6 +105,7 @@ export default function PartnersManagement() {
       <label>Người liên hệ<input value={form.nguoiLienHe} onChange={field('nguoiLienHe')} /></label>
       <label>Điện thoại<input value={form.soDienThoai} onChange={field('soDienThoai')} /></label>
       <label>Email<input value={form.email} onChange={field('email')} /></label>
+      <label>Địa chỉ (số nhà, đường, phường, tỉnh)<input required={form.loaiDoiTac === 'LuuTru' || form.loaiDoiTac === 'AnUong'} maxLength={200} value={form.diaChi} onChange={field('diaChi')} placeholder="Số 12 Trần Phú, phường Hải Châu, Đà Nẵng" /></label>
       <label>Trạng thái<select value={form.trangThai} onChange={field('trangThai')}>
         <option value="HoatDong">Hoạt động</option><option value="Ngung">Ngừng</option>
       </select></label>

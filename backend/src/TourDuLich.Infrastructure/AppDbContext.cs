@@ -471,6 +471,7 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(20)
                 .IsFixedLength();
             entity.Property(e => e.TenDoiTac).HasMaxLength(150);
+            entity.Property(e => e.DiaChi).HasMaxLength(200);
             entity.Property(e => e.TrangThai)
                 .HasMaxLength(20)
                 .IsFixedLength();
@@ -843,6 +844,7 @@ public partial class AppDbContext : DbContext
                 .IsFixedLength();
             entity.Property(e => e.ThanhTien).HasComputedColumnSql("(isnull([SoLuong],(0))*isnull([DonGia],(0)))", true);
             entity.Property(e => e.ThoiGianDuKien).HasColumnType("datetime");
+            entity.Property(e => e.LoaiDong).HasMaxLength(20).IsFixedLength();
 
             entity.HasOne(d => d.MaDthamQuanNavigation).WithMany(p => p.LichTrinhs)
                 .HasForeignKey(d => d.MaDthamQuan)
@@ -882,6 +884,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.MaDthamQuan).HasMaxLength(20).IsFixedLength().HasColumnName("MaDThamQuan");
             entity.Property(e => e.MaSanPham).HasMaxLength(20).IsFixedLength();
             entity.Property(e => e.Mota).HasMaxLength(500);
+            entity.Property(e => e.LoaiDong).HasMaxLength(20).IsFixedLength();
             entity.Property(e => e.GioBatDau).HasColumnType("time(0)");
             entity.HasOne(e => e.MaDeXuatNavigation).WithMany(e => e.ChiTiets)
                 .HasForeignKey(e => e.MaDeXuat).OnDelete(DeleteBehavior.Cascade)

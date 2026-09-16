@@ -194,7 +194,7 @@ export function DesignRequests() {
         {items.map((item) => <ExpandRecord key={item.maYeuCau} open={selectedId === item.maYeuCau} onClose={() => select(item)} summary={
           <button type="button" className={`row booking-row${selectedId === item.maYeuCau ? ' on' : ''}`} aria-pressed={selectedId === item.maYeuCau} disabled={Boolean(busy) || (editing && selectedId !== item.maYeuCau)} onClick={() => select(item)}>
             <b>{item.maYeuCau}</b><span>{item.diemDenMongMuon || 'Chưa chọn điểm đến'}</span><span>Ngày đi: {dateText(item.ngayDuKienDi)}</span>
-            <span>{item.soNgay ?? '—'} ngày</span><span>{item.nganSachDuKien == null ? 'Chưa có ngân sách' : money(item.nganSachDuKien)}</span><span className="badge">{statusLabel(item.trangThai)}</span>
+            <span>{item.soNgay ?? '—'} ngày{item.soDem != null ? ` / ${item.soDem} đêm` : ''}{item.spillSangHomSau ? ' · trả phòng sáng hôm sau' : ''}</span><span>{item.nganSachDuKien == null ? 'Chưa có ngân sách' : money(item.nganSachDuKien)}</span><span className="badge">{statusLabel(item.trangThai)}</span>
           </button>
         }>
       {selectedId === item.maYeuCau && selected && <>

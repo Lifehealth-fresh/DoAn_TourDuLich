@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace TourDuLich.Infrastructure.Entities;
@@ -16,6 +16,8 @@ public partial class DoiTac
     public string? SoDienThoai { get; set; }
 
     public string? Email { get; set; }
+
+    public string? DiaChi { get; set; }
 
     public string? MaKhuVuc { get; set; }
 

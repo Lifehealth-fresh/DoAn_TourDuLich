@@ -95,6 +95,18 @@ export const staffAddDocument=(id,data)=>api.post(`/api/KhachHang/sale/${encodeU
 export const staffUpdateDocument=(id,docId,data)=>api.put(`/api/KhachHang/sale/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}`,data);
 export const staffDeleteDocument=(id,docId)=>api.delete(`/api/KhachHang/sale/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}`);
 export const uploadCustomerDocImage=(id,docId,file,mat='Truoc')=>{const data=new FormData();data.append('file',file);return api.post(`/api/KhachHang/sale/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}/anh?mat=${encodeURIComponent(mat)}`,data)};
+export const staffPaperImage=(id,docId,mat='Truoc')=>api.get(`/api/KhachHang/sale/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}/anh?mat=${encodeURIComponent(mat)}`,{responseType:'blob'});
+export const connectSupportHub=(token,onEvent)=>{
+  const Hub=window.signalR?.HubConnectionBuilder;
+  if(!Hub||!token) return ()=>{};
+  const connection=new window.signalR.HubConnectionBuilder()
+    .withUrl(`${api.defaults.baseURL}/hubs/hotro`,{accessTokenFactory:()=>token})
+    .withAutomaticReconnect()
+    .build();
+  connection.on('hotro',onEvent);
+  connection.start().catch(()=>{});
+  return ()=>{connection.stop().catch(()=>{});};
+};
 export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');
 export const me=()=>api.get('/api/Auth/toi');
 export const accounts=(params)=>api.get('/api/Admin/tai-khoan',{params});

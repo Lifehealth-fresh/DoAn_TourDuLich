@@ -93,6 +93,8 @@ public class YeuCauThietKeController : ControllerBase
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(DesignRequestView.Projection)
             .ToListAsync();
+        foreach (var item in requests)
+            item.WithStay();
 
         return Ok(new { items = requests, page, pageSize, totalCount });
     }
@@ -118,6 +120,7 @@ public class YeuCauThietKeController : ControllerBase
                 item.MaUser == maUserDb)
             .Select(DesignRequestView.Projection)
             .FirstOrDefaultAsync();
+        request?.WithStay();
 
         if (request is null)
         {
@@ -524,7 +527,7 @@ public class YeuCauThietKeController : ControllerBase
             MaTour = maTourDb,
             TenTour = $"Tour tự thiết kế - {request.DiemDenMongMuon}"[..Math.Min(150, $"Tour tự thiết kế - {request.DiemDenMongMuon}".Length)],
             GiaTour = proposal.TongTienDuKien,
-            ThoiGian = Math.Clamp(request.SoNgay ?? 1, 1, 30),
+            ThoiGian = Math.Max(proposal.ChiTiets.Select(item => item.NgayThu).DefaultIfEmpty(request.SoNgay ?? 1).Max(), 1),
             Slkhach = (request.SoNguoiLon ?? 0) + (request.SoTreEm ?? 0),
             LoaiTour = FixedLengthHelper.PadTo20("TuThietKe"),
             TrangThai = FixedLengthHelper.PadTo20("Nhap")
@@ -542,7 +545,8 @@ public class YeuCauThietKeController : ControllerBase
                 MaSanPham = item.MaSanPham,
                 SoLuong = item.SoLuong,
                 DonGia = item.DonGia,
-                Mota = item.Mota
+                Mota = item.Mota,
+                LoaiDong = item.LoaiDong
             });
         }
         request.MaTourTao = maTourDb;
@@ -627,7 +631,10 @@ public class YeuCauThietKeController : ControllerBase
         var hotelError = HotelStayRules.ItineraryStructureMessage(request.ChiTiets.Select(item =>
         {
             var product = string.IsNullOrWhiteSpace(item.MaSanPham) ? null : products.GetValueOrDefault(FixedLengthHelper.PadTo20(item.MaSanPham));
-            return (item.NgayThu, item.ThuTuTrongNgay, item.MaDthamQuan, product);
+            var kind = string.IsNullOrWhiteSpace(item.LoaiDong)
+                ? ItineraryKinds.Infer(item.Mota, item.MaDthamQuan, HotelStayRules.IsHotelProduct(product), HotelStayRules.IsDining(product?.MaDoiTacNavigation?.LoaiDoiTac))
+                : item.LoaiDong.Trim();
+            return (item.NgayThu, item.ThuTuTrongNgay, item.MaDthamQuan, product, (string?)kind);
         }));
         if (hotelError is not null)
             return BadRequest(new { message = hotelError });
@@ -661,7 +668,10 @@ public class YeuCauThietKeController : ControllerBase
                 MaSanPham = maProduct,
                 SoLuong = item.SoLuong,
                 DonGia = donGia,
-                Mota = item.Mota?.Trim()
+                Mota = item.Mota?.Trim(),
+                LoaiDong = FixedLengthHelper.PadTo20(string.IsNullOrWhiteSpace(item.LoaiDong)
+                    ? ItineraryKinds.Infer(item.Mota, item.MaDthamQuan, maProduct is not null && HotelStayRules.IsHotelProduct(products.GetValueOrDefault(maProduct)), false)
+                    : item.LoaiDong)
             });
         }
         tour.GiaTour = giaTour;
@@ -700,12 +710,19 @@ public class YeuCauThietKeController : ControllerBase
                 donViTinh = l.MaSanPhamNavigation == null ? null : l.MaSanPhamNavigation.DonViTinh,
                 laKhachSan = l.MaSanPhamNavigation != null &&
                     l.MaSanPhamNavigation.MaDoiTacNavigation.LoaiDoiTac == FixedLengthHelper.PadTo20(HotelStayRules.LoaiLuuTru),
-                soLuong = l.SoLuong, donGia = l.DonGia, thanhTien = l.ThanhTien, mota = l.Mota
+                soLuong = l.SoLuong, donGia = l.DonGia, thanhTien = l.ThanhTien, mota = l.Mota,
+                loaiDong = l.LoaiDong == null ? null : l.LoaiDong.Trim(),
+                ngayLich = request.NgayDuKienDi == null || l.NgayThu == null ? null : ItineraryDayFrame.FormatDate(request.NgayDuKienDi, l.NgayThu.Value)
             }).ToListAsync(cancellationToken);
         var reason = DesignRevisionReason.Read(request.LyDoTuChoiBoiSale);
         await transaction.CommitAsync(cancellationToken);
         return Ok(new { maYeuCau = request.MaYeuCau.Trim(), maTour = tour.MaTour.Trim(), tenTour = tour.TenTour,
             giaTour = tour.GiaTour, tongGiaHienTai = tour.GiaTour, ngayDuKienDi = request.NgayDuKienDi,
+            soNgay = request.SoNgay,
+            soDem = ItineraryDayFrame.HotelNights(request.SoNgay ?? 1, ItineraryDayFrame.SpillCheckout(request.GioKetThuc ?? new TimeSpan(20, 0, 0))),
+            soNgayLich = ItineraryDayFrame.CalendarDays(request.SoNgay ?? 1, ItineraryDayFrame.SpillCheckout(request.GioKetThuc ?? new TimeSpan(20, 0, 0))),
+            spillSangHomSau = ItineraryDayFrame.SpillCheckout(request.GioKetThuc ?? new TimeSpan(20, 0, 0)),
+            ngayTraPhong = ItineraryDayFrame.CheckoutDate(request.NgayDuKienDi, request.SoNgay ?? 1, request.GioKetThuc ?? new TimeSpan(20, 0, 0)),
             trangThai = request.TrangThai?.Trim(), trangThaiTour = tour.TrangThai?.Trim(),
             lyDo = reason.LyDo, nguonLyDo = reason.NguonLyDo, lichTrinh = lines });
     }
@@ -802,12 +819,12 @@ public class YeuCauThietKeController : ControllerBase
                 MaSanPham = item.MaSanPham,
                 SoLuong = item.SoLuong,
                 DonGia = item.DonGia,
-                Mota = item.Mota
+                Mota = item.Mota,
+                LoaiDong = item.LoaiDong
             });
         }
         tour.GiaTour = plan.TongTienDuKien;
-        if (request.SoNgay is > 0)
-            tour.ThoiGian = request.SoNgay;
+        tour.ThoiGian = Math.Max(plan.ChiTiets.Select(item => item.NgayThu).DefaultIfEmpty(request.SoNgay ?? 1).Max(), 1);
         request.TrangThai = FixedLengthHelper.PadTo20("DangThietKe");
         var all = await _context.LichTrinhDeXuats.Where(item => item.MaYeuCau == request.MaYeuCau).ToListAsync(cancellationToken);
         foreach (var item in all)
@@ -860,6 +877,7 @@ public class YeuCauThietKeController : ControllerBase
             soLuong = detail.SoLuong,
             donGia = detail.DonGia,
             thanhTien = detail.ThanhTien,
+            loaiDong = FixedLengthHelper.TrimSafe(detail.LoaiDong),
             mota = detail.Mota
         })
     };
@@ -880,6 +898,8 @@ public class YeuCauThietKeController : ControllerBase
             .OrderByDescending(item => item.NgayGui)
             .Select(DesignRequestView.Projection)
             .ToListAsync(cancellationToken);
+        foreach (var item in requests)
+            item.WithStay();
         return Ok(requests);
     }
 
@@ -934,7 +954,8 @@ public class YeuCauThietKeController : ControllerBase
             .Where(item => item.MaTour == requestData.Tour.MaTour)
             .ToListAsync();
         var hotelError = HotelStayRules.ItineraryStructureMessage(schedule.Select(item =>
-            (item.NgayThu ?? 0, item.ThuTuTrongNgay ?? 0, item.MaDthamQuan, item.MaSanPhamNavigation)));
+            (item.NgayThu ?? 0, item.ThuTuTrongNgay ?? 0, item.MaDthamQuan, item.MaSanPhamNavigation,
+                item.LoaiDong ?? ItineraryKinds.Infer(item.Mota, item.MaDthamQuan, HotelStayRules.IsHotelProduct(item.MaSanPhamNavigation), HotelStayRules.IsDining(item.MaSanPhamNavigation?.MaDoiTacNavigation?.LoaiDoiTac)))));
         if (hotelError is not null)
             return BadRequest(new { message = hotelError });
         var regionError = HotelStayRules.RegionMismatchMessage(schedule.Select(item =>

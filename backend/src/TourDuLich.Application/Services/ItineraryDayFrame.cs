@@ -9,6 +9,7 @@ public sealed class PlannedStop
     public TimeSpan Start { get; init; }
     public TimeSpan End { get; init; }
     public string Caption { get; init; } = "";
+    public string Kind { get; init; } = ItineraryKinds.ThamQuan;
     public DiemThamQuan? Point { get; init; }
     public SanPhamDoiTac? Product { get; init; }
     public int DonGia { get; init; }
@@ -48,6 +49,15 @@ public static class ItineraryDayFrame
         return days == 1 || spill ? days : days - 1;
     }
 
+    public static int CalendarDays(int days, bool spill) => Math.Max(1, days) + (spill ? 1 : 0);
+
+    public static DateOnly? CheckoutDate(DateOnly? start, int days, TimeSpan returnBy)
+    {
+        if (start is null) return null;
+        var spill = SpillCheckout(returnBy);
+        return start.Value.AddDays(CalendarDays(days, spill) - 1);
+    }
+
     public static string DurationText(TimeSpan span)
     {
         if (span <= TimeSpan.Zero)
@@ -61,12 +71,15 @@ public static class ItineraryDayFrame
         return $"{minutes} phút";
     }
 
-    public static string AddressOf(DiemThamQuan? point, string place)
+    public static string AddressOf(DiemThamQuan? point, SanPhamDoiTac? product, string place)
     {
+        var partner = product?.MaDoiTacNavigation?.DiaChi?.Trim();
+        if (!string.IsNullOrWhiteSpace(partner))
+            return partner;
         var raw = point?.DiaChi?.Trim();
         if (!string.IsNullOrWhiteSpace(raw))
             return raw;
-        var name = point?.TenDiaDanh?.Trim();
+        var name = point?.TenDiaDanh?.Trim() ?? product?.MaDoiTacNavigation?.TenDoiTac?.Trim();
         return string.IsNullOrWhiteSpace(name) ? place : $"{name}, {place}";
     }
 
@@ -77,6 +90,17 @@ public static class ItineraryDayFrame
             || text.Contains("sun world") || text.Contains("vinwonders") || text.Contains("buffet")
             || text.Contains("cáp treo") || text.Contains("cap treo") || text.Contains("khu du lịch")
             || text.Contains("công viên");
+    }
+
+    public static (TimeSpan Start, TimeSpan End) ShiftedDinner(TimeSpan checkoutStart)
+    {
+        var end = checkoutStart - Gap;
+        var start = end - TimeSpan.FromHours(2);
+        if (start < LunchEnd + Gap)
+            start = LunchEnd + Gap;
+        if (end - start < TimeSpan.FromMinutes(45))
+            end = start + TimeSpan.FromMinutes(45);
+        return (start, end);
     }
 
     public static IReadOnlyList<PlannedStop> Compose(
@@ -101,10 +125,11 @@ public static class ItineraryDayFrame
         days = Math.Clamp(days, 1, 30);
         var spill = SpillCheckout(returnBy);
         var hotelName = hotel.MaDoiTacNavigation?.TenDoiTac?.Trim() ?? hotel.TenSanPham.Trim();
-        var hotelAddress = $"{hotelName}, {placeName}";
+        var hotelAddress = AddressOf(null, hotel, placeName);
         var result = new List<PlannedStop>();
         var visitIndex = 0;
         var points = visits.Count > 0 ? visits : plays;
+        var checkoutStart = CheckoutStart(returnBy, backMinutes);
 
         TimeSpan Arrive()
         {
@@ -130,56 +155,93 @@ public static class ItineraryDayFrame
         SanPhamDoiTac? MealAt(int index) =>
             meals.Count == 0 ? null : meals[Math.Abs(seed + index) % meals.Count];
 
-        void FillVisits(Timeline timeline, TimeSpan from, TimeSpan until)
+        bool FillOneVisit(Timeline timeline, TimeSpan from, TimeSpan until)
         {
             if (points.Count == 0)
-                return;
+                return false;
             foreach (var (gapStart, gapEnd) in timeline.Gaps(from, until))
             {
-                var start = gapStart;
-                while (gapEnd - start >= VisitMin)
-                {
-                    var take = VisitDuration <= gapEnd - start ? VisitDuration : gapEnd - start;
-                    if (take < VisitMin)
-                        break;
-                    var point = NextPoint();
-                    var ticket = TicketOf(point);
-                    timeline.Add(start, take, false,
-                        $"Tham quan {point.TenDiaDanh} — {AddressOf(point, placeName)} ({DurationText(take)}).",
-                        point, ticket, ticket?.GiaNiemYet ?? 0, guests);
-                    start += take + Gap;
-                }
+                var take = VisitDuration <= gapEnd - gapStart ? VisitDuration : gapEnd - gapStart;
+                if (take < VisitMin)
+                    continue;
+                var point = NextPoint();
+                var ticket = TicketOf(point);
+                timeline.Add(gapStart, take, false,
+                    $"Tham quan {point.TenDiaDanh} — {AddressOf(point, ticket, placeName)} ({DurationText(take)}).",
+                    ItineraryKinds.ThamQuan, point, ticket, ticket?.GiaNiemYet ?? 0, guests);
+                return true;
+            }
+            return false;
+        }
+
+        string MealCaption(string verb, SanPhamDoiTac? meal, Timeline timeline, bool lunch)
+        {
+            if (lunch)
+            {
+                var lastVisit = timeline.Slots.LastOrDefault(item => item.Point is not null);
+                if (lastVisit is not null && IsOnSiteDining(lastVisit.Point?.TenDiaDanh))
+                    return $"{verb} buffet tại {lastVisit.Point!.TenDiaDanh} — {AddressOf(lastVisit.Point, null, placeName)}";
+            }
+            if (meal is null)
+                return $"{verb} tại {hotelName} — {hotelAddress}";
+            return $"{verb} tại {meal.MaDoiTacNavigation?.TenDoiTac?.Trim() ?? meal.TenSanPham} — {AddressOf(null, meal, placeName)}";
+        }
+
+        void PlaceMeal(Timeline timeline, string kind, TimeSpan start, TimeSpan end, SanPhamDoiTac? meal, string caption)
+        {
+            var product = meal ?? hotel;
+            var duration = end - start;
+            if (!timeline.Fits(start, end))
+            {
+                var late = timeline.Cursor > start ? timeline.Cursor : start;
+                if (end - late < TimeSpan.FromMinutes(45) || !timeline.Fits(late, end))
+                    return;
+                start = late;
+                duration = end - start;
+            }
+            var dining = meal is not null && HotelStayRules.IsDining(meal.MaDoiTacNavigation?.LoaiDoiTac);
+            timeline.Add(start, duration, false,
+                $"{caption} ({DurationText(duration)}).",
+                kind, null, product, dining ? product.GiaNiemYet : 0, dining ? guests : 1);
+        }
+
+        void StandardDayBody(Timeline timeline, int day, TimeSpan visitUntil, bool dinner, TimeSpan? dinnerUntil)
+        {
+            PlaceMeal(timeline, ItineraryKinds.AnSang, BreakfastStart, BreakfastEnd, MealAt(day * 3),
+                MealCaption("Ăn sáng", MealAt(day * 3), timeline, false));
+            FillOneVisit(timeline, BreakfastEnd, LunchStart);
+            PlaceMeal(timeline, ItineraryKinds.AnTrua, LunchStart, LunchEnd, MealAt(day * 3 + 1),
+                MealCaption("Ăn trưa", MealAt(day * 3 + 1), timeline, true));
+            FillOneVisit(timeline, LunchEnd, dinnerUntil ?? visitUntil);
+            if (dinner)
+            {
+                var window = dinnerUntil is { } cut ? ShiftedDinner(cut) : (DinnerStart, DinnerEnd);
+                PlaceMeal(timeline, ItineraryKinds.AnToi, window.Item1, window.Item2, MealAt(day * 3 + 2),
+                    MealCaption("Ăn tối", MealAt(day * 3 + 2), timeline, false));
             }
         }
 
-        string LunchCaption(Timeline timeline, SanPhamDoiTac? lunchMeal)
-        {
-            var lastVisit = timeline.Slots.LastOrDefault(item => item.Point is not null);
-            if (lastVisit is not null && IsOnSiteDining(lastVisit.Point?.TenDiaDanh))
-                return $"Ăn trưa buffet tại {lastVisit.Point!.TenDiaDanh} — {AddressOf(lastVisit.Point, placeName)}";
-            if (lunchMeal is null)
-                return $"Ăn trưa tại {hotelName} — {hotelAddress}";
-            var near = lastVisit?.Point is null ? "" : $" (gần {lastVisit.Point.TenDiaDanh})";
-            return $"Ăn trưa tại {lunchMeal.MaDoiTacNavigation?.TenDoiTac?.Trim() ?? lunchMeal.TenSanPham}{near} — {placeName}";
-        }
-
-        var dayCount = spill ? days + 1 : days;
+        var dayCount = CalendarDays(days, spill);
         for (var day = 1; day <= dayCount; day++)
         {
             var timeline = new Timeline(day);
             var isFirst = day == 1;
-            var isLast = !spill && day == days;
             var isSpillMorning = spill && day == days + 1;
-            var isFullStay = !isLast && !isSpillMorning;
+            var isCheckoutDay = (!spill && day == days) || isSpillMorning;
+            var isMiddle = !isFirst && !isCheckoutDay;
 
             if (isSpillMorning)
             {
+                var breakfastEnd = CheckoutMorning - Gap;
+                var breakfastStart = breakfastEnd - TimeSpan.FromHours(1);
+                PlaceMeal(timeline, ItineraryKinds.AnSang, breakfastStart, breakfastEnd, MealAt(day * 3),
+                    MealCaption("Ăn sáng", MealAt(day * 3), timeline, false));
                 var back = backMinutes > 0
                     ? $" Sau đó về {originName} bằng {backLabel} (~{backMinutes} phút), có mặt trước {returnBy:hh\\:mm}."
                     : "";
                 timeline.Add(CheckoutMorning, CheckOutDuration, true,
                     $"Check-out tại {hotelName} — {hotelAddress} ({DurationText(CheckOutDuration)}).{back}",
-                    null, hotel, 0, 1);
+                    ItineraryKinds.CheckOut, null, hotel, 0, 1);
                 result.AddRange(timeline.Slots);
                 continue;
             }
@@ -192,62 +254,78 @@ public static class ItineraryDayFrame
                     : "";
                 timeline.Add(arrive, CheckInDuration, true,
                     $"{ride}Check-in tại {hotelName} — {hotelAddress} ({DurationText(CheckInDuration)}). Phòng {hotel.TenSanPham} · {nights} đêm.",
-                    null, hotel, hotel.GiaNiemYet, nights);
+                    ItineraryKinds.CheckIn, null, hotel, hotel.GiaNiemYet, nights);
 
                 var freeStart = arrive + CheckInDuration + Gap;
                 var freeEnd = freeStart + FreeTimeDuration;
                 if (freeEnd > BedTime)
                     freeEnd = BedTime;
-                if (freeStart < LunchStart && freeEnd > LunchStart - Gap && LunchStart - Gap - freeStart >= FreeTimeMin)
-                    freeEnd = LunchStart - Gap;
-                if (freeStart < DinnerStart && freeEnd > DinnerStart - Gap && DinnerStart - Gap - freeStart >= FreeTimeMin)
-                    freeEnd = DinnerStart - Gap;
                 if (freeEnd - freeStart >= FreeTimeMin)
                     timeline.Add(freeStart, freeEnd - freeStart, true,
                         $"Tự túc / nghỉ ngơi tại {hotelName} — {hotelAddress} ({DurationText(freeEnd - freeStart)}).",
-                        null, hotel, 0, 1);
+                        ItineraryKinds.TuTuc, null, hotel, 0, 1);
             }
 
-            if (isLast)
+            if (isMiddle || (isFirst && !isCheckoutDay))
             {
-                var leave = returnBy - TimeSpan.FromMinutes(Math.Max(0, backMinutes)) - CheckOutDuration;
-                if (leave < new TimeSpan(8, 0, 0))
-                    leave = new TimeSpan(8, 0, 0);
-                if (leave > BedTime - CheckOutDuration)
-                    leave = BedTime - CheckOutDuration;
+                if (isFirst)
+                {
+                    var earliest = timeline.Slots.Select(item => item.End).DefaultIfEmpty(TimeSpan.Zero).Max();
+                    if (BreakfastEnd > earliest)
+                        PlaceMeal(timeline, ItineraryKinds.AnSang, BreakfastStart, BreakfastEnd, MealAt(day * 3),
+                            MealCaption("Ăn sáng", MealAt(day * 3), timeline, false));
+                    FillOneVisit(timeline, timeline.Slots.Select(item => item.End).DefaultIfEmpty(BreakfastEnd).Max(), LunchStart);
+                    PlaceMeal(timeline, ItineraryKinds.AnTrua, LunchStart, LunchEnd, MealAt(day * 3 + 1),
+                        MealCaption("Ăn trưa", MealAt(day * 3 + 1), timeline, true));
+                    FillOneVisit(timeline, LunchEnd, DinnerStart);
+                    PlaceMeal(timeline, ItineraryKinds.AnToi, DinnerStart, DinnerEnd, MealAt(day * 3 + 2),
+                        MealCaption("Ăn tối", MealAt(day * 3 + 2), timeline, false));
+                }
+                else
+                    StandardDayBody(timeline, day, DinnerStart, true, null);
+
+                if (timeline.Fits(BedTime, BedTime, true))
+                    timeline.Add(BedTime, TimeSpan.Zero, true,
+                        $"Tự túc và nghỉ đêm tại {hotelName} — {hotelAddress}.",
+                        ItineraryKinds.NghiDem, null, hotel, 0, 1);
+            }
+
+            if (isCheckoutDay && !isSpillMorning)
+            {
                 var back = backMinutes > 0
                     ? $" Sau đó về {originName} bằng {backLabel} (~{backMinutes} phút), có mặt trước {returnBy:hh\\:mm}."
                     : "";
-                timeline.Add(leave, CheckOutDuration, false,
+                if (returnBy <= new TimeSpan(11, 0, 0))
+                {
+                    var breakfastEnd = checkoutStart - Gap;
+                    var breakfastStart = breakfastEnd - TimeSpan.FromHours(1);
+                    if (breakfastStart < TimeSpan.FromHours(6))
+                        breakfastStart = TimeSpan.FromHours(6);
+                    if (breakfastEnd - breakfastStart >= TimeSpan.FromMinutes(45))
+                        PlaceMeal(timeline, ItineraryKinds.AnSang, breakfastStart, breakfastEnd, MealAt(day * 3),
+                            MealCaption("Ăn sáng", MealAt(day * 3), timeline, false));
+                }
+                else if (returnBy <= new TimeSpan(17, 0, 0))
+                {
+                    PlaceMeal(timeline, ItineraryKinds.AnSang, BreakfastStart, BreakfastEnd, MealAt(day * 3),
+                        MealCaption("Ăn sáng", MealAt(day * 3), timeline, false));
+                    FillOneVisit(timeline, BreakfastEnd, LunchStart);
+                    if (checkoutStart >= LunchEnd + Gap)
+                    {
+                        PlaceMeal(timeline, ItineraryKinds.AnTrua, LunchStart, LunchEnd, MealAt(day * 3 + 1),
+                            MealCaption("Ăn trưa", MealAt(day * 3 + 1), timeline, true));
+                        FillOneVisit(timeline, LunchEnd, checkoutStart);
+                    }
+                }
+                else
+                {
+                    StandardDayBody(timeline, day, checkoutStart, true, checkoutStart);
+                }
+
+                timeline.Add(checkoutStart, CheckOutDuration, true,
                     $"Check-out tại {hotelName} — {hotelAddress} ({DurationText(CheckOutDuration)}).{back}",
-                    null, hotel, 0, 1);
+                    ItineraryKinds.CheckOut, null, hotel, 0, 1);
             }
-
-            var earliest = isFirst
-                ? timeline.Slots.Select(item => item.End).DefaultIfEmpty(TimeSpan.Zero).Max()
-                : TimeSpan.Zero;
-            if (BreakfastEnd > earliest)
-                TryMeal(timeline, BreakfastStart, BreakfastEnd, MealAt(day * 3) ?? hotel,
-                    $"Ăn sáng tại {hotelName} — {hotelAddress}", guests);
-            var visitFrom = isFirst
-                ? timeline.Slots.Select(item => item.End).DefaultIfEmpty(BreakfastStart).Max()
-                : BreakfastStart;
-            FillVisits(timeline, visitFrom, LunchStart);
-            var lunchMeal = MealAt(day * 3 + 1);
-            if (LunchEnd > earliest)
-                TryMeal(timeline, LunchStart, LunchEnd, lunchMeal ?? hotel, LunchCaption(timeline, lunchMeal), guests);
-            FillVisits(timeline, LunchEnd, DinnerStart);
-            var dinnerMeal = MealAt(day * 3 + 2);
-            var dinnerCaption = dinnerMeal is null
-                ? $"Ăn tối tại {hotelName} — {hotelAddress}"
-                : $"Ăn tối tại {dinnerMeal.MaDoiTacNavigation?.TenDoiTac?.Trim() ?? dinnerMeal.TenSanPham} — {placeName}";
-            if (DinnerEnd > earliest)
-                TryMeal(timeline, DinnerStart, DinnerEnd, dinnerMeal ?? hotel, dinnerCaption, guests);
-
-            if (isFullStay && timeline.Fits(BedTime, BedTime, true))
-                timeline.Add(BedTime, TimeSpan.Zero, true,
-                    $"Tự túc và nghỉ đêm tại {hotelName} — {hotelAddress}.",
-                    null, hotel, 0, 1);
 
             result.AddRange(timeline.Slots);
         }
@@ -255,22 +333,14 @@ public static class ItineraryDayFrame
         return result;
     }
 
-    private static void TryMeal(Timeline timeline, TimeSpan start, TimeSpan end,
-        SanPhamDoiTac product, string caption, int guests)
+    private static TimeSpan CheckoutStart(TimeSpan returnBy, int backMinutes)
     {
-        var duration = end - start;
-        if (!timeline.Fits(start, end))
-        {
-            var late = timeline.Cursor > start ? timeline.Cursor : start;
-            if (end - late < TimeSpan.FromMinutes(45) || !timeline.Fits(late, end))
-                return;
-            start = late;
-            duration = end - start;
-        }
-        var dining = HotelStayRules.IsDining(product.MaDoiTacNavigation?.LoaiDoiTac);
-        timeline.Add(start, duration, false,
-            $"{caption} ({DurationText(duration)}).",
-            null, product, dining ? product.GiaNiemYet : 0, dining ? guests : 1);
+        var leave = returnBy - TimeSpan.FromMinutes(Math.Max(0, backMinutes)) - CheckOutDuration;
+        if (leave < new TimeSpan(6, 0, 0))
+            leave = new TimeSpan(6, 0, 0);
+        if (leave > BedTime - CheckOutDuration)
+            leave = BedTime - CheckOutDuration;
+        return leave;
     }
 
     private sealed class Timeline
@@ -297,7 +367,7 @@ public static class ItineraryDayFrame
         }
 
         public PlannedStop? Add(TimeSpan start, TimeSpan duration, bool allowLate, string caption,
-            DiemThamQuan? point, SanPhamDoiTac? product, int donGia, int soLuong)
+            string kind, DiemThamQuan? point, SanPhamDoiTac? product, int donGia, int soLuong)
         {
             var end = start + duration;
             if (!Fits(start, end, allowLate))
@@ -308,6 +378,7 @@ public static class ItineraryDayFrame
                 Start = start,
                 End = end,
                 Caption = caption,
+                Kind = kind,
                 Point = point,
                 Product = product,
                 DonGia = donGia,

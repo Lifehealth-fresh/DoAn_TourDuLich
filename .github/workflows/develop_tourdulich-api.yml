@@ -26,6 +26,9 @@ jobs:
       - name: Build with dotnet
         run: dotnet build backend/TourDuLich.slnx --configuration Release
 
+      - name: In-memory unit tests
+        run: dotnet test backend/src/TourDuLich.IntegrationTests/TourDuLich.IntegrationTests.csproj --configuration Release --filter "FullyQualifiedName~ItineraryDayFrame|FullyQualifiedName~YeuCauThietKeStateMachine|FullyQualifiedName~TuThietKeTourPricing|FullyQualifiedName~DesignRevisionReason"
+
       - name: dotnet publish
         run: dotnet publish backend/src/TourDuLich.API/TourDuLich.API.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
 

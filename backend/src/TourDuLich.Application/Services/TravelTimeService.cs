@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using TourDuLich.Application.Helpers;
 using TourDuLich.Infrastructure;
 using TourDuLich.Infrastructure.Entities;
@@ -31,11 +30,9 @@ public sealed class TravelTimeService : ITravelTimeService
 {
     private readonly AppDbContext _context;
 
-    public TravelTimeService(AppDbContext context, HttpClient http, IConfiguration config)
+    public TravelTimeService(AppDbContext context)
     {
         _context = context;
-        _ = http;
-        _ = config;
     }
 
     public async Task<IReadOnlyList<TravelLeg>> EstimateAsync(TinhThanh origin, TinhThanh destination, CancellationToken cancellationToken = default)
@@ -77,9 +74,7 @@ public sealed class TravelTimeService : ITravelTimeService
             return new TravelLeg { Mode = "XeKhach", Minutes = 240, Source = "fallback" };
         var driving = legs.FirstOrDefault(item => item.Mode is "XeKhach" or "XeMay") ?? legs[0];
         var flight = legs.FirstOrDefault(item => item.Mode == "MayBay");
-        if (flight is not null && driving.Minutes >= 480)
-            return flight;
-        if (departTime.TotalHours >= 16 && flight is not null)
+        if (flight is not null && (driving.Minutes >= 360 || departTime.TotalHours >= 16))
             return flight;
         return driving.Minutes > 0 ? driving : legs[0];
     }
@@ -102,18 +97,22 @@ public sealed class TravelTimeService : ITravelTimeService
         if (km >= 80)
             yield return new TravelLeg { Mode = "Tau", Minutes = Minutes(km, 65, 40), Cost = CostTrain(km), Source = "haversine" };
 
-        if (km >= 280 || IsIsland(destination) || IsIsland(origin))
+        if (km >= 280 || IsIsland(destination) || IsIsland(origin) || km >= 700)
             yield return new TravelLeg
             {
                 Mode = "MayBay",
-                Minutes = 110 + (int)Math.Round(km / 12.0),
+                Minutes = 90 + (int)Math.Round(km / 14.0),
                 Cost = CostFlight(km),
-                Source = "haversine"
+                Source = "estimate"
             };
     }
 
     private static bool IsIsland(TinhThanh province)
-        => FixedLengthHelper.TrimSafe(province.MaTinh) is "TN58";
+    {
+        var id = FixedLengthHelper.TrimSafe(province.MaTinh);
+        var name = (province.TenTinh ?? "").ToLowerInvariant();
+        return id is "TN58" or "TN63" || name.Contains("phú quốc") || name.Contains("côn đảo") || name.Contains("kiên giang");
+    }
 
     private static int Minutes(double km, double kmh, int extra)
         => Math.Max(25, extra + (int)Math.Round(km / kmh * 60));

@@ -68,8 +68,9 @@ export default function SupportChat() {
     if (!open || !user) return undefined;
     let alive = true;
     load().catch((err) => { if (alive) setError(api.errorMessage(err, 'Không mở được chat với vận hành.')); });
-    const timer = setInterval(() => { load().catch(() => {}); }, 5000);
-    return () => { alive = false; clearInterval(timer); };
+    const timer = setInterval(() => { load().catch(() => {}); }, 4000);
+    const stopHub = api.connectSupportHub(localStorage.getItem('wavv_token'), () => { load().catch(() => {}); });
+    return () => { alive = false; clearInterval(timer); stopHub(); };
   }, [open]);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread?.tinNhans?.length, open]);

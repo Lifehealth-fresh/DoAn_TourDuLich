@@ -13,6 +13,7 @@ import {
 import * as api from './api';
 import { DesignRequestsPage, DesignRequestDetailPage } from './DesignRequests';
 import SupportChat from './DesignChat.jsx';
+import PaperFace from './PaperFace.jsx';
 import imgHaLong from './assets/vietnam/halong.jpg';
 import imgHoiAn from './assets/vietnam/hoian.jpg';
 import imgHaNoi from './assets/vietnam/hanoi.jpg';
@@ -1572,8 +1573,8 @@ function ProfilePage() {
                       <p className="doc-number">{doc.soTrenGiayTo}</p>
                       <p>Cấp {dateText(doc.ngayCap)} · {doc.noiCap}</p>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {doc.anhMatTruoc && <img src={doc.anhMatTruoc} alt="Mặt trước" style={{ height: 72 }} />}
-                        {doc.anhMatSau && <img src={doc.anhMatSau} alt="Mặt sau" style={{ height: 72 }} />}
+                        {doc.hasAnhMatTruoc && <PaperFace khachId={item?.maKhachHang} giayToId={doc.maGiayTo} mat="Truoc" alt="Mặt trước" />}
+                        {doc.hasAnhMatSau && <PaperFace khachId={item?.maKhachHang} giayToId={doc.maGiayTo} mat="Sau" alt="Mặt sau" />}
                       </div>
                       <div className="doc-actions">
                         <button type="button" className="text-button" onClick={() => editDoc(doc)}>Sửa</button>

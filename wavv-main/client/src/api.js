@@ -158,6 +158,20 @@ export const uploadDocumentImage = (id, docId, file, mat = 'Truoc') => {
   data.append('file', file);
   return api.post(`/api/KhachHang/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}/anh?mat=${encodeURIComponent(mat)}`, data);
 };
+export const paperImageBlob = (id, docId, mat = 'Truoc') =>
+  api.get(`/api/KhachHang/${encodeURIComponent(id)}/giay-to/${encodeURIComponent(docId)}/anh?mat=${encodeURIComponent(mat)}`, { responseType: 'blob' });
+
+export const connectSupportHub = (token, onEvent) => {
+  const Hub = window.signalR?.HubConnectionBuilder;
+  if (!Hub || !token) return () => {};
+  const connection = new window.signalR.HubConnectionBuilder()
+    .withUrl(`${api.defaults.baseURL}/hubs/hotro`, { accessTokenFactory: () => token })
+    .withAutomaticReconnect()
+    .build();
+  connection.on('hotro', onEvent);
+  connection.start().catch(() => {});
+  return () => { connection.stop().catch(() => {}); };
+};
 
 export default api;
 export const currentDesignSchedule=id=>api.get('/api/YeuCauThietKe/'+encodeURIComponent(id)+'/lich-hien-tai');

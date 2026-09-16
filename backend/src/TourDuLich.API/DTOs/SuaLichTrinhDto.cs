@@ -13,4 +13,5 @@ public class SuaLichTrinhChiTietDto
     public string? MaSanPham { get; set; }
     public int SoLuong { get; set; } = 1;
     public string? Mota { get; set; }
+    public string? LoaiDong { get; set; }
 }

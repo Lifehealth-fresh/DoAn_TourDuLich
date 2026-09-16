@@ -16,6 +16,7 @@ export default function CurrentDesignSchedule({schedule,busy,onRespond}) {
   return <section className="design-form">
     <h2>Lịch trình hiện tại đã lưu</h2><h3>{schedule.tenTour}</h3>
     <p>Giá tour hiện tại: <b>{money(schedule.giaTour)}</b></p>
+    {schedule.soNgay != null && <p>{schedule.soNgay} ngày{schedule.soDem != null ? ` / ${schedule.soDem} đêm` : ''}{schedule.spillSangHomSau ? ` · trả phòng sáng ${schedule.ngayTraPhong || ''}` : ''}</p>}
     <p>Đây là lịch trình Admin/Sale đã lưu, không phải đề xuất ban đầu.</p>
     {days.map(day=>{
       const first=lines.find(l=>l.ngayThu===day);

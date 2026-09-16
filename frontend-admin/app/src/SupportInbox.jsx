@@ -16,7 +16,12 @@ export default function SupportInbox() {
 
   const loadList = () => api.supportInbox().then((r) => setItems(r.data || [])).catch((e) => setError(api.errorMessage(e, 'Không tải được hộp thư.')));
 
-  useEffect(() => { loadList(); const t = setInterval(loadList, 8000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    loadList();
+    const t = setInterval(loadList, 4000);
+    const stop = api.connectSupportHub(localStorage.getItem('admin_token'), () => { loadList(); if (open) api.supportThread(open).then((r) => setThread(r.data)).catch(() => {}); });
+    return () => { clearInterval(t); stop(); };
+  }, [open]);
 
   const openThread = async (id) => {
     setOpen(id); setBusy(true); setError('');

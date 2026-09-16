@@ -22,6 +22,10 @@ public sealed class DesignRequestView
     public TimeSpan? GioKhoiHanh { get; set; }
     public TimeSpan? GioKetThuc { get; set; }
     public DateOnly? NgayKetThuc { get; set; }
+    public int? SoDem { get; set; }
+    public int? SoNgayLich { get; set; }
+    public bool SpillSangHomSau { get; set; }
+    public DateOnly? NgayTraPhong { get; set; }
 
     public string? MaGoiYThamKhao { get; set; }
     public string? LyDoTuChoiGoiY { get; set; }
@@ -46,6 +50,18 @@ public sealed class DesignRequestView
         TrangThai = r.TrangThai == null ? null : r.TrangThai.Trim(), NgayGui = r.NgayGui,
         MaTourTao = r.MaTourTao == null ? null : r.MaTourTao.Trim()
     };
+
+    public DesignRequestView WithStay()
+    {
+        var days = Math.Max(1, SoNgay ?? 1);
+        var returnBy = GioKetThuc ?? new TimeSpan(20, 0, 0);
+        var spill = ItineraryDayFrame.SpillCheckout(returnBy);
+        SoDem = ItineraryDayFrame.HotelNights(days, spill);
+        SoNgayLich = ItineraryDayFrame.CalendarDays(days, spill);
+        SpillSangHomSau = spill;
+        NgayTraPhong = ItineraryDayFrame.CheckoutDate(NgayDuKienDi, days, returnBy);
+        return this;
+    }
 }
 public sealed class CustomerRevisionDto
 {

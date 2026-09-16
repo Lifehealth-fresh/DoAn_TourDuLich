@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import * as api from './api';
 import { ExpandRecord, Notice } from './components';
+import PaperFace from './PaperFace.jsx';
 import { useAuth } from './context';
 
 const emptyDoc = () => ({ loaiGiayTo: 'CCCD', soTrenGiayTo: '', ngayCap: '', ngayHetHan: '', noiCap: '' });
@@ -140,8 +141,8 @@ export default function CustomersManagement() {
                       <span>Cấp {dateText(doc.ngayCap)} · {doc.noiCap}</span>
                     </header>
                     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                      {doc.anhMatTruoc && <a href={doc.anhMatTruoc} target="_blank" rel="noreferrer"><img src={doc.anhMatTruoc} alt="Mặt trước" style={{ height: 88, border: '2px solid #1c1612' }} /></a>}
-                      {doc.anhMatSau && <a href={doc.anhMatSau} target="_blank" rel="noreferrer"><img src={doc.anhMatSau} alt="Mặt sau" style={{ height: 88, border: '2px solid #1c1612' }} /></a>}
+                      {doc.hasAnhMatTruoc && <PaperFace khachId={open} giayToId={doc.maGiayTo} mat="Truoc" alt="Mặt trước" />}
+                      {doc.hasAnhMatSau && <PaperFace khachId={open} giayToId={doc.maGiayTo} mat="Sau" alt="Mặt sau" />}
                     </div>
                     <div className="inline" style={{ marginTop: 8 }}>
                       {canSua && <button type="button" onClick={() => { setEditingDoc(doc.maGiayTo); setDocForm({ loaiGiayTo: doc.loaiGiayTo, soTrenGiayTo: doc.soTrenGiayTo, ngayCap: isoDay(doc.ngayCap), ngayHetHan: isoDay(doc.ngayHetHan), noiCap: doc.noiCap }); }}>Sửa</button>}
