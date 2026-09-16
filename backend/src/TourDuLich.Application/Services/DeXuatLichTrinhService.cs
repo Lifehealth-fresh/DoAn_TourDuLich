@@ -60,10 +60,8 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
         var days = Math.Clamp(request.SoNgay ?? 1, 1, 30);
         if (request.NgayDuKienDi is { } start && extras?.NgayKetThuc is { } end && end >= start)
             days = Math.Clamp(end.DayNumber - start.DayNumber + 1, 1, 30);
-        var nights = Math.Max(1, days);
         var placeName = match?.Label ?? "điểm đến";
         var guests = Math.Max(1, (request.SoNguoiLon ?? 0) + (request.SoTreEm ?? 0));
-        var eventsWanted = Math.Clamp(extras?.SoSuKienMoiNgay ?? 3, 1, 6);
         TinhThanh? origin = null;
         if (!string.IsNullOrWhiteSpace(extras?.MaTinhXuatPhat))
             origin = await _context.TinhThanhs.AsNoTracking()
@@ -80,6 +78,8 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
         var returnBy = extras?.GioKetThuc ?? new TimeSpan(20, 0, 0);
         var goLeg = outbound.Count == 0 ? null : _travel.BestOutbound(outbound, departTime);
         var backLeg = inbound.Count == 0 ? null : _travel.BestOutbound(inbound, new TimeSpan(8, 0, 0));
+        var spill = ItineraryDayFrame.SpillCheckout(returnBy);
+        var nights = ItineraryDayFrame.HotelNights(days, spill);
 
         var budget = request.NganSachDuKien;
         var maxPlans = extras?.MaxPlans is > 0 and <= 3 ? extras.MaxPlans : 3;
@@ -107,98 +107,41 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
                 NgayTao = DateTime.UtcNow
             };
 
-            var smart = extras?.GioKhoiHanh is not null || origin is not null;
-            for (var day = 1; day <= days; day++)
-            {
-                var visit = visits[(day - 1 + hotelPlan - 1) % visits.Count];
-                var play = plays.Count == 0 ? null : plays[(day + hotelPlan) % plays.Count];
-                var meal = meals.Count == 0 ? null : meals[(day - 1 + hotelPlan - 1) % meals.Count];
-                var ticket = tickets.FirstOrDefault(item => item.MaDthamQuan == visit.MaDthamQuan);
-                var playTicket = play is null ? null : tickets.FirstOrDefault(item => item.MaDthamQuan == play.MaDthamQuan);
-                var order = 1;
-                if (!smart)
-                {
-                    if (day == 1)
-                    {
-                        await AddLine(plan, day, order++, new TimeSpan(7, 0, 0), hotel, 0, 1,
-                            $"Có mặt tại {hotel.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
-                        await AddLine(plan, day, order++, new TimeSpan(9, 0, 0), hotel, hotel.GiaNiemYet, nights,
-                            $"Check-in phòng {hotel.TenSanPham} — {nights} đêm", cancellationToken);
-                        if (meal is not null)
-                            await AddLine(plan, day, order++, new TimeSpan(11, 0, 0), meal, meal.GiaNiemYet, guests,
-                                $"Dùng bữa tại {meal.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
-                        await AddVisit(plan, day, order++, new TimeSpan(15, 0, 0), visit, ticket, guests, cancellationToken);
-                    }
-                    else
-                    {
-                        await AddLine(plan, day, order++, new TimeSpan(7, 0, 0), hotel, 0, 1,
-                            $"Xuất phát từ {hotel.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
-                        if (play is not null)
-                            await AddVisit(plan, day, order++, new TimeSpan(9, 0, 0), play, playTicket, guests, cancellationToken);
-                        if (meal is not null)
-                            await AddLine(plan, day, order++, new TimeSpan(11, 0, 0), meal, meal.GiaNiemYet, guests,
-                                $"Dùng bữa tại {meal.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
-                        await AddVisit(plan, day, order, new TimeSpan(15, 0, 0), visit, ticket, guests, cancellationToken);
-                    }
-                    continue;
-                }
+            var stops = ItineraryDayFrame.Compose(
+                days, departTime, returnBy,
+                goLeg?.Minutes ?? 0, backLeg?.Minutes ?? 0,
+                goLeg?.Label ?? "xe", backLeg?.Label ?? "xe",
+                origin?.TenTinh ?? "điểm xuất phát", placeName,
+                hotel, visits, plays, meals, tickets,
+                guests, nights, hotelPlan);
 
-                if (day == 1)
+            var orderByDay = new Dictionary<int, int>();
+            foreach (var stop in stops)
+            {
+                orderByDay.TryGetValue(stop.Day, out var order);
+                order++;
+                orderByDay[stop.Day] = order;
+                var product = stop.Product ?? hotel;
+                plan.ChiTiets.Add(new LichTrinhDeXuatChiTiet
                 {
-                    var arrive = departTime.Add(TimeSpan.FromMinutes(goLeg?.Minutes ?? 0));
-                    if (arrive.TotalHours >= 24)
-                        arrive = new TimeSpan(23, 0, 0);
-                    await AddLine(plan, day, order++, departTime, hotel, 0, 1,
-                        $"Khởi hành {origin?.TenTinh ?? "điểm xuất phát"} → {placeName} bằng {goLeg?.Label ?? "xe"} (~{goLeg?.Minutes ?? 0} phút)",
-                        cancellationToken, visit);
-                    await AddLine(plan, day, order++, ClampTime(arrive), hotel, hotel.GiaNiemYet, nights,
-                        $"Check-in {hotel.MaDoiTacNavigation.TenDoiTac} · {hotel.TenSanPham} — {nights} đêm. Địa chỉ khu vực {placeName}.",
-                        cancellationToken);
-                    if (arrive < HotelStayRules.LastActivity.Add(TimeSpan.FromHours(-2)) && meal is not null)
-                        await AddLine(plan, day, order++, ClampTime(arrive.Add(TimeSpan.FromHours(1))), meal, meal.GiaNiemYet, guests,
-                            $"Dùng bữa tại {meal.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
-                    if (arrive < new TimeSpan(18, 0, 0))
-                        await AddVisit(plan, day, order++, new TimeSpan(15, 30, 0), visit, ticket, guests, cancellationToken);
-                }
-                else if (day == days && backLeg is not null)
-                {
-                    var leave = returnBy.Subtract(TimeSpan.FromMinutes(backLeg.Minutes));
-                    if (leave < TimeSpan.Zero)
-                        leave = new TimeSpan(8, 0, 0);
-                    await AddLine(plan, day, order++, new TimeSpan(7, 30, 0), hotel, 0, 1,
-                        $"Xuất phát từ {hotel.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
-                    if (leave >= new TimeSpan(11, 0, 0) && meal is not null)
-                        await AddLine(plan, day, order++, new TimeSpan(8, 30, 0), meal, meal.GiaNiemYet, guests,
-                            $"Dùng bữa tại {meal.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
-                    if (leave >= new TimeSpan(12, 0, 0))
-                        await AddVisit(plan, day, order++, new TimeSpan(9, 30, 0), visit, ticket, guests, cancellationToken);
-                    await AddLine(plan, day, order, ClampTime(leave), hotel, 0, 1,
-                        $"Về {origin?.TenTinh ?? "điểm xuất phát"} bằng {backLeg.Label} (~{backLeg.Minutes} phút), có mặt trước {returnBy:hh\\:mm}.",
-                        cancellationToken);
-                }
-                else
-                {
-                    var slots = new List<TimeSpan> { new(8, 0, 0), new(11, 0, 0), new(14, 0, 0), new(16, 30, 0) }
-                        .Take(eventsWanted).ToList();
-                    await AddLine(plan, day, order++, slots[0], hotel, 0, 1,
-                        $"Xuất phát từ {hotel.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
-                    var activityIndex = 0;
-                    if (play is not null && slots.Count > 1)
-                    {
-                        await AddVisit(plan, day, order++, slots[Math.Min(1, slots.Count - 1)], play, playTicket, guests, cancellationToken);
-                        activityIndex++;
-                    }
-                    if (meal is not null)
-                        await AddLine(plan, day, order++, new TimeSpan(11, 30, 0), meal, meal.GiaNiemYet, guests,
-                            $"Dùng bữa tại {meal.MaDoiTacNavigation.TenDoiTac}", cancellationToken);
-                    if (activityIndex < eventsWanted)
-                        await AddVisit(plan, day, order, new TimeSpan(15, 0, 0), visit, ticket, guests, cancellationToken);
-                }
+                    MaChiTiet = await GenerateDetailIdAsync(cancellationToken),
+                    MaDeXuat = plan.MaDeXuat,
+                    NgayThu = stop.Day,
+                    ThuTuTrongNgay = order,
+                    MaDthamQuan = stop.Point?.MaDthamQuan ?? product.MaDthamQuan,
+                    MaSanPham = product.MaSanPham,
+                    SoLuong = stop.SoLuong,
+                    DonGia = stop.DonGia,
+                    ThanhTien = TuThietKeTourPricing.CalculateLine(stop.DonGia, stop.SoLuong),
+                    GioBatDau = stop.Start,
+                    Mota = HotelStayRules.FormatRange(stop.Start, stop.End, stop.Caption)
+                });
             }
 
             plan.TongTienDuKien = TuThietKeTourPricing.CalculateTotal(plan.ChiTiets.Select(item => item.ThanhTien));
             plans.Add(plan);
         }
+
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         var oldPlans = await _context.LichTrinhDeXuats
@@ -209,15 +152,6 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return plans;
-    }
-
-    private static int DaysFromRange(YeuCauThietKe request) => 1;
-
-    private static TimeSpan ClampTime(TimeSpan time)
-    {
-        if (time < TimeSpan.Zero) return TimeSpan.Zero;
-        if (time >= HotelStayRules.LastActivity) return HotelStayRules.LastActivity;
-        return new TimeSpan(time.Hours, time.Minutes, 0);
     }
 
     private static string BudgetNote(string place, SanPhamDoiTac hotel, TravelLeg? go, int? budget, double ratio)
@@ -239,49 +173,6 @@ public sealed class DeXuatLichTrinhService : IDeXuatLichTrinhService
         }
         var index = planNumber switch { 1 => 0, 2 => hotels.Count / 2, _ => hotels.Count - 1 };
         return hotels[index];
-    }
-
-    private async Task AddVisit(LichTrinhDeXuat plan, int day, int order, TimeSpan time,
-        DiemThamQuan point, SanPhamDoiTac? ticket, int guests, CancellationToken cancellationToken)
-    {
-        var qty = Math.Max(1, guests);
-        var price = ticket?.GiaNiemYet ?? 0;
-        var address = string.IsNullOrWhiteSpace(point.DiaChi) ? point.TenDiaDanh : point.DiaChi.Trim();
-        var line = new LichTrinhDeXuatChiTiet
-        {
-            MaChiTiet = await GenerateDetailIdAsync(cancellationToken),
-            MaDeXuat = plan.MaDeXuat,
-            NgayThu = day,
-            ThuTuTrongNgay = order,
-            MaDthamQuan = point.MaDthamQuan,
-            MaSanPham = ticket?.MaSanPham,
-            SoLuong = qty,
-            DonGia = price,
-            ThanhTien = TuThietKeTourPricing.CalculateLine(price, qty),
-            GioBatDau = time,
-            Mota = HotelStayRules.FormatSlot(time, $"Tham quan tại {point.TenDiaDanh} — {address}")
-        };
-        plan.ChiTiets.Add(line);
-    }
-
-    private async Task AddLine(LichTrinhDeXuat plan, int day, int order, TimeSpan time,
-        SanPhamDoiTac product, int donGia, int soLuong, string caption, CancellationToken cancellationToken,
-        DiemThamQuan? point = null)
-    {
-        plan.ChiTiets.Add(new LichTrinhDeXuatChiTiet
-        {
-            MaChiTiet = await GenerateDetailIdAsync(cancellationToken),
-            MaDeXuat = plan.MaDeXuat,
-            NgayThu = day,
-            ThuTuTrongNgay = order,
-            MaDthamQuan = point?.MaDthamQuan ?? product.MaDthamQuan,
-            MaSanPham = product.MaSanPham,
-            SoLuong = soLuong,
-            DonGia = donGia,
-            ThanhTien = TuThietKeTourPricing.CalculateLine(donGia, soLuong),
-            GioBatDau = time,
-            Mota = HotelStayRules.FormatSlot(time, caption)
-        });
     }
 
     private async Task<string> GeneratePlanIdAsync(CancellationToken cancellationToken)

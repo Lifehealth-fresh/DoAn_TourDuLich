@@ -20,6 +20,9 @@ public sealed class DesignRequestView
     public string? MaTinhXuatPhat { get; set; }
     public string? MaTinhDen { get; set; }
     public TimeSpan? GioKhoiHanh { get; set; }
+    public TimeSpan? GioKetThuc { get; set; }
+    public DateOnly? NgayKetThuc { get; set; }
+
     public string? MaGoiYThamKhao { get; set; }
     public string? LyDoTuChoiGoiY { get; set; }
     public string? TrangThai { get; set; }
@@ -37,7 +40,7 @@ public sealed class DesignRequestView
         SoThichGhiChu = r.SoThichGhiChu, MucDich = r.MucDich,
         MaTinhXuatPhat = r.MaTinhXuatPhat == null ? null : r.MaTinhXuatPhat.Trim(),
         MaTinhDen = r.MaTinhDen == null ? null : r.MaTinhDen.Trim(),
-        GioKhoiHanh = r.GioKhoiHanh,
+        GioKhoiHanh = r.GioKhoiHanh, GioKetThuc = r.GioKetThuc, NgayKetThuc = r.NgayKetThuc,
         MaGoiYThamKhao = r.MaGoiYthamKhao == null ? null : r.MaGoiYthamKhao.Trim(),
         LyDoTuChoiGoiY = r.LyDoTuChoiGoiY, StoredReason = r.LyDoTuChoiBoiSale,
         TrangThai = r.TrangThai == null ? null : r.TrangThai.Trim(), NgayGui = r.NgayGui,

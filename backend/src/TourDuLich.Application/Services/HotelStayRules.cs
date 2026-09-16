@@ -8,7 +8,8 @@ public static class HotelStayRules
     public const string LoaiLuuTru = "LuuTru";
     public const string LoaiAnUong = "AnUong";
     public const string LoaiHoatDong = "HoatDong";
-    public static readonly TimeSpan LastActivity = new(20, 0, 0);
+    public static readonly TimeSpan LastActivity = new(20, 30, 0);
+
 
     public static bool IsHotelPartner(string? loaiDoiTac) =>
         string.Equals(FixedLengthHelper.TrimSafe(loaiDoiTac), LoaiLuuTru, StringComparison.OrdinalIgnoreCase);
@@ -32,6 +33,10 @@ public static class HotelStayRules
     public static string FormatSlot(TimeSpan time, string text) =>
         $"{time:hh\\:mm} · {text}";
 
+    public static string FormatRange(TimeSpan start, TimeSpan end, string text) =>
+        end <= start ? FormatSlot(start, text) : $"{start:hh\\:mm}–{end:hh\\:mm} · {text}";
+
+
     public static string? ItineraryStructureMessage(
         IEnumerable<(int NgayThu, int ThuTu, string? MaDiem, SanPhamDoiTac? Product)> lines)
     {
@@ -49,19 +54,25 @@ public static class HotelStayRules
         if (hotels.Count > 1)
             return "Cả lịch trình chỉ dùng một khách sạn.";
 
+        var minDay = list.Min(item => item.NgayThu);
+        var maxDay = list.Max(item => item.NgayThu);
         foreach (var day in list.GroupBy(item => item.NgayThu).OrderBy(item => item.Key))
         {
             var hasVisit = day.Any(item =>
                 !string.IsNullOrWhiteSpace(item.MaDiem) || IsActivity(item.Product?.MaDoiTacNavigation?.LoaiDoiTac));
             var hasMeal = day.Any(item => IsDining(item.Product?.MaDoiTacNavigation?.LoaiDoiTac));
             var hasStay = day.Any(item => IsHotelProduct(item.Product));
+            if (!hasStay)
+                return $"Ngày {day.Key} phải ghi nhận khách sạn đã chọn (cùng một nơi lưu trú).";
+            var isEdge = day.Key == minDay || day.Key == maxDay;
+            if (isEdge)
+                continue;
             if (!hasVisit)
                 return $"Ngày {day.Key} phải có địa điểm tham quan hoặc khu vui chơi.";
             if (!hasMeal)
                 return $"Ngày {day.Key} phải có điểm ăn uống.";
-            if (!hasStay)
-                return $"Ngày {day.Key} phải ghi nhận khách sạn đã chọn (cùng một nơi lưu trú).";
         }
+
         return null;
     }
 

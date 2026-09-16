@@ -7,6 +7,22 @@ import { ProvinceField } from './DesignChat.jsx';
 const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
 const dateText = (value) => value ? new Date(value).toLocaleDateString('vi-VN') : 'Chưa cập nhật';
+const addDaysIso = (iso, n) => {
+  if (!iso) return '';
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const dt = new Date(y, m - 1, d + n);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
+const dayLabel = (start, day) => {
+  if (!start || !day) return `Ngày ${day || ''}`;
+  const raw = String(start).slice(0, 10);
+  const [y, m, d] = raw.split('-').map(Number);
+  if (!y || !m || !d) return `Ngày ${day}`;
+  const dt = new Date(y, m - 1, d + Number(day) - 1);
+  return `Ngày ${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+};
+
 const itemsOf = (response) => Array.isArray(response.data) ? response.data : response.data?.items || [];
 const labels = { Moi: 'Mới gửi', Huy: 'Đã hủy', DangThietKe: 'Đang thiết kế', CanChinhSua: 'Cần chỉnh sửa', ChoKhachXacNhan: 'Chờ bạn xác nhận', ChoDuyet: 'Chờ duyệt', DaDuyet: 'Đã duyệt' };
 const statusLabel = (value) => labels[trim(value)] || trim(value) || '—';
@@ -24,6 +40,7 @@ function DesignForm({ onCreated }) {
   const [form, setForm] = useState({
     ngayDuKienDi: tomorrow(),
     gioKhoiHanh: '08:00',
+    gioKetThuc: '20:00',
     soNgay: 3,
     soNguoiLon: 2,
     soTreEm: 0,
@@ -51,6 +68,8 @@ function DesignForm({ onCreated }) {
         diemDenMongMuon: dest.tenTinh,
         ngayDuKienDi: form.ngayDuKienDi,
         gioKhoiHanh: form.gioKhoiHanh.length === 5 ? `${form.gioKhoiHanh}:00` : form.gioKhoiHanh,
+        gioKetThuc: form.gioKetThuc.length === 5 ? `${form.gioKetThuc}:00` : form.gioKetThuc,
+        ngayKetThuc: addDaysIso(form.ngayDuKienDi, soNgay - 1),
         soNgay,
         soNguoiLon: Number(form.soNguoiLon) || 0,
         soTreEm: Number(form.soTreEm) || 0,
@@ -79,6 +98,9 @@ function DesignForm({ onCreated }) {
         </label>
         <label>Giờ xuất phát
           <input type="time" required value={form.gioKhoiHanh} onChange={(e) => set('gioKhoiHanh', e.target.value)} />
+        </label>
+        <label>Giờ kết thúc (có mặt tại điểm xuất phát)
+          <input type="time" required value={form.gioKetThuc} onChange={(e) => set('gioKetThuc', e.target.value)} />
         </label>
         <label>Số ngày đi
           <input type="number" min="1" max="30" required value={form.soNgay} onChange={(e) => set('soNgay', e.target.value)} />
@@ -221,6 +243,7 @@ function DesignRequestDetail({ id }) {
           <dl className="detail-summary">
             <dt>Xuất phát</dt><dd>{request.maTinhXuatPhat || '—'}</dd>
             <dt>Ngày / giờ đi</dt><dd>{dateText(request.ngayDuKienDi)} {request.gioKhoiHanh || ''}</dd>
+            <dt>Giờ về (điểm xuất phát)</dt><dd>{request.gioKetThuc || '20:00'}</dd>
             <dt>Thời gian</dt><dd>{request.soNgay ?? '—'} ngày</dd>
             <dt>Hành khách</dt><dd>{request.soNguoiLon} người lớn · {request.soTreEm} trẻ em</dd>
             <dt>Ngân sách</dt><dd>{request.nganSachDuKien == null ? 'Chưa cập nhật' : money(request.nganSachDuKien)}</dd>
@@ -254,15 +277,20 @@ function DesignRequestDetail({ id }) {
             </header>
             {expanded && <>
             <p>{proposal.ghiChu}</p>
-            <div className="proposal-days">{days.map((day) => <section className="day-card" key={day}>
-              <header><b>Ngày {day}</b></header>
+            <div className="proposal-days">{days.map((day) => {
+              const first = details.find((item) => item.ngayThu === day);
+              return <section className="day-card" key={day}>
+              <header><b>{first?.ngayLich ? `Ngày ${first.ngayLich}` : dayLabel(request.ngayDuKienDi, day)}</b></header>
+
+
               <ol>{details.filter((detail) => detail.ngayThu === day).map((detail) => <li key={detail.maChiTiet}>
                 <strong>{detail.gioBatDau ? `${detail.gioBatDau} · ` : ''}{detail.laKhachSan ? `Khách sạn · ${detail.tenDoiTac || ''} · ${detail.tenSanPham}` : (detail.mota || trim(detail.maDthamQuan) || 'Điểm tham quan')}</strong>
                 <p>{detail.laKhachSan
                   ? `${money(detail.donGia)} / đêm · SL ${detail.soLuong} — ${money(detail.thanhTien)}`
                   : (trim(detail.maSanPham) ? `Dịch vụ ${trim(detail.tenSanPham || detail.maSanPham)} · SL ${detail.soLuong} × ${money(detail.donGia)}` : 'Chưa kèm dịch vụ đối tác') + ` — ${money(detail.thanhTien)}`}</p>
               </li>)}</ol>
-            </section>)}</div>
+            </section>;
+            })}</div>
             {canChoose && state === 'DeXuat' && <button className="primary-button full" disabled={Boolean(choosing)} onClick={() => choose(proposal.maDeXuat)}>
               {choosing === proposal.maDeXuat ? 'Đang chọn…' : 'Chọn đề xuất'}
             </button>}

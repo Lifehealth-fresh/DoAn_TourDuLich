@@ -467,7 +467,7 @@ public class YeuCauThietKeController : ControllerBase
             .Include(item => item.ChiTiets).ThenInclude(detail => detail.MaDthamQuanNavigation)
             .OrderBy(item => item.ThuTuPhuongAn)
             .ToListAsync(cancellationToken);
-        return Ok(saved.Select(ToProposalResponse));
+        return Ok(saved.Select(item => ToProposalResponse(item, request.NgayDuKienDi)));
     }
 
     [HttpGet("{maYeuCau}/de-xuat")]
@@ -487,7 +487,7 @@ public class YeuCauThietKeController : ControllerBase
                 .ThenInclude(detail => detail.MaDthamQuanNavigation)
             .OrderBy(item => item.ThuTuPhuongAn)
             .ToListAsync(cancellationToken);
-        return Ok(proposals.Select(ToProposalResponse));
+        return Ok(proposals.Select(item => ToProposalResponse(item, request.NgayDuKienDi)));
     }
 
     [HttpPut("{maYeuCau}/chon-de-xuat/{maDeXuat}")]
@@ -832,7 +832,7 @@ public class YeuCauThietKeController : ControllerBase
         return id;
     }
 
-    private static object ToProposalResponse(LichTrinhDeXuat item) => new
+    private static object ToProposalResponse(LichTrinhDeXuat item, DateOnly? start = null) => new
     {
         maDeXuat = FixedLengthHelper.TrimSafe(item.MaDeXuat),
         maYeuCau = FixedLengthHelper.TrimSafe(item.MaYeuCau),
@@ -846,6 +846,7 @@ public class YeuCauThietKeController : ControllerBase
         {
             maChiTiet = FixedLengthHelper.TrimSafe(detail.MaChiTiet),
             ngayThu = detail.NgayThu,
+            ngayLich = ItineraryDayFrame.FormatDate(start, detail.NgayThu),
             thuTuTrongNgay = detail.ThuTuTrongNgay,
             maDthamQuan = FixedLengthHelper.TrimSafe(detail.MaDthamQuan),
             tenDiaDanh = detail.MaDthamQuanNavigation == null ? null : detail.MaDthamQuanNavigation.TenDiaDanh,
@@ -862,6 +863,7 @@ public class YeuCauThietKeController : ControllerBase
             mota = detail.Mota
         })
     };
+
 
     private string? GetCurrentMaUser()
     {

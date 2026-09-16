@@ -205,8 +205,14 @@ public sealed class SelfDesignedTourFlowTests : IsolatedApiTestBase
                     var slots = day.OrderBy(item => item.GetProperty("thuTuTrongNgay").GetInt32()).ToList();
                     Assert.Contains(slots, item => item.GetProperty("laKhachSan").GetBoolean() &&
                         string.Equals(hotelId.Trim(), item.GetProperty("maSanPham").GetString()?.Trim(), StringComparison.OrdinalIgnoreCase));
-                    Assert.Contains("07:00", slots[0].GetProperty("mota").GetString() ?? "");
+                    if (day.Key == 1)
+                    {
+                        Assert.Contains("Check-in", slots[0].GetProperty("mota").GetString() ?? "", StringComparison.OrdinalIgnoreCase);
+                        if (slots.Count > 1)
+                            Assert.Contains("Tự túc", slots[1].GetProperty("mota").GetString() ?? "", StringComparison.OrdinalIgnoreCase);
+                    }
                 }
+
             }
             var first = proposals[0].GetProperty("chiTiets").EnumerateArray()
                 .Select(item => item.GetProperty("maDthamQuan").GetString())

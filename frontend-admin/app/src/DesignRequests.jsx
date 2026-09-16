@@ -8,6 +8,14 @@ const foldVi = (value) => String(value || '').normalize('NFD').replace(/đ/gi, '
 const trim = (value) => String(value ?? '').trim();
 const money = (value) => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
 const dateText = (value) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
+const dayLabel = (start, day) => {
+  if (!start || !day) return `Ngày ${day || ''}`;
+  const [y, m, d] = String(start).slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return `Ngày ${day}`;
+  const dt = new Date(y, m - 1, d + Number(day) - 1);
+  return `Ngày ${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+};
+
 const itemsOf = (response) => Array.isArray(response.data) ? response.data : response.data?.items || [];
 const rowsOf = itemsOf;
 const labels = { Moi: 'Mới gửi', Huy: 'Đã hủy', DangThietKe: 'Đang thiết kế', CanChinhSua: 'Cần chỉnh sửa', ChoKhachXacNhan: 'Chờ khách xác nhận', ChoDuyet: 'Chờ duyệt', DaDuyet: 'Đã duyệt' };
@@ -136,7 +144,7 @@ export function DesignRequests() {
       ngayThu: Number(row.ngayThu), thuTuTrongNgay: Number(row.thuTuTrongNgay), soLuong: Number(row.soLuong),
       maDthamQuan: trim(row.maDthamQuan) || null, maSanPham: trim(row.maSanPham) || null, mota: trim(row.mota),
     }));
-    const maxDay = Math.min(30, Math.max(1, Number(selected.soNgay || 1)));
+    const maxDay = Math.min(30, Math.max(1, Number(selected.soNgay || 1)) + 1);
     if (!chiTiets.length || chiTiets.some((row) => ![row.ngayThu, row.thuTuTrongNgay, row.soLuong].every(Number.isInteger) ||
         row.ngayThu < 1 || row.ngayThu > maxDay || row.thuTuTrongNgay < 1 || row.thuTuTrongNgay > 2147483647 || row.soLuong < 1 || row.soLuong > 2147483647 || (!row.maDthamQuan && !row.maSanPham))) {
       setError('Mỗi dòng cần ngày hợp lệ, thứ tự và số lượng nguyên dương, cùng mã điểm hoặc sản phẩm.'); return;
@@ -149,13 +157,20 @@ export function DesignRequests() {
     const hotelsUsed = [...new Set(chiTiets.map((row) => products.find((item) => item.maSanPham === row.maSanPham))
       .filter((item) => item?.loaiDoiTac === 'LuuTru').map((item) => item.maDoiTac))];
     if (hotelsUsed.length !== 1) { setError('Cả lịch trình chỉ dùng một khách sạn lưu trú.'); return; }
+    const dayKeys = Object.keys(byDay).map(Number);
+    const minDay = Math.min(...dayKeys);
+    const maxUsed = Math.max(...dayKeys);
     const missingDay = Object.entries(byDay).some(([day, dayRows]) => {
       const hasVisit = dayRows.some((row) => row.maDthamQuan || products.find((item) => item.maSanPham === row.maSanPham)?.loaiDoiTac === 'HoatDong');
       const hasMeal = dayRows.some((row) => products.find((item) => item.maSanPham === row.maSanPham)?.loaiDoiTac === 'AnUong');
       const hasStay = dayRows.some((row) => products.find((item) => item.maSanPham === row.maSanPham)?.loaiDoiTac === 'LuuTru');
-      if (!hasVisit || !hasMeal || !hasStay) { setError(`Ngày ${day} cần tham quan (hoặc vui chơi), ăn uống và khách sạn đã chọn.`); return true; }
+      if (!hasStay) { setError(`${dayLabel(selected.ngayDuKienDi, day)} cần khách sạn đã chọn.`); return true; }
+      const isEdge = Number(day) === minDay || Number(day) === maxUsed;
+      if (isEdge) return false;
+      if (!hasVisit || !hasMeal) { setError(`${dayLabel(selected.ngayDuKienDi, day)} cần tham quan (hoặc vui chơi) và ăn uống.`); return true; }
       return false;
     });
+
     if (missingDay) return;
     const regionMismatch = Object.entries(byDay).some(([, dayRows]) => {
       const ids = dayRows.map((row) => row.maDthamQuan).filter(Boolean);
@@ -210,7 +225,7 @@ export function DesignRequests() {
               <div className="table">{rows.map((row, index) => <fieldset className="panel" key={index} disabled={Boolean(busy)}>
                 <legend>Dòng {index + 1}</legend>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-                  <label>Ngày thứ<input style={{ width: '100%' }} type="number" required min="1" max={Math.min(30, Math.max(1, selected.soNgay || 1))} step="1" value={row.ngayThu} onChange={(event) => changeRow(index, 'ngayThu', event.target.value)} /></label>
+                  <label>Ngày thứ<input style={{ width: '100%' }} type="number" required min="1" max={Math.min(30, Math.max(1, selected.soNgay || 1) + 1)} step="1" value={row.ngayThu} onChange={(event) => changeRow(index, 'ngayThu', event.target.value)} /></label>
                   <label>Thứ tự trong ngày<input style={{ width: '100%' }} type="number" required min="1" max="2147483647" step="1" value={row.thuTuTrongNgay} onChange={(event) => changeRow(index, 'thuTuTrongNgay', event.target.value)} /></label>
                   <label>Điểm tham quan<SearchSelect emptyLabel="— không chọn điểm —" placeholder="Gõ Hồ Hoàn Kiếm, Nha Trang…" value={row.maDthamQuan} onChange={(value) => changeRow(index, 'maDthamQuan', value)} options={places
                     .filter((place) => {
@@ -265,7 +280,7 @@ export function DesignRequests() {
                 <button type="button" disabled={Boolean(busy)} onClick={() => { setEditing(false); setRows((schedule.lichTrinh || []).map(toRow)); setError(''); }}>Hủy chỉnh sửa</button>
               </div>
             </form> : <ol>{(schedule.lichTrinh || []).map((detail) => <li key={detail.maLichTrinh}>
-              <b>Ngày {detail.ngayThu} · Mục {detail.thuTuTrongNgay}: {detail.laKhachSan ? `KS · ${detail.tenDoiTac || ''} · ${detail.tenSanPham}` : (detail.mota || detail.tenDiaDanh || detail.tenSanPham)}</b>
+              <b>{dayLabel(selected.ngayDuKienDi, detail.ngayThu)} · Mục {detail.thuTuTrongNgay}: {detail.laKhachSan ? `KS · ${detail.tenDoiTac || ''} · ${detail.tenSanPham}` : (detail.mota || detail.tenDiaDanh || detail.tenSanPham)}</b>
               <p>{detail.laKhachSan ? `${money(detail.donGia || detail.thanhTien)} / đêm` : `${detail.maDthamQuan || '—'} · ${detail.maSanPham || 'Không kèm sản phẩm'} · SL ${detail.soLuong}`} — {money(detail.thanhTien)}</p>
             </li>)}</ol>}
           </section>}
@@ -275,7 +290,7 @@ export function DesignRequests() {
               <header className="panel-head"><h3>{plan.thuTuPhuongAn}. {plan.tenPhuongAn}</h3><span className="badge">{({ DeXuat: 'Đề xuất', DaChon: 'Đã chọn', KhongChon: 'Không chọn' })[trim(plan.trangThai)] || plan.trangThai}</span></header>
               <p><b>{money(plan.tongTienDuKien)}</b> (dự kiến) · Mã {plan.maDeXuat}</p><p>{plan.ghiChu}</p>
               <ol>{[...(plan.chiTiets || [])].sort((a, b) => a.ngayThu - b.ngayThu || a.thuTuTrongNgay - b.thuTuTrongNgay).map((detail) => <li key={detail.maChiTiet}>
-                <b>Ngày {detail.ngayThu} · Mục {detail.thuTuTrongNgay}: {detail.mota || detail.maDthamQuan || 'Điểm tham quan'}</b>
+                <b>{dayLabel(selected.ngayDuKienDi, detail.ngayThu)} · Mục {detail.thuTuTrongNgay}: {detail.mota || detail.maDthamQuan || 'Điểm tham quan'}</b>
                 <p>{detail.maSanPham || 'Không kèm sản phẩm'} · SL {detail.soLuong} — {money(detail.thanhTien)}</p>
               </li>)}</ol>
             </article>)}
