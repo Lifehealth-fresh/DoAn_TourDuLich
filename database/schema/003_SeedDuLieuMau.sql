@@ -1,10 +1,4560 @@
-﻿/* 026: Seed mẫu đầy đủ — không NULL, giá > 0 (nghìn đồng).
-   Chạy SAU 025 trên cùng database Azure. SSMS, UTF-8.
-   Mật khẩu mọi tài khoản: Test@123456
-   VaiTro (3) và KhuVuc (3) giữ nguyên vì ràng buộc code.
-   Nếu lần trước 026 lỗi: chạy lại 025 rồi mới chạy file này. */
-SET NOCOUNT ON;
+/* 003 — Dữ liệu mẫu.
+   INSERT/UPDATE/DELETE của các bảng còn dùng, đúng thứ tự script cũ.
+   Đã bỏ mọi lệnh ghi vào bảng không còn tạo.
+   Có transaction xóa dữ liệu trung gian (script 025) trước bộ seed đầy đủ.
+   Chạy sau 001 và 002. Không chạy trên database đang có dữ liệu thật.
+*/
+
+/* ===== 002_SeedVaiTro.sql #1 ===== */
+/* Seed vai trò, có thể chạy lại an toàn. */
+
+IF NOT EXISTS (SELECT 1 FROM dbo.VaiTro WHERE TenVaiTro = N'Admin')
+    INSERT INTO dbo.VaiTro (MaVaiTro, TenVaiTro, Mota)
+    VALUES (1, N'Admin', N'Quản trị toàn hệ thống');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.VaiTro WHERE TenVaiTro = N'Sale')
+    INSERT INTO dbo.VaiTro (MaVaiTro, TenVaiTro, Mota)
+    VALUES (2, N'Sale', N'Nhân viên kinh doanh');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.VaiTro WHERE TenVaiTro = N'KhachHang')
+    INSERT INTO dbo.VaiTro (MaVaiTro, TenVaiTro, Mota)
+    VALUES (3, N'KhachHang', N'Khách hàng');
 GO
+
+/* ===== 003_SeedTestData.sql #1 ===== */
+/* Dữ liệu test tối thiểu. Mật khẩu tất cả tài khoản: Test@123456 */
+DECLARE @Hash nvarchar(200) = N'$2a$11$DOcyrWZ/bvqL3mWaqhbnKujUSEGbAuRkSR7pxYf4/LasW9DseeQFe';
+
+INSERT INTO dbo.KhuVuc (MaKhuVuc, TenKhuVuc, QuocGia, ViDo, KinhDo, MuiGio, TrangThai)
+SELECT v.MaKhuVuc, v.TenKhuVuc, v.QuocGia, v.ViDo, v.KinhDo, v.MuiGio, v.TrangThai
+FROM (VALUES
+    (N'KV001', N'Miền Bắc', N'Việt Nam', CAST(21.028511 AS decimal(9,6)), CAST(105.804817 AS decimal(9,6)), N'UTC+07:00', N'HoatDong'),
+    (N'KV002', N'Miền Trung', N'Việt Nam', CAST(16.054407 AS decimal(9,6)), CAST(108.202164 AS decimal(9,6)), N'UTC+07:00', N'HoatDong'),
+    (N'KV003', N'Miền Nam', N'Việt Nam', CAST(10.823099 AS decimal(9,6)), CAST(106.629662 AS decimal(9,6)), N'UTC+07:00', N'HoatDong')
+) v(MaKhuVuc, TenKhuVuc, QuocGia, ViDo, KinhDo, MuiGio, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.KhuVuc x WHERE x.MaKhuVuc = v.MaKhuVuc);
+
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, KinhDo, ViDo, Mota)
+SELECT v.MaDThamQuan, v.TenDiaDanh, v.DiaChi, v.MaKhuVuc, v.KinhDo, v.ViDo, v.Mota
+FROM (VALUES
+    (N'DT001', N'Hồ Hoàn Kiếm', N'Đinh Tiên Hoàng, Hà Nội', N'KV001', CAST(105.852000 AS decimal(9,6)), CAST(21.028700 AS decimal(9,6)), N'Khu vực trung tâm Hà Nội'),
+    (N'DT002', N'Vịnh Hạ Long', N'Thành phố Hạ Long, Quảng Ninh', N'KV001', CAST(107.084300 AS decimal(9,6)), CAST(20.910100 AS decimal(9,6)), N'Di sản thiên nhiên thế giới'),
+    (N'DT003', N'Phố cổ Hội An', N'Thành phố Hội An, Quảng Nam', N'KV002', CAST(108.338000 AS decimal(9,6)), CAST(15.880100 AS decimal(9,6)), N'Khu phố cổ lịch sử'),
+    (N'DT004', N'Bảo tàng Chăm', N'Đà Nẵng', N'KV002', CAST(108.218800 AS decimal(9,6)), CAST(16.060600 AS decimal(9,6)), N'Bảo tàng điêu khắc Chăm')
+) v(MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, KinhDo, ViDo, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan x WHERE x.MaDThamQuan = v.MaDThamQuan);
+
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai)
+SELECT v.MaDoiTac, v.TenDoiTac, v.LoaiDoiTac, v.NguoiLienHe, v.SoDienThoai, v.Email, v.MaKhuVuc, v.PhanTramHoaHong, v.TrangThai
+FROM (VALUES
+    (N'DTAC001', N'Khách sạn Hoàn Kiếm', N'LuuTru', N'Nguyễn An', N'0901000001', N'hk@example.com', N'KV001', CAST(10.00 AS decimal(5,2)), N'HoatDong'),
+    (N'DTAC002', N'Vận tải Miền Trung', N'VanChuyen', N'Trần Bình', N'0901000002', N'vt@example.com', N'KV002', CAST(8.50 AS decimal(5,2)), N'HoatDong'),
+    (N'DTAC003', N'Ẩm thực Phố Hội', N'AnUong', N'Lê Chi', N'0901000003', N'an@example.com', N'KV002', CAST(12.00 AS decimal(5,2)), N'HoatDong'),
+    (N'DTAC004', N'Trải nghiệm Việt', N'HoatDong', N'Phạm Dũng', N'0901000004', N'hd@example.com', N'KV001', CAST(15.00 AS decimal(5,2)), N'HoatDong')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT v.MaSanPham, v.MaDoiTac, v.TenSanPham, v.DonViTinh, v.GiaNiemYet, v.MaDThamQuan, v.Mota, v.TrangThai
+FROM (VALUES
+    (N'SP001', N'DTAC001', N'Phòng tiêu chuẩn', N'phòng', 800000, N'DT001', N'Phòng nghỉ trung tâm', N'HoatDong'),
+    (N'SP002', N'DTAC001', N'Phòng hướng hồ', N'phòng', 1200000, N'DT001', N'Phòng nghỉ cao cấp', N'HoatDong'),
+    (N'SP003', N'DTAC002', N'Xe đưa đón sân bay', N'chuyến', 450000, N'DT003', N'Dịch vụ xe riêng', N'HoatDong'),
+    (N'SP004', N'DTAC002', N'Xe tham quan 16 chỗ', N'ngày', 1500000, N'DT004', N'Xe du lịch', N'HoatDong'),
+    (N'SP005', N'DTAC003', N'Bữa tối đặc sản Hội An', N'suất', 350000, N'DT003', N'Thực đơn địa phương', N'HoatDong'),
+    (N'SP006', N'DTAC003', N'Lớp học nấu ăn', N'người', 600000, N'DT003', N'Trải nghiệm ẩm thực', N'HoatDong'),
+    (N'SP007', N'DTAC004', N'Tour thuyền Vịnh Hạ Long', N'người', 900000, N'DT002', N'Tham quan bằng thuyền', N'HoatDong'),
+    (N'SP008', N'DTAC004', N'Vé tham quan bảo tàng', N'vé', 120000, N'DT004', N'Vé vào cửa', N'HoatDong')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+
+INSERT INTO dbo.Tour (MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai)
+SELECT v.MaTour, v.TenTour, v.Mota, v.ThoiGian, v.DieuKhoan, v.GiaTour, v.SLKhach, v.SLHuongDanVien, v.LoaiTour, v.TrangThai
+FROM (VALUES
+    (N'TOUR001', N'Hà Nội - Hạ Long', N'Hành trình miền Bắc tiêu biểu', 3, N'Tuân thủ lịch trình của đoàn.', 3500000, 30, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR002', N'Đà Nẵng - Hội An', N'Hành trình di sản miền Trung', 3, N'Tuân thủ lịch trình của đoàn.', 4200000, 25, 1, N'Chuan', N'HoatDong')
+) v(MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.Tour x WHERE x.MaTour = v.MaTour);
+
+INSERT INTO dbo.LichTrinh (MaLichTrinh, MaTour, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThoiGianDuKien, Mota)
+SELECT v.MaLichTrinh, v.MaTour, v.NgayThu, v.ThuTuTrongNgay, v.MaDThamQuan, v.MaSanPham, v.SoLuong, v.DonGia, v.ThoiGianDuKien, v.Mota
+FROM (VALUES
+    (N'LT001', N'TOUR001', 1, 1, N'DT001', NULL, 1, 0, DATEADD(HOUR, 9, CAST(GETUTCDATE() AS datetime)), N'Tham quan Hồ Hoàn Kiếm'),
+    (N'LT002', N'TOUR001', 2, 1, N'DT002', N'SP007', 1, 900000, DATEADD(DAY, 1, CAST(GETUTCDATE() AS datetime)), N'Tham quan Vịnh Hạ Long'),
+    (N'LT003', N'TOUR002', 1, 1, N'DT003', N'SP005', 1, 350000, DATEADD(HOUR, 9, CAST(GETUTCDATE() AS datetime)), N'Tham quan Phố cổ Hội An'),
+    (N'LT004', N'TOUR002', 2, 1, N'DT004', N'SP008', 1, 120000, DATEADD(DAY, 1, CAST(GETUTCDATE() AS datetime)), N'Tham quan Bảo tàng Chăm')
+) v(MaLichTrinh, MaTour, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThoiGianDuKien, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.LichTrinh x WHERE x.MaLichTrinh = v.MaLichTrinh);
+
+INSERT INTO dbo.LichKhoiHanh (MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, DiaDiem)
+SELECT v.MaKhoiHanh, v.MaTour, v.NgayKhoiHanh, v.NgayKetThuc, v.DiaDiem
+FROM (VALUES
+    (N'KH001', N'TOUR001', DATEADD(DAY, 30, GETUTCDATE()), DATEADD(DAY, 32, GETUTCDATE()), N'Hà Nội'),
+    (N'KH002', N'TOUR002', DATEADD(DAY, 45, GETUTCDATE()), DATEADD(DAY, 47, GETUTCDATE()), N'Đà Nẵng')
+) v(MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, DiaDiem)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.LichKhoiHanh x WHERE x.MaKhoiHanh = v.MaKhoiHanh);
+
+IF NOT EXISTS (SELECT 1 FROM dbo.NhomKhuyenMai WHERE MaNhomKM = N'NKM001')
+    INSERT INTO dbo.NhomKhuyenMai (MaNhomKM, TenNhomKM) VALUES (N'NKM001', N'Khuyến mãi khách mới');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.KhuyenMai WHERE MaKM = N'KM001')
+    INSERT INTO dbo.KhuyenMai (MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi, GiamGia, CoCongDon, TrangThai)
+    VALUES (N'KM001', N'NKM001', N'Giảm giá mùa hè', N'SUMMER001', DATEADD(DAY, -1, GETUTCDATE()), DATEADD(DAY, 90, GETUTCDATE()), N'%', 10, 0, N'HoatDong');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.DieuKienKM WHERE MaDK = N'DK001')
+    INSERT INTO dbo.DieuKienKM (MaDK, MaKhuyenMai, DonToiThieu, LanDatDau, SoLuong)
+    VALUES (N'DK001', N'KM001', 1000000, 1, 100);
+
+IF NOT EXISTS (SELECT 1 FROM dbo.KM_Tour WHERE STT = 1)
+    INSERT INTO dbo.KM_Tour (STT, MaKhuyenMai, MaTour) VALUES (1, N'KM001', N'TOUR001');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.NguoiSuDung WHERE MaUser = N'USRADMIN001')
+    INSERT INTO dbo.NguoiSuDung (MaUser, SoDienThoai, MatKhau, MaVaiTro)
+    SELECT N'USRADMIN001', N'0900000001', @Hash, MaVaiTro FROM dbo.VaiTro WHERE TenVaiTro = N'Admin';
+
+IF NOT EXISTS (SELECT 1 FROM dbo.NguoiSuDung WHERE MaUser = N'USRSALE0001')
+    INSERT INTO dbo.NguoiSuDung (MaUser, SoDienThoai, MatKhau, MaVaiTro)
+    SELECT N'USRSALE0001', N'0900000002', @Hash, MaVaiTro FROM dbo.VaiTro WHERE TenVaiTro = N'Sale';
+
+IF NOT EXISTS (SELECT 1 FROM dbo.NguoiSuDung WHERE MaUser = N'USRKH000001')
+    INSERT INTO dbo.NguoiSuDung (MaUser, SoDienThoai, MatKhau, MaVaiTro)
+    SELECT N'USRKH000001', N'0900000003', @Hash, MaVaiTro FROM dbo.VaiTro WHERE TenVaiTro = N'KhachHang';
+
+IF NOT EXISTS (SELECT 1 FROM dbo.NguoiSuDung WHERE MaUser = N'USRKH000002')
+    INSERT INTO dbo.NguoiSuDung (MaUser, SoDienThoai, MatKhau, MaVaiTro)
+    SELECT N'USRKH000002', N'0900000004', @Hash, MaVaiTro FROM dbo.VaiTro WHERE TenVaiTro = N'KhachHang';
+
+IF NOT EXISTS (SELECT 1 FROM dbo.KhachHang WHERE MaKhachHang = N'KHACH001')
+    INSERT INTO dbo.KhachHang (MaKhachHang, Ho, Ten, HoGiayTo, TenGiayTo, QuocTich, DanhXung, GioiTinh, NgaySinh, Email, SoDienThoai, MaUser)
+    VALUES (N'KHACH001', N'Nguyễn', N'An', N'Nguyễn', N'An', N'Việt Nam', N'Anh', N'Nam', '1998-01-15', N'an.test@example.com', N'0900000003', N'USRKH000001');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.KhachHang WHERE MaKhachHang = N'KHACH002')
+    INSERT INTO dbo.KhachHang (MaKhachHang, Ho, Ten, HoGiayTo, TenGiayTo, QuocTich, DanhXung, GioiTinh, NgaySinh, Email, SoDienThoai, MaUser)
+    VALUES (N'KHACH002', N'Trần', N'Bình', N'Trần', N'Bình', N'Việt Nam', N'Chị', N'Nữ', '1999-06-20', N'binh.test@example.com', N'0900000004', N'USRKH000002');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.GiayTo WHERE MaGiayTo = N'GT001')
+    INSERT INTO dbo.GiayTo (MaGiayTo, LoaiGiayTo, SoTrenGiayTo, NgayCap, NgayHetHan, NoiCap, MaKhachHang)
+    VALUES (N'GT001', N'CCCD', N'079098000001', '2020-01-01', '2035-01-01', N'Cục CSQLHC', N'KHACH001');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.GiayTo WHERE MaGiayTo = N'GT002')
+    INSERT INTO dbo.GiayTo (MaGiayTo, LoaiGiayTo, SoTrenGiayTo, NgayCap, NgayHetHan, NoiCap, MaKhachHang)
+    VALUES (N'GT002', N'CCCD', N'079099000002', '2021-02-01', '2036-02-01', N'Cục CSQLHC', N'KHACH002');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.AIGoiY WHERE MaRecommodation = N'GOIY000001')
+    INSERT INTO dbo.AIGoiY (MaRecommodation, MaUser, MaTour, DiemPhuHop, LyDo, NgayGoiY)
+    VALUES (N'GOIY000001', N'USRKH000001', N'TOUR001', 0.92, N'Phù hợp sở thích tham quan miền Bắc', GETUTCDATE());
+GO
+
+/* ===== 013_FixUnicodeSeed.sql #1 ===== */
+/* Sửa lỗi UTF-8 do sqlcmd seed sai encoding. Chạy bằng PowerShell SqlClient. */
+
+UPDATE dbo.KhuVuc SET TenKhuVuc = N'Miền Bắc', QuocGia = N'Việt Nam' WHERE MaKhuVuc = N'KV001';
+UPDATE dbo.KhuVuc SET TenKhuVuc = N'Miền Trung', QuocGia = N'Việt Nam' WHERE MaKhuVuc = N'KV002';
+UPDATE dbo.KhuVuc SET TenKhuVuc = N'Miền Nam', QuocGia = N'Việt Nam' WHERE MaKhuVuc = N'KV003';
+
+UPDATE dbo.DiemThamQuan SET TenDiaDanh = N'Hồ Hoàn Kiếm', DiaChi = N'Đinh Tiên Hoàng, Hà Nội', Mota = N'Khu vực trung tâm Hà Nội' WHERE MaDThamQuan = N'DT001';
+UPDATE dbo.DiemThamQuan SET TenDiaDanh = N'Vịnh Hạ Long', DiaChi = N'Thành phố Hạ Long, Quảng Ninh', Mota = N'Di sản thiên nhiên thế giới' WHERE MaDThamQuan = N'DT002';
+UPDATE dbo.DiemThamQuan SET TenDiaDanh = N'Phố cổ Hội An', DiaChi = N'Thành phố Hội An, Quảng Nam', Mota = N'Khu phố cổ lịch sử' WHERE MaDThamQuan = N'DT003';
+UPDATE dbo.DiemThamQuan SET TenDiaDanh = N'Bảo tàng Chăm', DiaChi = N'Đà Nẵng', Mota = N'Bảo tàng điêu khắc Chăm' WHERE MaDThamQuan = N'DT004';
+
+UPDATE dbo.DoiTac SET TenDoiTac = N'Khách sạn Hoàn Kiếm', NguoiLienHe = N'Nguyễn An' WHERE MaDoiTac = N'DTAC001';
+UPDATE dbo.DoiTac SET TenDoiTac = N'Vận tải Miền Trung', NguoiLienHe = N'Trần Bình' WHERE MaDoiTac = N'DTAC002';
+UPDATE dbo.DoiTac SET TenDoiTac = N'Ẩm thực Phố Hội', NguoiLienHe = N'Lê Chi' WHERE MaDoiTac = N'DTAC003';
+UPDATE dbo.DoiTac SET TenDoiTac = N'Trải nghiệm Việt', NguoiLienHe = N'Phạm Dũng' WHERE MaDoiTac = N'DTAC004';
+
+UPDATE dbo.SanPhamDoiTac SET TenSanPham = N'Phòng tiêu chuẩn', DonViTinh = N'phòng', Mota = N'Phòng nghỉ trung tâm' WHERE MaSanPham = N'SP001';
+UPDATE dbo.SanPhamDoiTac SET TenSanPham = N'Phòng hướng hồ', DonViTinh = N'phòng', Mota = N'Phòng nghỉ cao cấp' WHERE MaSanPham = N'SP002';
+UPDATE dbo.SanPhamDoiTac SET TenSanPham = N'Xe đưa đón sân bay', DonViTinh = N'chuyến', Mota = N'Dịch vụ xe riêng' WHERE MaSanPham = N'SP003';
+UPDATE dbo.SanPhamDoiTac SET TenSanPham = N'Xe tham quan 16 chỗ', DonViTinh = N'ngày', Mota = N'Xe du lịch' WHERE MaSanPham = N'SP004';
+UPDATE dbo.SanPhamDoiTac SET TenSanPham = N'Bữa tối đặc sản Hội An', DonViTinh = N'suất', Mota = N'Thực đơn địa phương' WHERE MaSanPham = N'SP005';
+UPDATE dbo.SanPhamDoiTac SET TenSanPham = N'Lớp học nấu ăn', DonViTinh = N'người', Mota = N'Trải nghiệm ẩm thực' WHERE MaSanPham = N'SP006';
+UPDATE dbo.SanPhamDoiTac SET TenSanPham = N'Tour thuyền Vịnh Hạ Long', DonViTinh = N'người', Mota = N'Tham quan bằng thuyền' WHERE MaSanPham = N'SP007';
+UPDATE dbo.SanPhamDoiTac SET TenSanPham = N'Vé tham quan bảo tàng', DonViTinh = N'vé', Mota = N'Vé vào cửa' WHERE MaSanPham = N'SP008';
+
+UPDATE dbo.Tour SET TenTour = N'Hà Nội - Hạ Long', Mota = N'Hành trình miền Bắc tiêu biểu', DieuKhoan = N'Tuân thủ lịch trình của đoàn.' WHERE MaTour = N'TOUR001';
+UPDATE dbo.Tour SET TenTour = N'Đà Nẵng - Hội An', Mota = N'Hành trình di sản miền Trung', DieuKhoan = N'Tuân thủ lịch trình của đoàn.' WHERE MaTour = N'TOUR002';
+
+UPDATE dbo.LichTrinh SET Mota = N'Tham quan Hồ Hoàn Kiếm' WHERE MaLichTrinh = N'LT001';
+UPDATE dbo.LichTrinh SET Mota = N'Tham quan Vịnh Hạ Long' WHERE MaLichTrinh = N'LT002';
+UPDATE dbo.LichTrinh SET Mota = N'Tham quan Phố cổ Hội An' WHERE MaLichTrinh = N'LT003';
+UPDATE dbo.LichTrinh SET Mota = N'Tham quan Bảo tàng Chăm' WHERE MaLichTrinh = N'LT004';
+
+UPDATE dbo.LichKhoiHanh SET DiaDiem = N'Hà Nội' WHERE MaKhoiHanh = N'KH001';
+UPDATE dbo.LichKhoiHanh SET DiaDiem = N'Đà Nẵng' WHERE MaKhoiHanh = N'KH002';
+
+UPDATE dbo.NhomKhuyenMai SET TenNhomKM = N'Khuyến mãi khách mới' WHERE MaNhomKM = N'NKM001';
+UPDATE dbo.KhuyenMai SET TenKM = N'Giảm giá mùa hè' WHERE MaKM = N'KM001';
+
+UPDATE dbo.KhachHang SET Ho = N'Nguyễn', Ten = N'An', HoGiayTo = N'Nguyễn', TenGiayTo = N'An', QuocTich = N'Việt Nam' WHERE MaKhachHang = N'KHACH001';
+UPDATE dbo.KhachHang SET Ho = N'Trần', Ten = N'Bình', HoGiayTo = N'Trần', TenGiayTo = N'Bình', QuocTich = N'Việt Nam' WHERE MaKhachHang = N'KHACH002';
+
+UPDATE dbo.GiayTo SET NoiCap = N'Cục CSQLHC' WHERE MaGiayTo IN (N'GT001', N'GT002');
+
+UPDATE dbo.AIGoiY SET LyDo = N'Phù hợp sở thích tham quan miền Bắc' WHERE MaRecommodation = N'GOIY000001';
+GO
+
+/* ===== 014_SeedMoreTours.sql #1 ===== */
+/* Bổ sung địa điểm, tour, lịch trình, khởi hành, đánh giá. Chạy bằng PowerShell SqlClient (UTF-8). */
+
+UPDATE dbo.Tour SET
+  Mota = N'Ba ngày Hà Nội - Hạ Long: phố cổ, ẩm thực đêm, rồi ngủ đêm trên vịnh di sản. Nhịp chậm, nhiều khoảng lặng nhìn đá và nước.',
+  DieuKhoan = N'Giá đã gồm khách sạn/du thuyền, xe, bữa chính theo lịch, vé thắng cảnh và hướng dẫn viên. Không gồm vé máy bay và chi tiêu cá nhân.'
+WHERE MaTour = N'TOUR001';
+
+UPDATE dbo.Tour SET
+  Mota = N'Đà Nẵng - Hội An ba ngày: biển Mỹ Khê, Ngũ Hành Sơn, phố đèn lồng và lớp nấu ăn. Phù hợp cặp đôi và nhóm bạn thích văn hóa miền Trung.',
+  DieuKhoan = N'Giá gồm khách sạn, xe đưa đón, bữa chính, vé điểm đến trong lịch. Không gồm vé máy bay.'
+WHERE MaTour = N'TOUR002';
+
+IF NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan WHERE MaDThamQuan = N'DT005')
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, KinhDo, ViDo, Mota) VALUES
+(N'DT005', N'Thị trấn Sa Pa', N'Sa Pa, Lào Cai', N'KV001', 103.844800, 22.336400, N'Thị trấn sương và ruộng bậc thang'),
+(N'DT006', N'Fansipan', N'Sa Pa, Lào Cai', N'KV001', 103.775000, 22.303300, N'Nóc nhà Đông Dương'),
+(N'DT007', N'Trang An', N'Ninh Bình', N'KV001', 105.916700, 20.250000, N'Danh thắng sông núi'),
+(N'DT008', N'Tam Cốc', N'Hoa Lư, Ninh Bình', N'KV001', 105.933300, 20.216700, N'Hang động và lúa nước'),
+(N'DT009', N'Đại Nội Huế', N'Thành phố Huế', N'KV002', 107.577900, 16.469800, N'Kinh thành triều Nguyễn'),
+(N'DT010', N'Sông Hương', N'Thành phố Huế', N'KV002', 107.590000, 16.466700, N'Du thuyền hoàng hôn'),
+(N'DT011', N'Biển Nha Trang', N'Khánh Hòa', N'KV002', 109.196700, 12.238800, N'Bãi biển vịnh'),
+(N'DT012', N'VinWonders Nha Trang', N'Hòn Tre, Khánh Hòa', N'KV002', 109.278000, 12.216000, N'Công viên đảo'),
+(N'DT013', N'Bãi Sao', N'Phú Quốc, Kiên Giang', N'KV003', 103.973000, 10.033000, N'Bãi cát trắng'),
+(N'DT014', N'Chợ đêm Phú Quốc', N'Dương Đông, Phú Quốc', N'KV003', 103.967000, 10.217000, N'Hải sản và đêm đảo'),
+(N'DT015', N'Chợ nổi Cái Răng', N'Cần Thơ', N'KV003', 105.787000, 10.007000, N'Chợ nổi sông Hậu'),
+(N'DT016', N'Vườn trái cây Phong Điền', N'Cần Thơ', N'KV003', 105.670000, 9.990000, N'Vườn miền Tây'),
+(N'DT017', N'Đồi chè Cầu Đất', N'Đà Lạt, Lâm Đồng', N'KV003', 108.550000, 11.850000, N'Đồi chè cao nguyên'),
+(N'DT018', N'Hồ Xuân Hương', N'Trung tâm Đà Lạt', N'KV003', 108.441900, 11.940400, N'Hồ giữa thành phố ngàn hoa');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Tour WHERE MaTour = N'TOUR003')
+INSERT INTO dbo.Tour (MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai) VALUES
+(N'TOUR003', N'Sa Pa - Fansipan', N'Bốn ngày Tây Bắc: bản Cát Cát, cáp treo Fansipan, chợ tình và ruộng bậc thang. Trời se lạnh, đồ len, bát thắng cố.', 4, N'Gồm khách sạn, xe giường nằm, bữa chính, vé cáp treo. Nên mang áo ấm.', 5200000, 25, 1, N'Chuan', N'HoatDong'),
+(N'TOUR004', N'Ninh Bình - Tràng An', N'Ba ngày cố đô: Tràng An, Tam Cốc, Bái Đính, cơm cháy. Sông lặng, núi đá vôi, chiều vàng trên đồng.', 3, N'Gồm khách sạn, xe, thuyền, vé danh thắng, bữa chính.', 2900000, 28, 1, N'Chuan', N'HoatDong'),
+(N'TOUR005', N'Huế - Sông Hương', N'Ba ngày cố đô: Đại Nội, lăng tẩm, thuyền sông Hương, ẩm thực cung đình. Chậm, trang trọng, nhiều câu chuyện.', 3, N'Gồm khách sạn, xe, vé Đại Nội, thuyền chiều, bữa chính.', 3100000, 24, 1, N'Chuan', N'HoatDong'),
+(N'TOUR006', N'Nha Trang vịnh biển', N'Bốn ngày nắng: tắm biển, đảo Hòn Tre, hải sản đêm. Nhóm bạn và gia đình có trẻ.', 4, N'Gồm khách sạn gần biển, xe, vé VinWonders, bữa chính.', 4800000, 30, 1, N'Chuan', N'HoatDong'),
+(N'TOUR007', N'Phú Quốc - Bãi Sao', N'Bốn ngày đảo ngọc: Bãi Sao, sunset Sanato, chợ đêm Dương Đông. Cát mịn, nước trong.', 4, N'Gồm khách sạn, xe đưa đón sân bay, xe tham quan, bữa chính. Vé máy bay tự túc.', 5600000, 22, 1, N'Chuan', N'HoatDong'),
+(N'TOUR008', N'Cần Thơ - Chợ nổi', N'Ba ngày miền Tây: chợ nổi Cái Răng, vườn trái, đờn ca tài tử. Sông nước, vị ngọt.', 3, N'Gồm khách sạn, thuyền chợ nổi, vườn trái, bữa chính.', 2700000, 26, 1, N'Chuan', N'HoatDong'),
+(N'TOUR009', N'Đà Lạt ngàn hoa', N'Ba ngày cao nguyên: hồ Xuân Hương, đồi chè Cầu Đất, đêm sương. Mát quanh năm.', 3, N'Gồm khách sạn trung tâm, xe, điểm check-in, bữa chính.', 3300000, 28, 1, N'Chuan', N'HoatDong');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.LichTrinh WHERE MaLichTrinh = N'LT005')
+INSERT INTO dbo.LichTrinh (MaLichTrinh, MaTour, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThoiGianDuKien, Mota) VALUES
+(N'LT005', N'TOUR001', 3, 1, N'DT002', NULL, 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Thưởng thức bình minh trên vịnh rồi về Hà Nội'),
+(N'LT006', N'TOUR002', 3, 1, N'DT003', NULL, 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Dạo đèn lồng Hội An, thả hoa đăng'),
+(N'LT007', N'TOUR003', 1, 1, N'DT005', NULL, 1, 0, DATEADD(HOUR, 8, GETUTCDATE()), N'Lên Sa Pa, dạo thị trấn sương'),
+(N'LT008', N'TOUR003', 2, 1, N'DT006', NULL, 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Cáp treo Fansipan, chinh phục nóc nhà Đông Dương'),
+(N'LT009', N'TOUR003', 3, 1, N'DT005', NULL, 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Bản Cát Cát, ruộng bậc thang'),
+(N'LT010', N'TOUR003', 4, 1, N'DT005', NULL, 1, 0, DATEADD(DAY, 3, GETUTCDATE()), N'Chợ phiên rồi xuống núi'),
+(N'LT011', N'TOUR004', 1, 1, N'DT007', NULL, 1, 0, DATEADD(HOUR, 9, GETUTCDATE()), N'Thuyền Tràng An xuyên hang'),
+(N'LT012', N'TOUR004', 2, 1, N'DT008', NULL, 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Tam Cốc mùa lúa, chùa Bái Đính'),
+(N'LT013', N'TOUR004', 3, 1, N'DT007', NULL, 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Cố đô Hoa Lư, về Hà Nội'),
+(N'LT014', N'TOUR005', 1, 1, N'DT009', NULL, 1, 0, DATEADD(HOUR, 9, GETUTCDATE()), N'Tham quan Đại Nội, Ngọ Môn'),
+(N'LT015', N'TOUR005', 2, 1, N'DT010', NULL, 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Thuyền sông Hương lúc hoàng hôn'),
+(N'LT016', N'TOUR005', 3, 1, N'DT009', NULL, 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Lăng Tự Đức, ẩm thực cung đình'),
+(N'LT017', N'TOUR006', 1, 1, N'DT011', NULL, 1, 0, DATEADD(HOUR, 10, GETUTCDATE()), N'Nhận phòng, tắm biển Trần Phú'),
+(N'LT018', N'TOUR006', 2, 1, N'DT012', NULL, 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Cả ngày VinWonders Hòn Tre'),
+(N'LT019', N'TOUR006', 3, 1, N'DT011', NULL, 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Lặn biển / cano vịnh, hải sản đêm'),
+(N'LT020', N'TOUR006', 4, 1, N'DT011', NULL, 1, 0, DATEADD(DAY, 3, GETUTCDATE()), N'Tự do mua sắm rồi ra sân bay'),
+(N'LT021', N'TOUR007', 1, 1, N'DT014', NULL, 1, 0, DATEADD(HOUR, 14, GETUTCDATE()), N'Đón sân bay, chợ đêm Dương Đông'),
+(N'LT022', N'TOUR007', 2, 1, N'DT013', NULL, 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Cả ngày Bãi Sao, hoàng hôn Sanato'),
+(N'LT023', N'TOUR007', 3, 1, N'DT013', NULL, 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Câu cá / Grand World, nghỉ dưỡng'),
+(N'LT024', N'TOUR007', 4, 1, N'DT014', NULL, 1, 0, DATEADD(DAY, 3, GETUTCDATE()), N'Tiễn sân bay'),
+(N'LT025', N'TOUR008', 1, 1, N'DT015', NULL, 1, 0, DATEADD(HOUR, 5, GETUTCDATE()), N'Chợ nổi Cái Răng lúc sáng sớm'),
+(N'LT026', N'TOUR008', 2, 1, N'DT016', NULL, 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Vườn trái Phong Điền, đờn ca tài tử'),
+(N'LT027', N'TOUR008', 3, 1, N'DT015', NULL, 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Bến Ninh Kiều, về Sài Gòn'),
+(N'LT028', N'TOUR009', 1, 1, N'DT018', NULL, 1, 0, DATEADD(HOUR, 10, GETUTCDATE()), N'Hồ Xuân Hương, chợ Đà Lạt'),
+(N'LT029', N'TOUR009', 2, 1, N'DT017', NULL, 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Đồi chè Cầu Đất, Langbiang'),
+(N'LT030', N'TOUR009', 3, 1, N'DT018', NULL, 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Thiền viện Trúc Lâm, về');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.LichKhoiHanh WHERE MaKhoiHanh = N'KH003')
+INSERT INTO dbo.LichKhoiHanh (MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, DiaDiem) VALUES
+(N'KH003', N'TOUR001', DATEADD(DAY, 45, GETUTCDATE()), DATEADD(DAY, 47, GETUTCDATE()), N'Hà Nội'),
+(N'KH004', N'TOUR002', DATEADD(DAY, 20, GETUTCDATE()), DATEADD(DAY, 22, GETUTCDATE()), N'Đà Nẵng'),
+(N'KH005', N'TOUR003', DATEADD(DAY, 18, GETUTCDATE()), DATEADD(DAY, 21, GETUTCDATE()), N'Hà Nội'),
+(N'KH006', N'TOUR003', DATEADD(DAY, 40, GETUTCDATE()), DATEADD(DAY, 43, GETUTCDATE()), N'Hà Nội'),
+(N'KH007', N'TOUR004', DATEADD(DAY, 14, GETUTCDATE()), DATEADD(DAY, 16, GETUTCDATE()), N'Hà Nội'),
+(N'KH008', N'TOUR004', DATEADD(DAY, 35, GETUTCDATE()), DATEADD(DAY, 37, GETUTCDATE()), N'Hà Nội'),
+(N'KH009', N'TOUR005', DATEADD(DAY, 16, GETUTCDATE()), DATEADD(DAY, 18, GETUTCDATE()), N'Huế'),
+(N'KH010', N'TOUR006', DATEADD(DAY, 22, GETUTCDATE()), DATEADD(DAY, 25, GETUTCDATE()), N'Nha Trang'),
+(N'KH011', N'TOUR007', DATEADD(DAY, 12, GETUTCDATE()), DATEADD(DAY, 15, GETUTCDATE()), N'Phú Quốc'),
+(N'KH012', N'TOUR007', DATEADD(DAY, 38, GETUTCDATE()), DATEADD(DAY, 41, GETUTCDATE()), N'Phú Quốc'),
+(N'KH013', N'TOUR008', DATEADD(DAY, 10, GETUTCDATE()), DATEADD(DAY, 12, GETUTCDATE()), N'Cần Thơ'),
+(N'KH014', N'TOUR009', DATEADD(DAY, 19, GETUTCDATE()), DATEADD(DAY, 21, GETUTCDATE()), N'Đà Lạt'),
+(N'KH015', N'TOUR009', DATEADD(DAY, 42, GETUTCDATE()), DATEADD(DAY, 44, GETUTCDATE()), N'Đà Lạt');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.DanhGiaTour WHERE MaDanhGiaTour = N'DG001')
+INSERT INTO dbo.DanhGiaTour (MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia, NhanXet) VALUES
+(N'DG001', N'USRKH000001', N'TOUR001', DATEADD(DAY, -20, GETUTCDATE()), 5, N'Vịnh đẹp hơn ảnh. Du thuyền sạch, bình minh ngày 3 đáng để dậy sớm.'),
+(N'DG002', N'USRKH000002', N'TOUR001', DATEADD(DAY, -12, GETUTCDATE()), 4, N'Hà Nội hơi gấp ngày đầu, nhưng Hạ Long bù lại rất đã.'),
+(N'DG003', N'USRKH000001', N'TOUR002', DATEADD(DAY, -8, GETUTCDATE()), 5, N'Hội An về đêm như một tấm postcard. Ăn mì Quảng đúng ý.'),
+(N'DG004', N'USRKH000002', N'TOUR003', DATEADD(DAY, -30, GETUTCDATE()), 5, N'Fansipan mây phủ, ruộng bậc thang sau mưa. Nên mang áo ấm.'),
+(N'DG005', N'USRKH000001', N'TOUR004', DATEADD(DAY, -15, GETUTCDATE()), 5, N'Thuyền Tràng An yên, nước trong. Phù hợp gia đình.'),
+(N'DG006', N'USRKH000002', N'TOUR007', DATEADD(DAY, -6, GETUTCDATE()), 4, N'Bãi Sao đẹp nhất đảo. Sunset Sanato đông nhưng đáng.');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.KhuyenMai WHERE MaKM = N'KM002')
+INSERT INTO dbo.KhuyenMai (MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi, GiamGia, CoCongDon, TrangThai)
+VALUES (N'KM002', N'NKM001', N'Ưu đãi đảo ngọc', N'ISLAND10', DATEADD(DAY, -2, GETUTCDATE()), DATEADD(DAY, 60, GETUTCDATE()), N'%', 12, 0, N'HoatDong');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.KhuyenMai WHERE MaKM = N'KM003')
+INSERT INTO dbo.KhuyenMai (MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi, GiamGia, CoCongDon, TrangThai)
+VALUES (N'KM003', N'NKM001', N'Cao nguyên se lạnh', N'DALAT08', DATEADD(DAY, -2, GETUTCDATE()), DATEADD(DAY, 45, GETUTCDATE()), N'%', 8, 0, N'HoatDong');
+GO
+
+/* ===== 017_PartnerHotelsByRegion.sql #1 ===== */
+/* Khách sạn theo khu vực phục vụ tự thiết kế. Không sửa 001. */
+
+UPDATE dbo.SanPhamDoiTac
+SET DonViTinh = N'dem'
+WHERE MaDoiTac IN (SELECT MaDoiTac FROM dbo.DoiTac WHERE RTRIM(LoaiDoiTac) = N'LuuTru')
+  AND (DonViTinh IS NULL OR RTRIM(DonViTinh) <> N'dem');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan WHERE MaDThamQuan = N'DT005')
+    INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, KinhDo, ViDo, Mota)
+    VALUES (N'DT005', N'Chợ Bến Thành', N'Quận 1, TP.HCM', N'KV003', CAST(106.698300 AS decimal(9,6)), CAST(10.772500 AS decimal(9,6)), N'Chợ trung tâm Sài Gòn');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.DoiTac WHERE MaDoiTac = N'DTAC005')
+    INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai)
+    VALUES (N'DTAC005', N'Khách sạn Phố Hội', N'LuuTru', N'Ngô Lan', N'0901000005', N'hoianks@example.com', N'KV002', CAST(10.00 AS decimal(5,2)), N'HoatDong');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.DoiTac WHERE MaDoiTac = N'DTAC006')
+    INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai)
+    VALUES (N'DTAC006', N'Khách sạn Bến Thành', N'LuuTru', N'Vũ Minh', N'0901000006', N'saigonks@example.com', N'KV003', CAST(10.00 AS decimal(5,2)), N'HoatDong');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac WHERE MaSanPham = N'SP009')
+    INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+    VALUES (N'SP009', N'DTAC005', N'Phòng Deluxe', N'dem', 1500000, NULL, N'Phòng 2 giường, gồm ăn sáng', N'HoatDong');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac WHERE MaSanPham = N'SP010')
+    INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+    VALUES (N'SP010', N'DTAC005', N'Phòng tiêu chuẩn', N'dem', 900000, NULL, N'Phòng 2 người', N'HoatDong');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac WHERE MaSanPham = N'SP011')
+    INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+    VALUES (N'SP011', N'DTAC006', N'Phòng Deluxe', N'dem', 1800000, NULL, N'Phòng view trung tâm', N'HoatDong');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac WHERE MaSanPham = N'SP012')
+    INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+    VALUES (N'SP012', N'DTAC006', N'Phòng tiêu chuẩn', N'dem', 1100000, NULL, N'Phòng 2 người', N'HoatDong');
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #7 ===== */
+INSERT INTO dbo.TinhThanh (MaTinh, TenTinh, MaKhuVuc)
+SELECT v.MaTinh, v.TenTinh, v.MaKhuVuc FROM (VALUES
+    (N'TN01                ', N'Hà Nội', N'KV001               '),
+    (N'TN02                ', N'Hải Phòng', N'KV001               '),
+    (N'TN03                ', N'Quảng Ninh', N'KV001               '),
+    (N'TN04                ', N'Bắc Ninh', N'KV001               '),
+    (N'TN05                ', N'Hải Dương', N'KV001               '),
+    (N'TN06                ', N'Hưng Yên', N'KV001               '),
+    (N'TN07                ', N'Vĩnh Phúc', N'KV001               '),
+    (N'TN08                ', N'Thái Nguyên', N'KV001               '),
+    (N'TN09                ', N'Phú Thọ', N'KV001               '),
+    (N'TN10                ', N'Bắc Giang', N'KV001               '),
+    (N'TN11                ', N'Lạng Sơn', N'KV001               '),
+    (N'TN12                ', N'Cao Bằng', N'KV001               '),
+    (N'TN13                ', N'Hà Giang', N'KV001               '),
+    (N'TN14                ', N'Tuyên Quang', N'KV001               '),
+    (N'TN15                ', N'Lào Cai', N'KV001               '),
+    (N'TN16                ', N'Yên Bái', N'KV001               '),
+    (N'TN17                ', N'Điện Biên', N'KV001               '),
+    (N'TN18                ', N'Lai Châu', N'KV001               '),
+    (N'TN19                ', N'Sơn La', N'KV001               '),
+    (N'TN20                ', N'Hòa Bình', N'KV001               '),
+    (N'TN21                ', N'Ninh Bình', N'KV001               '),
+    (N'TN22                ', N'Nam Định', N'KV001               '),
+    (N'TN23                ', N'Thái Bình', N'KV001               '),
+    (N'TN24                ', N'Hà Nam', N'KV001               '),
+    (N'TN25                ', N'Bắc Kạn', N'KV001               '),
+    (N'TN26                ', N'Thanh Hóa', N'KV002               '),
+    (N'TN27                ', N'Nghệ An', N'KV002               '),
+    (N'TN28                ', N'Hà Tĩnh', N'KV002               '),
+    (N'TN29                ', N'Quảng Bình', N'KV002               '),
+    (N'TN30                ', N'Quảng Trị', N'KV002               '),
+    (N'TN31                ', N'Thừa Thiên Huế', N'KV002               '),
+    (N'TN32                ', N'Đà Nẵng', N'KV002               '),
+    (N'TN33                ', N'Quảng Nam', N'KV002               '),
+    (N'TN34                ', N'Quảng Ngãi', N'KV002               '),
+    (N'TN35                ', N'Bình Định', N'KV002               '),
+    (N'TN36                ', N'Phú Yên', N'KV002               '),
+    (N'TN37                ', N'Khánh Hòa', N'KV002               '),
+    (N'TN38                ', N'Ninh Thuận', N'KV002               '),
+    (N'TN39                ', N'Bình Thuận', N'KV002               '),
+    (N'TN40                ', N'Kon Tum', N'KV002               '),
+    (N'TN41                ', N'Gia Lai', N'KV002               '),
+    (N'TN42                ', N'Đắk Lắk', N'KV002               '),
+    (N'TN43                ', N'Đắk Nông', N'KV002               '),
+    (N'TN44                ', N'Lâm Đồng', N'KV002               '),
+    (N'TN45                ', N'TP. Hồ Chí Minh', N'KV003               '),
+    (N'TN46                ', N'Đồng Nai', N'KV003               '),
+    (N'TN47                ', N'Bình Dương', N'KV003               '),
+    (N'TN48                ', N'Bà Rịa - Vũng Tàu', N'KV003               '),
+    (N'TN49                ', N'Tây Ninh', N'KV003               '),
+    (N'TN50                ', N'Bình Phước', N'KV003               '),
+    (N'TN51                ', N'Long An', N'KV003               '),
+    (N'TN52                ', N'Tiền Giang', N'KV003               '),
+    (N'TN53                ', N'Bến Tre', N'KV003               '),
+    (N'TN54                ', N'Vĩnh Long', N'KV003               '),
+    (N'TN55                ', N'Trà Vinh', N'KV003               '),
+    (N'TN56                ', N'Đồng Tháp', N'KV003               '),
+    (N'TN57                ', N'An Giang', N'KV003               '),
+    (N'TN58                ', N'Kiên Giang', N'KV003               '),
+    (N'TN59                ', N'Cần Thơ', N'KV003               '),
+    (N'TN60                ', N'Hậu Giang', N'KV003               '),
+    (N'TN61                ', N'Sóc Trăng', N'KV003               '),
+    (N'TN62                ', N'Bạc Liêu', N'KV003               '),
+    (N'TN63                ', N'Cà Mau', N'KV003               ')
+) v(MaTinh, TenTinh, MaKhuVuc)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.TinhThanh x WHERE x.MaTinh = v.MaTinh);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #8 ===== */
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+SELECT * FROM (VALUES
+    (N'DTV011              ', N'Hồ Hoàn Kiếm', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nội'),
+    (N'DTV012              ', N'Văn Miếu Quốc Tử Giám', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nội'),
+    (N'DTV013              ', N'Lăng Chủ tịch Hồ Chí Minh', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nội'),
+    (N'DTV014              ', N'Phố cổ Hà Nội', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nội'),
+    (N'DTV015              ', N'Chùa Trấn Quốc', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nội'),
+    (N'DTP011              ', N'Công viên Thủ Lệ', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nội'),
+    (N'DTP012              ', N'Vinpearl Aquarium', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nội'),
+    (N'DTP013              ', N'Công viên nước Hồ Tây', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nội'),
+    (N'DTP014              ', N'Làng văn hóa các dân tộc', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nội'),
+    (N'DTP015              ', N'Rạp Xiếc Trung ương', N'Hà Nội', N'KV001               ', N'TN01                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nội'),
+    (N'DTV021              ', N'Đồ Sơn', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Phòng'),
+    (N'DTV022              ', N'Cát Bà', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Phòng'),
+    (N'DTV023              ', N'Nhà hát lớn Hải Phòng', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Phòng'),
+    (N'DTV024              ', N'Đền Nghè', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Phòng'),
+    (N'DTV025              ', N'Bãi Cháy Cát Bà', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Phòng'),
+    (N'DTP021              ', N'Công viên giải trí Hải Phòng', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Phòng'),
+    (N'DTP022              ', N'Khu vui chơi gia đình Hải Phòng', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Phòng'),
+    (N'DTP023              ', N'Công viên nước Hải Phòng', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Phòng'),
+    (N'DTP024              ', N'Khu thể thao Hải Phòng', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Phòng'),
+    (N'DTP025              ', N'Quảng trường lễ hội Hải Phòng', N'Hải Phòng', N'KV001               ', N'TN02                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Phòng'),
+    (N'DTV031              ', N'Vịnh Hạ Long', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ninh'),
+    (N'DTV032              ', N'Đảo Tuần Châu', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ninh'),
+    (N'DTV033              ', N'Yên Tử', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ninh'),
+    (N'DTV034              ', N'Bãi Cháy', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ninh'),
+    (N'DTV035              ', N'Cột cờ Hạ Long', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ninh'),
+    (N'DTP031              ', N'Công viên giải trí Quảng Ninh', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ninh'),
+    (N'DTP032              ', N'Khu vui chơi gia đình Quảng Ninh', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ninh'),
+    (N'DTP033              ', N'Công viên nước Quảng Ninh', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ninh'),
+    (N'DTP034              ', N'Khu thể thao Quảng Ninh', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ninh'),
+    (N'DTP035              ', N'Quảng trường lễ hội Quảng Ninh', N'Quảng Ninh', N'KV001               ', N'TN03                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ninh'),
+    (N'DTV041              ', N'Trung tâm thành phố Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Ninh'),
+    (N'DTV042              ', N'Bảo tàng Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Ninh'),
+    (N'DTV043              ', N'Đền / chùa cổ Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Ninh'),
+    (N'DTV044              ', N'Công viên văn hóa Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Ninh'),
+    (N'DTV045              ', N'Chợ đêm Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Ninh'),
+    (N'DTP041              ', N'Công viên giải trí Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Ninh'),
+    (N'DTP042              ', N'Khu vui chơi gia đình Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Ninh'),
+    (N'DTP043              ', N'Công viên nước Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Ninh'),
+    (N'DTP044              ', N'Khu thể thao Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Ninh'),
+    (N'DTP045              ', N'Quảng trường lễ hội Bắc Ninh', N'Bắc Ninh', N'KV001               ', N'TN04                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Ninh'),
+    (N'DTV051              ', N'Trung tâm thành phố Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Dương'),
+    (N'DTV052              ', N'Bảo tàng Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Dương'),
+    (N'DTV053              ', N'Đền / chùa cổ Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Dương'),
+    (N'DTV054              ', N'Công viên văn hóa Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Dương'),
+    (N'DTV055              ', N'Chợ đêm Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hải Dương'),
+    (N'DTP051              ', N'Công viên giải trí Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Dương'),
+    (N'DTP052              ', N'Khu vui chơi gia đình Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Dương'),
+    (N'DTP053              ', N'Công viên nước Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Dương'),
+    (N'DTP054              ', N'Khu thể thao Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Dương'),
+    (N'DTP055              ', N'Quảng trường lễ hội Hải Dương', N'Hải Dương', N'KV001               ', N'TN05                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hải Dương'),
+    (N'DTV061              ', N'Trung tâm thành phố Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hưng Yên'),
+    (N'DTV062              ', N'Bảo tàng Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hưng Yên'),
+    (N'DTV063              ', N'Đền / chùa cổ Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hưng Yên'),
+    (N'DTV064              ', N'Công viên văn hóa Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hưng Yên'),
+    (N'DTV065              ', N'Chợ đêm Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hưng Yên'),
+    (N'DTP061              ', N'Công viên giải trí Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hưng Yên'),
+    (N'DTP062              ', N'Khu vui chơi gia đình Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hưng Yên'),
+    (N'DTP063              ', N'Công viên nước Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hưng Yên'),
+    (N'DTP064              ', N'Khu thể thao Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hưng Yên'),
+    (N'DTP065              ', N'Quảng trường lễ hội Hưng Yên', N'Hưng Yên', N'KV001               ', N'TN06                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hưng Yên'),
+    (N'DTV071              ', N'Trung tâm thành phố Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Phúc'),
+    (N'DTV072              ', N'Bảo tàng Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Phúc'),
+    (N'DTV073              ', N'Đền / chùa cổ Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Phúc'),
+    (N'DTV074              ', N'Công viên văn hóa Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Phúc'),
+    (N'DTV075              ', N'Chợ đêm Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Phúc'),
+    (N'DTP071              ', N'Công viên giải trí Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Phúc'),
+    (N'DTP072              ', N'Khu vui chơi gia đình Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Phúc'),
+    (N'DTP073              ', N'Công viên nước Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Phúc'),
+    (N'DTP074              ', N'Khu thể thao Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Phúc'),
+    (N'DTP075              ', N'Quảng trường lễ hội Vĩnh Phúc', N'Vĩnh Phúc', N'KV001               ', N'TN07                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Phúc'),
+    (N'DTV081              ', N'Trung tâm thành phố Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Nguyên'),
+    (N'DTV082              ', N'Bảo tàng Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Nguyên'),
+    (N'DTV083              ', N'Đền / chùa cổ Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Nguyên'),
+    (N'DTV084              ', N'Công viên văn hóa Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Nguyên'),
+    (N'DTV085              ', N'Chợ đêm Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Nguyên'),
+    (N'DTP081              ', N'Công viên giải trí Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Nguyên'),
+    (N'DTP082              ', N'Khu vui chơi gia đình Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Nguyên'),
+    (N'DTP083              ', N'Công viên nước Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Nguyên'),
+    (N'DTP084              ', N'Khu thể thao Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Nguyên'),
+    (N'DTP085              ', N'Quảng trường lễ hội Thái Nguyên', N'Thái Nguyên', N'KV001               ', N'TN08                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Nguyên')
+) v(MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan x WHERE x.MaDThamQuan = v.MaDThamQuan);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #9 ===== */
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+SELECT * FROM (VALUES
+    (N'DTV091              ', N'Trung tâm thành phố Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Thọ'),
+    (N'DTV092              ', N'Bảo tàng Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Thọ'),
+    (N'DTV093              ', N'Đền / chùa cổ Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Thọ'),
+    (N'DTV094              ', N'Công viên văn hóa Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Thọ'),
+    (N'DTV095              ', N'Chợ đêm Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Thọ'),
+    (N'DTP091              ', N'Công viên giải trí Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Thọ'),
+    (N'DTP092              ', N'Khu vui chơi gia đình Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Thọ'),
+    (N'DTP093              ', N'Công viên nước Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Thọ'),
+    (N'DTP094              ', N'Khu thể thao Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Thọ'),
+    (N'DTP095              ', N'Quảng trường lễ hội Phú Thọ', N'Phú Thọ', N'KV001               ', N'TN09                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Thọ'),
+    (N'DTV101              ', N'Trung tâm thành phố Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Giang'),
+    (N'DTV102              ', N'Bảo tàng Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Giang'),
+    (N'DTV103              ', N'Đền / chùa cổ Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Giang'),
+    (N'DTV104              ', N'Công viên văn hóa Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Giang'),
+    (N'DTV105              ', N'Chợ đêm Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Giang'),
+    (N'DTP101              ', N'Công viên giải trí Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Giang'),
+    (N'DTP102              ', N'Khu vui chơi gia đình Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Giang'),
+    (N'DTP103              ', N'Công viên nước Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Giang'),
+    (N'DTP104              ', N'Khu thể thao Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Giang'),
+    (N'DTP105              ', N'Quảng trường lễ hội Bắc Giang', N'Bắc Giang', N'KV001               ', N'TN10                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Giang'),
+    (N'DTV111              ', N'Trung tâm thành phố Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lạng Sơn'),
+    (N'DTV112              ', N'Bảo tàng Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lạng Sơn'),
+    (N'DTV113              ', N'Đền / chùa cổ Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lạng Sơn'),
+    (N'DTV114              ', N'Công viên văn hóa Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lạng Sơn'),
+    (N'DTV115              ', N'Chợ đêm Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lạng Sơn'),
+    (N'DTP111              ', N'Công viên giải trí Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lạng Sơn'),
+    (N'DTP112              ', N'Khu vui chơi gia đình Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lạng Sơn'),
+    (N'DTP113              ', N'Công viên nước Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lạng Sơn'),
+    (N'DTP114              ', N'Khu thể thao Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lạng Sơn'),
+    (N'DTP115              ', N'Quảng trường lễ hội Lạng Sơn', N'Lạng Sơn', N'KV001               ', N'TN11                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lạng Sơn'),
+    (N'DTV121              ', N'Trung tâm thành phố Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cao Bằng'),
+    (N'DTV122              ', N'Bảo tàng Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cao Bằng'),
+    (N'DTV123              ', N'Đền / chùa cổ Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cao Bằng'),
+    (N'DTV124              ', N'Công viên văn hóa Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cao Bằng'),
+    (N'DTV125              ', N'Chợ đêm Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cao Bằng'),
+    (N'DTP121              ', N'Công viên giải trí Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cao Bằng'),
+    (N'DTP122              ', N'Khu vui chơi gia đình Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cao Bằng'),
+    (N'DTP123              ', N'Công viên nước Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cao Bằng'),
+    (N'DTP124              ', N'Khu thể thao Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cao Bằng'),
+    (N'DTP125              ', N'Quảng trường lễ hội Cao Bằng', N'Cao Bằng', N'KV001               ', N'TN12                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cao Bằng'),
+    (N'DTV131              ', N'Trung tâm thành phố Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Giang'),
+    (N'DTV132              ', N'Bảo tàng Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Giang'),
+    (N'DTV133              ', N'Đền / chùa cổ Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Giang'),
+    (N'DTV134              ', N'Công viên văn hóa Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Giang'),
+    (N'DTV135              ', N'Chợ đêm Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Giang'),
+    (N'DTP131              ', N'Công viên giải trí Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Giang'),
+    (N'DTP132              ', N'Khu vui chơi gia đình Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Giang'),
+    (N'DTP133              ', N'Công viên nước Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Giang'),
+    (N'DTP134              ', N'Khu thể thao Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Giang'),
+    (N'DTP135              ', N'Quảng trường lễ hội Hà Giang', N'Hà Giang', N'KV001               ', N'TN13                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Giang'),
+    (N'DTV141              ', N'Trung tâm thành phố Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tuyên Quang'),
+    (N'DTV142              ', N'Bảo tàng Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tuyên Quang'),
+    (N'DTV143              ', N'Đền / chùa cổ Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tuyên Quang'),
+    (N'DTV144              ', N'Công viên văn hóa Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tuyên Quang'),
+    (N'DTV145              ', N'Chợ đêm Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tuyên Quang'),
+    (N'DTP141              ', N'Công viên giải trí Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tuyên Quang'),
+    (N'DTP142              ', N'Khu vui chơi gia đình Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tuyên Quang'),
+    (N'DTP143              ', N'Công viên nước Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tuyên Quang'),
+    (N'DTP144              ', N'Khu thể thao Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tuyên Quang'),
+    (N'DTP145              ', N'Quảng trường lễ hội Tuyên Quang', N'Tuyên Quang', N'KV001               ', N'TN14                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tuyên Quang'),
+    (N'DTV151              ', N'Thị trấn Sa Pa', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lào Cai'),
+    (N'DTV152              ', N'Fansipan', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lào Cai'),
+    (N'DTV153              ', N'Bản Cát Cát', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lào Cai'),
+    (N'DTV154              ', N'Núi Hàm Rồng', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lào Cai'),
+    (N'DTV155              ', N'Chợ tình Sa Pa', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lào Cai'),
+    (N'DTP151              ', N'Công viên giải trí Lào Cai', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lào Cai'),
+    (N'DTP152              ', N'Khu vui chơi gia đình Lào Cai', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lào Cai'),
+    (N'DTP153              ', N'Công viên nước Lào Cai', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lào Cai'),
+    (N'DTP154              ', N'Khu thể thao Lào Cai', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lào Cai'),
+    (N'DTP155              ', N'Quảng trường lễ hội Lào Cai', N'Lào Cai', N'KV001               ', N'TN15                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lào Cai'),
+    (N'DTV161              ', N'Trung tâm thành phố Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Yên Bái'),
+    (N'DTV162              ', N'Bảo tàng Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Yên Bái'),
+    (N'DTV163              ', N'Đền / chùa cổ Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Yên Bái'),
+    (N'DTV164              ', N'Công viên văn hóa Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Yên Bái'),
+    (N'DTV165              ', N'Chợ đêm Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Yên Bái'),
+    (N'DTP161              ', N'Công viên giải trí Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Yên Bái'),
+    (N'DTP162              ', N'Khu vui chơi gia đình Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Yên Bái'),
+    (N'DTP163              ', N'Công viên nước Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Yên Bái'),
+    (N'DTP164              ', N'Khu thể thao Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Yên Bái'),
+    (N'DTP165              ', N'Quảng trường lễ hội Yên Bái', N'Yên Bái', N'KV001               ', N'TN16                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Yên Bái')
+) v(MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan x WHERE x.MaDThamQuan = v.MaDThamQuan);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #10 ===== */
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+SELECT * FROM (VALUES
+    (N'DTV171              ', N'Trung tâm thành phố Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Điện Biên'),
+    (N'DTV172              ', N'Bảo tàng Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Điện Biên'),
+    (N'DTV173              ', N'Đền / chùa cổ Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Điện Biên'),
+    (N'DTV174              ', N'Công viên văn hóa Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Điện Biên'),
+    (N'DTV175              ', N'Chợ đêm Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Điện Biên'),
+    (N'DTP171              ', N'Công viên giải trí Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Điện Biên'),
+    (N'DTP172              ', N'Khu vui chơi gia đình Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Điện Biên'),
+    (N'DTP173              ', N'Công viên nước Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Điện Biên'),
+    (N'DTP174              ', N'Khu thể thao Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Điện Biên'),
+    (N'DTP175              ', N'Quảng trường lễ hội Điện Biên', N'Điện Biên', N'KV001               ', N'TN17                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Điện Biên'),
+    (N'DTV181              ', N'Trung tâm thành phố Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lai Châu'),
+    (N'DTV182              ', N'Bảo tàng Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lai Châu'),
+    (N'DTV183              ', N'Đền / chùa cổ Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lai Châu'),
+    (N'DTV184              ', N'Công viên văn hóa Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lai Châu'),
+    (N'DTV185              ', N'Chợ đêm Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lai Châu'),
+    (N'DTP181              ', N'Công viên giải trí Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lai Châu'),
+    (N'DTP182              ', N'Khu vui chơi gia đình Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lai Châu'),
+    (N'DTP183              ', N'Công viên nước Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lai Châu'),
+    (N'DTP184              ', N'Khu thể thao Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lai Châu'),
+    (N'DTP185              ', N'Quảng trường lễ hội Lai Châu', N'Lai Châu', N'KV001               ', N'TN18                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lai Châu'),
+    (N'DTV191              ', N'Trung tâm thành phố Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sơn La'),
+    (N'DTV192              ', N'Bảo tàng Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sơn La'),
+    (N'DTV193              ', N'Đền / chùa cổ Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sơn La'),
+    (N'DTV194              ', N'Công viên văn hóa Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sơn La'),
+    (N'DTV195              ', N'Chợ đêm Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sơn La'),
+    (N'DTP191              ', N'Công viên giải trí Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sơn La'),
+    (N'DTP192              ', N'Khu vui chơi gia đình Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sơn La'),
+    (N'DTP193              ', N'Công viên nước Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sơn La'),
+    (N'DTP194              ', N'Khu thể thao Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sơn La'),
+    (N'DTP195              ', N'Quảng trường lễ hội Sơn La', N'Sơn La', N'KV001               ', N'TN19                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sơn La'),
+    (N'DTV201              ', N'Trung tâm thành phố Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hòa Bình'),
+    (N'DTV202              ', N'Bảo tàng Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hòa Bình'),
+    (N'DTV203              ', N'Đền / chùa cổ Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hòa Bình'),
+    (N'DTV204              ', N'Công viên văn hóa Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hòa Bình'),
+    (N'DTV205              ', N'Chợ đêm Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hòa Bình'),
+    (N'DTP201              ', N'Công viên giải trí Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hòa Bình'),
+    (N'DTP202              ', N'Khu vui chơi gia đình Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hòa Bình'),
+    (N'DTP203              ', N'Công viên nước Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hòa Bình'),
+    (N'DTP204              ', N'Khu thể thao Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hòa Bình'),
+    (N'DTP205              ', N'Quảng trường lễ hội Hòa Bình', N'Hòa Bình', N'KV001               ', N'TN20                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hòa Bình'),
+    (N'DTV211              ', N'Tràng An', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Bình'),
+    (N'DTV212              ', N'Tam Cốc', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Bình'),
+    (N'DTV213              ', N'Chùa Bái Đính', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Bình'),
+    (N'DTV214              ', N'Cố đô Hoa Lư', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Bình'),
+    (N'DTV215              ', N'Hang Múa', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Bình'),
+    (N'DTP211              ', N'Công viên giải trí Ninh Bình', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Bình'),
+    (N'DTP212              ', N'Khu vui chơi gia đình Ninh Bình', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Bình'),
+    (N'DTP213              ', N'Công viên nước Ninh Bình', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Bình'),
+    (N'DTP214              ', N'Khu thể thao Ninh Bình', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Bình'),
+    (N'DTP215              ', N'Quảng trường lễ hội Ninh Bình', N'Ninh Bình', N'KV001               ', N'TN21                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Bình'),
+    (N'DTV221              ', N'Trung tâm thành phố Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nam Định'),
+    (N'DTV222              ', N'Bảo tàng Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nam Định'),
+    (N'DTV223              ', N'Đền / chùa cổ Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nam Định'),
+    (N'DTV224              ', N'Công viên văn hóa Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nam Định'),
+    (N'DTV225              ', N'Chợ đêm Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nam Định'),
+    (N'DTP221              ', N'Công viên giải trí Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nam Định'),
+    (N'DTP222              ', N'Khu vui chơi gia đình Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nam Định'),
+    (N'DTP223              ', N'Công viên nước Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nam Định'),
+    (N'DTP224              ', N'Khu thể thao Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nam Định'),
+    (N'DTP225              ', N'Quảng trường lễ hội Nam Định', N'Nam Định', N'KV001               ', N'TN22                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nam Định'),
+    (N'DTV231              ', N'Trung tâm thành phố Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Bình'),
+    (N'DTV232              ', N'Bảo tàng Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Bình'),
+    (N'DTV233              ', N'Đền / chùa cổ Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Bình'),
+    (N'DTV234              ', N'Công viên văn hóa Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Bình'),
+    (N'DTV235              ', N'Chợ đêm Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thái Bình'),
+    (N'DTP231              ', N'Công viên giải trí Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Bình'),
+    (N'DTP232              ', N'Khu vui chơi gia đình Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Bình'),
+    (N'DTP233              ', N'Công viên nước Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Bình'),
+    (N'DTP234              ', N'Khu thể thao Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Bình'),
+    (N'DTP235              ', N'Quảng trường lễ hội Thái Bình', N'Thái Bình', N'KV001               ', N'TN23                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thái Bình'),
+    (N'DTV241              ', N'Trung tâm thành phố Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nam'),
+    (N'DTV242              ', N'Bảo tàng Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nam'),
+    (N'DTV243              ', N'Đền / chùa cổ Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nam'),
+    (N'DTV244              ', N'Công viên văn hóa Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nam'),
+    (N'DTV245              ', N'Chợ đêm Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Nam'),
+    (N'DTP241              ', N'Công viên giải trí Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nam'),
+    (N'DTP242              ', N'Khu vui chơi gia đình Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nam'),
+    (N'DTP243              ', N'Công viên nước Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nam'),
+    (N'DTP244              ', N'Khu thể thao Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nam'),
+    (N'DTP245              ', N'Quảng trường lễ hội Hà Nam', N'Hà Nam', N'KV001               ', N'TN24                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Nam')
+) v(MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan x WHERE x.MaDThamQuan = v.MaDThamQuan);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #11 ===== */
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+SELECT * FROM (VALUES
+    (N'DTV251              ', N'Trung tâm thành phố Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Kạn'),
+    (N'DTV252              ', N'Bảo tàng Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Kạn'),
+    (N'DTV253              ', N'Đền / chùa cổ Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Kạn'),
+    (N'DTV254              ', N'Công viên văn hóa Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Kạn'),
+    (N'DTV255              ', N'Chợ đêm Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bắc Kạn'),
+    (N'DTP251              ', N'Công viên giải trí Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Kạn'),
+    (N'DTP252              ', N'Khu vui chơi gia đình Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Kạn'),
+    (N'DTP253              ', N'Công viên nước Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Kạn'),
+    (N'DTP254              ', N'Khu thể thao Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Kạn'),
+    (N'DTP255              ', N'Quảng trường lễ hội Bắc Kạn', N'Bắc Kạn', N'KV001               ', N'TN25                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bắc Kạn'),
+    (N'DTV261              ', N'Trung tâm thành phố Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thanh Hóa'),
+    (N'DTV262              ', N'Bảo tàng Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thanh Hóa'),
+    (N'DTV263              ', N'Đền / chùa cổ Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thanh Hóa'),
+    (N'DTV264              ', N'Công viên văn hóa Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thanh Hóa'),
+    (N'DTV265              ', N'Chợ đêm Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thanh Hóa'),
+    (N'DTP261              ', N'Công viên giải trí Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thanh Hóa'),
+    (N'DTP262              ', N'Khu vui chơi gia đình Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thanh Hóa'),
+    (N'DTP263              ', N'Công viên nước Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thanh Hóa'),
+    (N'DTP264              ', N'Khu thể thao Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thanh Hóa'),
+    (N'DTP265              ', N'Quảng trường lễ hội Thanh Hóa', N'Thanh Hóa', N'KV002               ', N'TN26                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thanh Hóa'),
+    (N'DTV271              ', N'Trung tâm thành phố Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nghệ An'),
+    (N'DTV272              ', N'Bảo tàng Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nghệ An'),
+    (N'DTV273              ', N'Đền / chùa cổ Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nghệ An'),
+    (N'DTV274              ', N'Công viên văn hóa Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nghệ An'),
+    (N'DTV275              ', N'Chợ đêm Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Nghệ An'),
+    (N'DTP271              ', N'Công viên giải trí Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nghệ An'),
+    (N'DTP272              ', N'Khu vui chơi gia đình Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nghệ An'),
+    (N'DTP273              ', N'Công viên nước Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nghệ An'),
+    (N'DTP274              ', N'Khu thể thao Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nghệ An'),
+    (N'DTP275              ', N'Quảng trường lễ hội Nghệ An', N'Nghệ An', N'KV002               ', N'TN27                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Nghệ An'),
+    (N'DTV281              ', N'Trung tâm thành phố Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Tĩnh'),
+    (N'DTV282              ', N'Bảo tàng Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Tĩnh'),
+    (N'DTV283              ', N'Đền / chùa cổ Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Tĩnh'),
+    (N'DTV284              ', N'Công viên văn hóa Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Tĩnh'),
+    (N'DTV285              ', N'Chợ đêm Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hà Tĩnh'),
+    (N'DTP281              ', N'Công viên giải trí Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Tĩnh'),
+    (N'DTP282              ', N'Khu vui chơi gia đình Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Tĩnh'),
+    (N'DTP283              ', N'Công viên nước Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Tĩnh'),
+    (N'DTP284              ', N'Khu thể thao Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Tĩnh'),
+    (N'DTP285              ', N'Quảng trường lễ hội Hà Tĩnh', N'Hà Tĩnh', N'KV002               ', N'TN28                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hà Tĩnh'),
+    (N'DTV291              ', N'Trung tâm thành phố Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Bình'),
+    (N'DTV292              ', N'Bảo tàng Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Bình'),
+    (N'DTV293              ', N'Đền / chùa cổ Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Bình'),
+    (N'DTV294              ', N'Công viên văn hóa Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Bình'),
+    (N'DTV295              ', N'Chợ đêm Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Bình'),
+    (N'DTP291              ', N'Công viên giải trí Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Bình'),
+    (N'DTP292              ', N'Khu vui chơi gia đình Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Bình'),
+    (N'DTP293              ', N'Công viên nước Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Bình'),
+    (N'DTP294              ', N'Khu thể thao Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Bình'),
+    (N'DTP295              ', N'Quảng trường lễ hội Quảng Bình', N'Quảng Bình', N'KV002               ', N'TN29                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Bình'),
+    (N'DTV301              ', N'Trung tâm thành phố Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Trị'),
+    (N'DTV302              ', N'Bảo tàng Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Trị'),
+    (N'DTV303              ', N'Đền / chùa cổ Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Trị'),
+    (N'DTV304              ', N'Công viên văn hóa Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Trị'),
+    (N'DTV305              ', N'Chợ đêm Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Trị'),
+    (N'DTP301              ', N'Công viên giải trí Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Trị'),
+    (N'DTP302              ', N'Khu vui chơi gia đình Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Trị'),
+    (N'DTP303              ', N'Công viên nước Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Trị'),
+    (N'DTP304              ', N'Khu thể thao Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Trị'),
+    (N'DTP305              ', N'Quảng trường lễ hội Quảng Trị', N'Quảng Trị', N'KV002               ', N'TN30                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Trị'),
+    (N'DTV311              ', N'Đại Nội Huế', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thừa Thiên Huế'),
+    (N'DTV312              ', N'Chùa Thiên Mụ', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thừa Thiên Huế'),
+    (N'DTV313              ', N'Lăng Tự Đức', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thừa Thiên Huế'),
+    (N'DTV314              ', N'Cầu Tràng Tiền', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thừa Thiên Huế'),
+    (N'DTV315              ', N'Đồi Vọng Cảnh', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Thừa Thiên Huế'),
+    (N'DTP311              ', N'Công viên giải trí Thừa Thiên Huế', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thừa Thiên Huế'),
+    (N'DTP312              ', N'Khu vui chơi gia đình Thừa Thiên Huế', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thừa Thiên Huế'),
+    (N'DTP313              ', N'Công viên nước Thừa Thiên Huế', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thừa Thiên Huế'),
+    (N'DTP314              ', N'Khu thể thao Thừa Thiên Huế', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thừa Thiên Huế'),
+    (N'DTP315              ', N'Quảng trường lễ hội Thừa Thiên Huế', N'Thừa Thiên Huế', N'KV002               ', N'TN31                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Thừa Thiên Huế'),
+    (N'DTV321              ', N'Bán đảo Sơn Trà', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đà Nẵng'),
+    (N'DTV322              ', N'Bà Nà Hills', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đà Nẵng'),
+    (N'DTV323              ', N'Cầu Rồng', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đà Nẵng'),
+    (N'DTV324              ', N'Bãi biển Mỹ Khê', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đà Nẵng'),
+    (N'DTV325              ', N'Ngũ Hành Sơn', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đà Nẵng'),
+    (N'DTP321              ', N'Công viên Châu Á', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đà Nẵng'),
+    (N'DTP322              ', N'Suối khoáng Thần Tài', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đà Nẵng'),
+    (N'DTP323              ', N'Helio Center', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đà Nẵng'),
+    (N'DTP324              ', N'Bãi tắm Phạm Văn Đồng', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đà Nẵng'),
+    (N'DTP325              ', N'Sân golf Bà Nà', N'Đà Nẵng', N'KV002               ', N'TN32                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đà Nẵng')
+) v(MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan x WHERE x.MaDThamQuan = v.MaDThamQuan);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #12 ===== */
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+SELECT * FROM (VALUES
+    (N'DTV331              ', N'Phố cổ Hội An', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Nam'),
+    (N'DTV332              ', N'Thánh địa Mỹ Sơn', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Nam'),
+    (N'DTV333              ', N'Cù Lao Chàm', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Nam'),
+    (N'DTV334              ', N'Chùa Cầu', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Nam'),
+    (N'DTV335              ', N'Rừng dừa Bảy Mẫu', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Nam'),
+    (N'DTP331              ', N'Công viên giải trí Quảng Nam', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Nam'),
+    (N'DTP332              ', N'Khu vui chơi gia đình Quảng Nam', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Nam'),
+    (N'DTP333              ', N'Công viên nước Quảng Nam', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Nam'),
+    (N'DTP334              ', N'Khu thể thao Quảng Nam', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Nam'),
+    (N'DTP335              ', N'Quảng trường lễ hội Quảng Nam', N'Quảng Nam', N'KV002               ', N'TN33                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Nam'),
+    (N'DTV341              ', N'Trung tâm thành phố Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ngãi'),
+    (N'DTV342              ', N'Bảo tàng Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ngãi'),
+    (N'DTV343              ', N'Đền / chùa cổ Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ngãi'),
+    (N'DTV344              ', N'Công viên văn hóa Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ngãi'),
+    (N'DTV345              ', N'Chợ đêm Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Quảng Ngãi'),
+    (N'DTP341              ', N'Công viên giải trí Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ngãi'),
+    (N'DTP342              ', N'Khu vui chơi gia đình Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ngãi'),
+    (N'DTP343              ', N'Công viên nước Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ngãi'),
+    (N'DTP344              ', N'Khu thể thao Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ngãi'),
+    (N'DTP345              ', N'Quảng trường lễ hội Quảng Ngãi', N'Quảng Ngãi', N'KV002               ', N'TN34                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Quảng Ngãi'),
+    (N'DTV351              ', N'Trung tâm thành phố Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Định'),
+    (N'DTV352              ', N'Bảo tàng Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Định'),
+    (N'DTV353              ', N'Đền / chùa cổ Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Định'),
+    (N'DTV354              ', N'Công viên văn hóa Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Định'),
+    (N'DTV355              ', N'Chợ đêm Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Định'),
+    (N'DTP351              ', N'Công viên giải trí Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Định'),
+    (N'DTP352              ', N'Khu vui chơi gia đình Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Định'),
+    (N'DTP353              ', N'Công viên nước Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Định'),
+    (N'DTP354              ', N'Khu thể thao Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Định'),
+    (N'DTP355              ', N'Quảng trường lễ hội Bình Định', N'Bình Định', N'KV002               ', N'TN35                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Định'),
+    (N'DTV361              ', N'Trung tâm thành phố Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Yên'),
+    (N'DTV362              ', N'Bảo tàng Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Yên'),
+    (N'DTV363              ', N'Đền / chùa cổ Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Yên'),
+    (N'DTV364              ', N'Công viên văn hóa Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Yên'),
+    (N'DTV365              ', N'Chợ đêm Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Phú Yên'),
+    (N'DTP361              ', N'Công viên giải trí Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Yên'),
+    (N'DTP362              ', N'Khu vui chơi gia đình Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Yên'),
+    (N'DTP363              ', N'Công viên nước Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Yên'),
+    (N'DTP364              ', N'Khu thể thao Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Yên'),
+    (N'DTP365              ', N'Quảng trường lễ hội Phú Yên', N'Phú Yên', N'KV002               ', N'TN36                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Phú Yên'),
+    (N'DTV371              ', N'Chùa Phước Long', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Khánh Hòa'),
+    (N'DTV372              ', N'Tháp Bà Ponagar', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Khánh Hòa'),
+    (N'DTV373              ', N'Đảo Hòn Mun', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Khánh Hòa'),
+    (N'DTV374              ', N'Bãi biển Trần Phú', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Khánh Hòa'),
+    (N'DTV375              ', N'Nhà thờ Núi Nha Trang', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Khánh Hòa'),
+    (N'DTP371              ', N'VinWonders Nha Trang', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Khánh Hòa'),
+    (N'DTP372              ', N'Tháp Đôi giải trí', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Khánh Hòa'),
+    (N'DTP373              ', N'Công viên nước Nha Trang', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Khánh Hòa'),
+    (N'DTP374              ', N'Khu lặn Hòn Mun', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Khánh Hòa'),
+    (N'DTP375              ', N'Cáp treo Nha Trang', N'Khánh Hòa', N'KV002               ', N'TN37                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Khánh Hòa'),
+    (N'DTV381              ', N'Trung tâm thành phố Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Thuận'),
+    (N'DTV382              ', N'Bảo tàng Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Thuận'),
+    (N'DTV383              ', N'Đền / chùa cổ Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Thuận'),
+    (N'DTV384              ', N'Công viên văn hóa Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Thuận'),
+    (N'DTV385              ', N'Chợ đêm Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Ninh Thuận'),
+    (N'DTP381              ', N'Công viên giải trí Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Thuận'),
+    (N'DTP382              ', N'Khu vui chơi gia đình Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Thuận'),
+    (N'DTP383              ', N'Công viên nước Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Thuận'),
+    (N'DTP384              ', N'Khu thể thao Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Thuận'),
+    (N'DTP385              ', N'Quảng trường lễ hội Ninh Thuận', N'Ninh Thuận', N'KV002               ', N'TN38                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Ninh Thuận'),
+    (N'DTV391              ', N'Trung tâm thành phố Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Thuận'),
+    (N'DTV392              ', N'Bảo tàng Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Thuận'),
+    (N'DTV393              ', N'Đền / chùa cổ Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Thuận'),
+    (N'DTV394              ', N'Công viên văn hóa Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Thuận'),
+    (N'DTV395              ', N'Chợ đêm Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Thuận'),
+    (N'DTP391              ', N'Công viên giải trí Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Thuận'),
+    (N'DTP392              ', N'Khu vui chơi gia đình Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Thuận'),
+    (N'DTP393              ', N'Công viên nước Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Thuận'),
+    (N'DTP394              ', N'Khu thể thao Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Thuận'),
+    (N'DTP395              ', N'Quảng trường lễ hội Bình Thuận', N'Bình Thuận', N'KV002               ', N'TN39                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Thuận'),
+    (N'DTV401              ', N'Trung tâm thành phố Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kon Tum'),
+    (N'DTV402              ', N'Bảo tàng Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kon Tum'),
+    (N'DTV403              ', N'Đền / chùa cổ Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kon Tum'),
+    (N'DTV404              ', N'Công viên văn hóa Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kon Tum'),
+    (N'DTV405              ', N'Chợ đêm Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kon Tum'),
+    (N'DTP401              ', N'Công viên giải trí Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kon Tum'),
+    (N'DTP402              ', N'Khu vui chơi gia đình Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kon Tum'),
+    (N'DTP403              ', N'Công viên nước Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kon Tum'),
+    (N'DTP404              ', N'Khu thể thao Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kon Tum'),
+    (N'DTP405              ', N'Quảng trường lễ hội Kon Tum', N'Kon Tum', N'KV002               ', N'TN40                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kon Tum')
+) v(MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan x WHERE x.MaDThamQuan = v.MaDThamQuan);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #13 ===== */
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+SELECT * FROM (VALUES
+    (N'DTV411              ', N'Trung tâm thành phố Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Gia Lai'),
+    (N'DTV412              ', N'Bảo tàng Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Gia Lai'),
+    (N'DTV413              ', N'Đền / chùa cổ Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Gia Lai'),
+    (N'DTV414              ', N'Công viên văn hóa Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Gia Lai'),
+    (N'DTV415              ', N'Chợ đêm Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Gia Lai'),
+    (N'DTP411              ', N'Công viên giải trí Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Gia Lai'),
+    (N'DTP412              ', N'Khu vui chơi gia đình Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Gia Lai'),
+    (N'DTP413              ', N'Công viên nước Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Gia Lai'),
+    (N'DTP414              ', N'Khu thể thao Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Gia Lai'),
+    (N'DTP415              ', N'Quảng trường lễ hội Gia Lai', N'Gia Lai', N'KV002               ', N'TN41                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Gia Lai'),
+    (N'DTV421              ', N'Trung tâm thành phố Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Lắk'),
+    (N'DTV422              ', N'Bảo tàng Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Lắk'),
+    (N'DTV423              ', N'Đền / chùa cổ Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Lắk'),
+    (N'DTV424              ', N'Công viên văn hóa Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Lắk'),
+    (N'DTV425              ', N'Chợ đêm Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Lắk'),
+    (N'DTP421              ', N'Công viên giải trí Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Lắk'),
+    (N'DTP422              ', N'Khu vui chơi gia đình Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Lắk'),
+    (N'DTP423              ', N'Công viên nước Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Lắk'),
+    (N'DTP424              ', N'Khu thể thao Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Lắk'),
+    (N'DTP425              ', N'Quảng trường lễ hội Đắk Lắk', N'Đắk Lắk', N'KV002               ', N'TN42                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Lắk'),
+    (N'DTV431              ', N'Trung tâm thành phố Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Nông'),
+    (N'DTV432              ', N'Bảo tàng Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Nông'),
+    (N'DTV433              ', N'Đền / chùa cổ Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Nông'),
+    (N'DTV434              ', N'Công viên văn hóa Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Nông'),
+    (N'DTV435              ', N'Chợ đêm Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đắk Nông'),
+    (N'DTP431              ', N'Công viên giải trí Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Nông'),
+    (N'DTP432              ', N'Khu vui chơi gia đình Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Nông'),
+    (N'DTP433              ', N'Công viên nước Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Nông'),
+    (N'DTP434              ', N'Khu thể thao Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Nông'),
+    (N'DTP435              ', N'Quảng trường lễ hội Đắk Nông', N'Đắk Nông', N'KV002               ', N'TN43                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đắk Nông'),
+    (N'DTV441              ', N'Hồ Xuân Hương', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lâm Đồng'),
+    (N'DTV442              ', N'Thác Datanla', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lâm Đồng'),
+    (N'DTV443              ', N'Đồi chè Cầu Đất', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lâm Đồng'),
+    (N'DTV444              ', N'Thiền viện Trúc Lâm', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lâm Đồng'),
+    (N'DTV445              ', N'Ga Đà Lạt', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Lâm Đồng'),
+    (N'DTP441              ', N'Công viên giải trí Lâm Đồng', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lâm Đồng'),
+    (N'DTP442              ', N'Khu vui chơi gia đình Lâm Đồng', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lâm Đồng'),
+    (N'DTP443              ', N'Công viên nước Lâm Đồng', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lâm Đồng'),
+    (N'DTP444              ', N'Khu thể thao Lâm Đồng', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lâm Đồng'),
+    (N'DTP445              ', N'Quảng trường lễ hội Lâm Đồng', N'Lâm Đồng', N'KV002               ', N'TN44                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Lâm Đồng'),
+    (N'DTV451              ', N'Chợ Bến Thành', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại TP. Hồ Chí Minh'),
+    (N'DTV452              ', N'Nhà thờ Đức Bà', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại TP. Hồ Chí Minh'),
+    (N'DTV453              ', N'Dinh Độc Lập', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại TP. Hồ Chí Minh'),
+    (N'DTV454              ', N'Phố đi bộ Nguyễn Huệ', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại TP. Hồ Chí Minh'),
+    (N'DTV455              ', N'Bến Nhà Rồng', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại TP. Hồ Chí Minh'),
+    (N'DTP451              ', N'Đầm Sen', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại TP. Hồ Chí Minh'),
+    (N'DTP452              ', N'Suối Tiên', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại TP. Hồ Chí Minh'),
+    (N'DTP453              ', N'VinWonders Thành phố', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại TP. Hồ Chí Minh'),
+    (N'DTP454              ', N'Crescent Mall ice rink', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại TP. Hồ Chí Minh'),
+    (N'DTP455              ', N'The Castle amusement', N'TP. Hồ Chí Minh', N'KV003               ', N'TN45                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại TP. Hồ Chí Minh'),
+    (N'DTV461              ', N'Trung tâm thành phố Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Nai'),
+    (N'DTV462              ', N'Bảo tàng Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Nai'),
+    (N'DTV463              ', N'Đền / chùa cổ Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Nai'),
+    (N'DTV464              ', N'Công viên văn hóa Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Nai'),
+    (N'DTV465              ', N'Chợ đêm Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Nai'),
+    (N'DTP461              ', N'Công viên giải trí Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Nai'),
+    (N'DTP462              ', N'Khu vui chơi gia đình Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Nai'),
+    (N'DTP463              ', N'Công viên nước Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Nai'),
+    (N'DTP464              ', N'Khu thể thao Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Nai'),
+    (N'DTP465              ', N'Quảng trường lễ hội Đồng Nai', N'Đồng Nai', N'KV003               ', N'TN46                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Nai'),
+    (N'DTV471              ', N'Trung tâm thành phố Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Dương'),
+    (N'DTV472              ', N'Bảo tàng Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Dương'),
+    (N'DTV473              ', N'Đền / chùa cổ Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Dương'),
+    (N'DTV474              ', N'Công viên văn hóa Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Dương'),
+    (N'DTV475              ', N'Chợ đêm Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Dương'),
+    (N'DTP471              ', N'Công viên giải trí Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Dương'),
+    (N'DTP472              ', N'Khu vui chơi gia đình Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Dương'),
+    (N'DTP473              ', N'Công viên nước Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Dương'),
+    (N'DTP474              ', N'Khu thể thao Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Dương'),
+    (N'DTP475              ', N'Quảng trường lễ hội Bình Dương', N'Bình Dương', N'KV003               ', N'TN47                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Dương'),
+    (N'DTV481              ', N'Trung tâm thành phố Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bà Rịa - Vũng Tàu'),
+    (N'DTV482              ', N'Bảo tàng Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bà Rịa - Vũng Tàu'),
+    (N'DTV483              ', N'Đền / chùa cổ Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bà Rịa - Vũng Tàu'),
+    (N'DTV484              ', N'Công viên văn hóa Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bà Rịa - Vũng Tàu'),
+    (N'DTV485              ', N'Chợ đêm Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bà Rịa - Vũng Tàu'),
+    (N'DTP481              ', N'Công viên giải trí Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bà Rịa - Vũng Tàu'),
+    (N'DTP482              ', N'Khu vui chơi gia đình Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bà Rịa - Vũng Tàu'),
+    (N'DTP483              ', N'Công viên nước Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bà Rịa - Vũng Tàu'),
+    (N'DTP484              ', N'Khu thể thao Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bà Rịa - Vũng Tàu'),
+    (N'DTP485              ', N'Quảng trường lễ hội Bà Rịa - Vũng Tàu', N'Bà Rịa - Vũng Tàu', N'KV003               ', N'TN48                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bà Rịa - Vũng Tàu')
+) v(MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan x WHERE x.MaDThamQuan = v.MaDThamQuan);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #14 ===== */
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+SELECT * FROM (VALUES
+    (N'DTV491              ', N'Trung tâm thành phố Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tây Ninh'),
+    (N'DTV492              ', N'Bảo tàng Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tây Ninh'),
+    (N'DTV493              ', N'Đền / chùa cổ Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tây Ninh'),
+    (N'DTV494              ', N'Công viên văn hóa Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tây Ninh'),
+    (N'DTV495              ', N'Chợ đêm Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tây Ninh'),
+    (N'DTP491              ', N'Công viên giải trí Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tây Ninh'),
+    (N'DTP492              ', N'Khu vui chơi gia đình Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tây Ninh'),
+    (N'DTP493              ', N'Công viên nước Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tây Ninh'),
+    (N'DTP494              ', N'Khu thể thao Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tây Ninh'),
+    (N'DTP495              ', N'Quảng trường lễ hội Tây Ninh', N'Tây Ninh', N'KV003               ', N'TN49                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tây Ninh'),
+    (N'DTV501              ', N'Trung tâm thành phố Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Phước'),
+    (N'DTV502              ', N'Bảo tàng Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Phước'),
+    (N'DTV503              ', N'Đền / chùa cổ Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Phước'),
+    (N'DTV504              ', N'Công viên văn hóa Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Phước'),
+    (N'DTV505              ', N'Chợ đêm Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bình Phước'),
+    (N'DTP501              ', N'Công viên giải trí Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Phước'),
+    (N'DTP502              ', N'Khu vui chơi gia đình Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Phước'),
+    (N'DTP503              ', N'Công viên nước Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Phước'),
+    (N'DTP504              ', N'Khu thể thao Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Phước'),
+    (N'DTP505              ', N'Quảng trường lễ hội Bình Phước', N'Bình Phước', N'KV003               ', N'TN50                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bình Phước'),
+    (N'DTV511              ', N'Trung tâm thành phố Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Long An'),
+    (N'DTV512              ', N'Bảo tàng Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Long An'),
+    (N'DTV513              ', N'Đền / chùa cổ Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Long An'),
+    (N'DTV514              ', N'Công viên văn hóa Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Long An'),
+    (N'DTV515              ', N'Chợ đêm Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Long An'),
+    (N'DTP511              ', N'Công viên giải trí Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Long An'),
+    (N'DTP512              ', N'Khu vui chơi gia đình Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Long An'),
+    (N'DTP513              ', N'Công viên nước Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Long An'),
+    (N'DTP514              ', N'Khu thể thao Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Long An'),
+    (N'DTP515              ', N'Quảng trường lễ hội Long An', N'Long An', N'KV003               ', N'TN51                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Long An'),
+    (N'DTV521              ', N'Trung tâm thành phố Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tiền Giang'),
+    (N'DTV522              ', N'Bảo tàng Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tiền Giang'),
+    (N'DTV523              ', N'Đền / chùa cổ Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tiền Giang'),
+    (N'DTV524              ', N'Công viên văn hóa Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tiền Giang'),
+    (N'DTV525              ', N'Chợ đêm Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Tiền Giang'),
+    (N'DTP521              ', N'Công viên giải trí Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tiền Giang'),
+    (N'DTP522              ', N'Khu vui chơi gia đình Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tiền Giang'),
+    (N'DTP523              ', N'Công viên nước Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tiền Giang'),
+    (N'DTP524              ', N'Khu thể thao Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tiền Giang'),
+    (N'DTP525              ', N'Quảng trường lễ hội Tiền Giang', N'Tiền Giang', N'KV003               ', N'TN52                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Tiền Giang'),
+    (N'DTV531              ', N'Trung tâm thành phố Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bến Tre'),
+    (N'DTV532              ', N'Bảo tàng Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bến Tre'),
+    (N'DTV533              ', N'Đền / chùa cổ Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bến Tre'),
+    (N'DTV534              ', N'Công viên văn hóa Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bến Tre'),
+    (N'DTV535              ', N'Chợ đêm Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bến Tre'),
+    (N'DTP531              ', N'Công viên giải trí Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bến Tre'),
+    (N'DTP532              ', N'Khu vui chơi gia đình Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bến Tre'),
+    (N'DTP533              ', N'Công viên nước Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bến Tre'),
+    (N'DTP534              ', N'Khu thể thao Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bến Tre'),
+    (N'DTP535              ', N'Quảng trường lễ hội Bến Tre', N'Bến Tre', N'KV003               ', N'TN53                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bến Tre'),
+    (N'DTV541              ', N'Trung tâm thành phố Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Long'),
+    (N'DTV542              ', N'Bảo tàng Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Long'),
+    (N'DTV543              ', N'Đền / chùa cổ Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Long'),
+    (N'DTV544              ', N'Công viên văn hóa Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Long'),
+    (N'DTV545              ', N'Chợ đêm Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Vĩnh Long'),
+    (N'DTP541              ', N'Công viên giải trí Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Long'),
+    (N'DTP542              ', N'Khu vui chơi gia đình Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Long'),
+    (N'DTP543              ', N'Công viên nước Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Long'),
+    (N'DTP544              ', N'Khu thể thao Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Long'),
+    (N'DTP545              ', N'Quảng trường lễ hội Vĩnh Long', N'Vĩnh Long', N'KV003               ', N'TN54                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Vĩnh Long'),
+    (N'DTV551              ', N'Trung tâm thành phố Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Trà Vinh'),
+    (N'DTV552              ', N'Bảo tàng Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Trà Vinh'),
+    (N'DTV553              ', N'Đền / chùa cổ Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Trà Vinh'),
+    (N'DTV554              ', N'Công viên văn hóa Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Trà Vinh'),
+    (N'DTV555              ', N'Chợ đêm Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Trà Vinh'),
+    (N'DTP551              ', N'Công viên giải trí Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Trà Vinh'),
+    (N'DTP552              ', N'Khu vui chơi gia đình Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Trà Vinh'),
+    (N'DTP553              ', N'Công viên nước Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Trà Vinh'),
+    (N'DTP554              ', N'Khu thể thao Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Trà Vinh'),
+    (N'DTP555              ', N'Quảng trường lễ hội Trà Vinh', N'Trà Vinh', N'KV003               ', N'TN55                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Trà Vinh'),
+    (N'DTV561              ', N'Trung tâm thành phố Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Tháp'),
+    (N'DTV562              ', N'Bảo tàng Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Tháp'),
+    (N'DTV563              ', N'Đền / chùa cổ Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Tháp'),
+    (N'DTV564              ', N'Công viên văn hóa Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Tháp'),
+    (N'DTV565              ', N'Chợ đêm Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Đồng Tháp'),
+    (N'DTP561              ', N'Công viên giải trí Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Tháp'),
+    (N'DTP562              ', N'Khu vui chơi gia đình Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Tháp'),
+    (N'DTP563              ', N'Công viên nước Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Tháp'),
+    (N'DTP564              ', N'Khu thể thao Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Tháp'),
+    (N'DTP565              ', N'Quảng trường lễ hội Đồng Tháp', N'Đồng Tháp', N'KV003               ', N'TN56                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Đồng Tháp')
+) v(MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan x WHERE x.MaDThamQuan = v.MaDThamQuan);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #15 ===== */
+INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+SELECT * FROM (VALUES
+    (N'DTV571              ', N'Trung tâm thành phố An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại An Giang'),
+    (N'DTV572              ', N'Bảo tàng An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại An Giang'),
+    (N'DTV573              ', N'Đền / chùa cổ An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại An Giang'),
+    (N'DTV574              ', N'Công viên văn hóa An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại An Giang'),
+    (N'DTV575              ', N'Chợ đêm An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại An Giang'),
+    (N'DTP571              ', N'Công viên giải trí An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại An Giang'),
+    (N'DTP572              ', N'Khu vui chơi gia đình An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại An Giang'),
+    (N'DTP573              ', N'Công viên nước An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại An Giang'),
+    (N'DTP574              ', N'Khu thể thao An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại An Giang'),
+    (N'DTP575              ', N'Quảng trường lễ hội An Giang', N'An Giang', N'KV003               ', N'TN57                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại An Giang'),
+    (N'DTV581              ', N'Phú Quốc', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kiên Giang'),
+    (N'DTV582              ', N'Dinh Cậu', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kiên Giang'),
+    (N'DTV583              ', N'Bãi Sao', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kiên Giang'),
+    (N'DTV584              ', N'Hòn Thơm', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kiên Giang'),
+    (N'DTV585              ', N'Chợ đêm Phú Quốc', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Kiên Giang'),
+    (N'DTP581              ', N'Công viên giải trí Kiên Giang', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kiên Giang'),
+    (N'DTP582              ', N'Khu vui chơi gia đình Kiên Giang', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kiên Giang'),
+    (N'DTP583              ', N'Công viên nước Kiên Giang', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kiên Giang'),
+    (N'DTP584              ', N'Khu thể thao Kiên Giang', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kiên Giang'),
+    (N'DTP585              ', N'Quảng trường lễ hội Kiên Giang', N'Kiên Giang', N'KV003               ', N'TN58                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Kiên Giang'),
+    (N'DTV591              ', N'Chợ nổi Cái Răng', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cần Thơ'),
+    (N'DTV592              ', N'Bến Ninh Kiều', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cần Thơ'),
+    (N'DTV593              ', N'Nhà cổ Bình Thủy', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cần Thơ'),
+    (N'DTV594              ', N'Thiền viện Trúc Lâm Phương Nam', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cần Thơ'),
+    (N'DTV595              ', N'Vườn cò Bằng Lăng', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cần Thơ'),
+    (N'DTP591              ', N'Công viên giải trí Cần Thơ', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cần Thơ'),
+    (N'DTP592              ', N'Khu vui chơi gia đình Cần Thơ', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cần Thơ'),
+    (N'DTP593              ', N'Công viên nước Cần Thơ', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cần Thơ'),
+    (N'DTP594              ', N'Khu thể thao Cần Thơ', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cần Thơ'),
+    (N'DTP595              ', N'Quảng trường lễ hội Cần Thơ', N'Cần Thơ', N'KV003               ', N'TN59                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cần Thơ'),
+    (N'DTV601              ', N'Trung tâm thành phố Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hậu Giang'),
+    (N'DTV602              ', N'Bảo tàng Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hậu Giang'),
+    (N'DTV603              ', N'Đền / chùa cổ Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hậu Giang'),
+    (N'DTV604              ', N'Công viên văn hóa Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hậu Giang'),
+    (N'DTV605              ', N'Chợ đêm Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Hậu Giang'),
+    (N'DTP601              ', N'Công viên giải trí Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hậu Giang'),
+    (N'DTP602              ', N'Khu vui chơi gia đình Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hậu Giang'),
+    (N'DTP603              ', N'Công viên nước Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hậu Giang'),
+    (N'DTP604              ', N'Khu thể thao Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hậu Giang'),
+    (N'DTP605              ', N'Quảng trường lễ hội Hậu Giang', N'Hậu Giang', N'KV003               ', N'TN60                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Hậu Giang'),
+    (N'DTV611              ', N'Trung tâm thành phố Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sóc Trăng'),
+    (N'DTV612              ', N'Bảo tàng Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sóc Trăng'),
+    (N'DTV613              ', N'Đền / chùa cổ Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sóc Trăng'),
+    (N'DTV614              ', N'Công viên văn hóa Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sóc Trăng'),
+    (N'DTV615              ', N'Chợ đêm Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Sóc Trăng'),
+    (N'DTP611              ', N'Công viên giải trí Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sóc Trăng'),
+    (N'DTP612              ', N'Khu vui chơi gia đình Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sóc Trăng'),
+    (N'DTP613              ', N'Công viên nước Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sóc Trăng'),
+    (N'DTP614              ', N'Khu thể thao Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sóc Trăng'),
+    (N'DTP615              ', N'Quảng trường lễ hội Sóc Trăng', N'Sóc Trăng', N'KV003               ', N'TN61                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Sóc Trăng'),
+    (N'DTV621              ', N'Trung tâm thành phố Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bạc Liêu'),
+    (N'DTV622              ', N'Bảo tàng Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bạc Liêu'),
+    (N'DTV623              ', N'Đền / chùa cổ Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bạc Liêu'),
+    (N'DTV624              ', N'Công viên văn hóa Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bạc Liêu'),
+    (N'DTV625              ', N'Chợ đêm Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Bạc Liêu'),
+    (N'DTP621              ', N'Công viên giải trí Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bạc Liêu'),
+    (N'DTP622              ', N'Khu vui chơi gia đình Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bạc Liêu'),
+    (N'DTP623              ', N'Công viên nước Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bạc Liêu'),
+    (N'DTP624              ', N'Khu thể thao Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bạc Liêu'),
+    (N'DTP625              ', N'Quảng trường lễ hội Bạc Liêu', N'Bạc Liêu', N'KV003               ', N'TN62                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Bạc Liêu'),
+    (N'DTV631              ', N'Trung tâm thành phố Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cà Mau'),
+    (N'DTV632              ', N'Bảo tàng Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cà Mau'),
+    (N'DTV633              ', N'Đền / chùa cổ Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cà Mau'),
+    (N'DTV634              ', N'Công viên văn hóa Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cà Mau'),
+    (N'DTV635              ', N'Chợ đêm Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.5 AS decimal(9,6)), CAST(16.0 AS decimal(9,6)), N'Điểm tham quan tại Cà Mau'),
+    (N'DTP631              ', N'Công viên giải trí Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cà Mau'),
+    (N'DTP632              ', N'Khu vui chơi gia đình Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cà Mau'),
+    (N'DTP633              ', N'Công viên nước Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cà Mau'),
+    (N'DTP634              ', N'Khu thể thao Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cà Mau'),
+    (N'DTP635              ', N'Quảng trường lễ hội Cà Mau', N'Cà Mau', N'KV003               ', N'TN63                ', CAST(106.6 AS decimal(9,6)), CAST(16.1 AS decimal(9,6)), N'Khu vui chơi tại Cà Mau')
+) v(MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DiemThamQuan x WHERE x.MaDThamQuan = v.MaDThamQuan);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #16 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTV01P              ', N'Dịch vụ tham quan Hà Nội', N'HoatDong            ', N'Điều hành', N'0901010001', N'thamquan01@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTP01P              ', N'Khu vui chơi Hà Nội', N'HoatDong            ', N'Điều hành', N'0902010001', N'vuichoi01@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTF011              ', N'Phở Gia Truyền', N'AnUong              ', N'Bếp trưởng', N'0903010101', N'an011@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTF012              ', N'Bún chả Hàng Quạt', N'AnUong              ', N'Bếp trưởng', N'0903010201', N'an012@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTF013              ', N'Chả cá Lã Vọng', N'AnUong              ', N'Bếp trưởng', N'0903010301', N'an013@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTF014              ', N'Nhà hàng quán ăn Ngon', N'AnUong              ', N'Bếp trưởng', N'0903010401', N'an014@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTF015              ', N'Cà phê Giảng', N'AnUong              ', N'Bếp trưởng', N'0903010501', N'an015@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTH011              ', N'Khách sạn Hà Nội Center', N'LuuTru              ', N'Lễ tân', N'0904010101', N'ks011@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTH012              ', N'Grand Hotel Hà Nội', N'LuuTru              ', N'Lễ tân', N'0904010201', N'ks012@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTH013              ', N'Khách sạn Sông Hà Nội', N'LuuTru              ', N'Lễ tân', N'0904010301', N'ks013@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTH014              ', N'Hà Nội Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904010401', N'ks014@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTH015              ', N'Nghỉ dưỡng Hà Nội Garden', N'LuuTru              ', N'Lễ tân', N'0904010501', N'ks015@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN01                '),
+    (N'DTV02P              ', N'Dịch vụ tham quan Hải Phòng', N'HoatDong            ', N'Điều hành', N'0901020001', N'thamquan02@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTP02P              ', N'Khu vui chơi Hải Phòng', N'HoatDong            ', N'Điều hành', N'0902020001', N'vuichoi02@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTF021              ', N'Nhà hàng đặc sản Hải Phòng', N'AnUong              ', N'Bếp trưởng', N'0903020101', N'an021@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTF022              ', N'Quán cơm quê Hải Phòng', N'AnUong              ', N'Bếp trưởng', N'0903020201', N'an022@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTF023              ', N'Hải sản / vườn Hải Phòng', N'AnUong              ', N'Bếp trưởng', N'0903020301', N'an023@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTF024              ', N'Lẩu nướng Hải Phòng', N'AnUong              ', N'Bếp trưởng', N'0903020401', N'an024@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTF025              ', N'Quán ăn gia đình Hải Phòng 2', N'AnUong              ', N'Bếp trưởng', N'0903020501', N'an025@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTH021              ', N'Khách sạn Hải Phòng Center', N'LuuTru              ', N'Lễ tân', N'0904020101', N'ks021@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTH022              ', N'Grand Hotel Hải Phòng', N'LuuTru              ', N'Lễ tân', N'0904020201', N'ks022@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTH023              ', N'Khách sạn Sông Hải Phòng', N'LuuTru              ', N'Lễ tân', N'0904020301', N'ks023@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTH024              ', N'Hải Phòng Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904020401', N'ks024@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN02                '),
+    (N'DTV03P              ', N'Dịch vụ tham quan Quảng Ninh', N'HoatDong            ', N'Điều hành', N'0901030001', N'thamquan03@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTP03P              ', N'Khu vui chơi Quảng Ninh', N'HoatDong            ', N'Điều hành', N'0902030001', N'vuichoi03@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTF031              ', N'Nhà hàng đặc sản Quảng Ninh', N'AnUong              ', N'Bếp trưởng', N'0903030101', N'an031@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTF032              ', N'Quán cơm quê Quảng Ninh', N'AnUong              ', N'Bếp trưởng', N'0903030201', N'an032@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTF033              ', N'Hải sản / vườn Quảng Ninh', N'AnUong              ', N'Bếp trưởng', N'0903030301', N'an033@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTF034              ', N'Lẩu nướng Quảng Ninh', N'AnUong              ', N'Bếp trưởng', N'0903030401', N'an034@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTF035              ', N'Quán ăn gia đình Quảng Ninh 2', N'AnUong              ', N'Bếp trưởng', N'0903030501', N'an035@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTH031              ', N'Khách sạn Quảng Ninh Center', N'LuuTru              ', N'Lễ tân', N'0904030101', N'ks031@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTH032              ', N'Grand Hotel Quảng Ninh', N'LuuTru              ', N'Lễ tân', N'0904030201', N'ks032@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTH033              ', N'Khách sạn Sông Quảng Ninh', N'LuuTru              ', N'Lễ tân', N'0904030301', N'ks033@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTH034              ', N'Quảng Ninh Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904030401', N'ks034@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTH035              ', N'Nghỉ dưỡng Quảng Ninh Garden', N'LuuTru              ', N'Lễ tân', N'0904030501', N'ks035@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN03                '),
+    (N'DTV04P              ', N'Dịch vụ tham quan Bắc Ninh', N'HoatDong            ', N'Điều hành', N'0901040001', N'thamquan04@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTP04P              ', N'Khu vui chơi Bắc Ninh', N'HoatDong            ', N'Điều hành', N'0902040001', N'vuichoi04@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTF041              ', N'Nhà hàng đặc sản Bắc Ninh', N'AnUong              ', N'Bếp trưởng', N'0903040101', N'an041@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTF042              ', N'Quán cơm quê Bắc Ninh', N'AnUong              ', N'Bếp trưởng', N'0903040201', N'an042@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTF043              ', N'Hải sản / vườn Bắc Ninh', N'AnUong              ', N'Bếp trưởng', N'0903040301', N'an043@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTF044              ', N'Lẩu nướng Bắc Ninh', N'AnUong              ', N'Bếp trưởng', N'0903040401', N'an044@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTF045              ', N'Quán ăn gia đình Bắc Ninh 2', N'AnUong              ', N'Bếp trưởng', N'0903040501', N'an045@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTH041              ', N'Khách sạn Bắc Ninh Center', N'LuuTru              ', N'Lễ tân', N'0904040101', N'ks041@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTH042              ', N'Grand Hotel Bắc Ninh', N'LuuTru              ', N'Lễ tân', N'0904040201', N'ks042@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTH043              ', N'Khách sạn Sông Bắc Ninh', N'LuuTru              ', N'Lễ tân', N'0904040301', N'ks043@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTH044              ', N'Bắc Ninh Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904040401', N'ks044@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN04                '),
+    (N'DTV05P              ', N'Dịch vụ tham quan Hải Dương', N'HoatDong            ', N'Điều hành', N'0901050001', N'thamquan05@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTP05P              ', N'Khu vui chơi Hải Dương', N'HoatDong            ', N'Điều hành', N'0902050001', N'vuichoi05@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTF051              ', N'Nhà hàng đặc sản Hải Dương', N'AnUong              ', N'Bếp trưởng', N'0903050101', N'an051@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTF052              ', N'Quán cơm quê Hải Dương', N'AnUong              ', N'Bếp trưởng', N'0903050201', N'an052@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTF053              ', N'Hải sản / vườn Hải Dương', N'AnUong              ', N'Bếp trưởng', N'0903050301', N'an053@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTF054              ', N'Lẩu nướng Hải Dương', N'AnUong              ', N'Bếp trưởng', N'0903050401', N'an054@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTF055              ', N'Quán ăn gia đình Hải Dương 2', N'AnUong              ', N'Bếp trưởng', N'0903050501', N'an055@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTH051              ', N'Khách sạn Hải Dương Center', N'LuuTru              ', N'Lễ tân', N'0904050101', N'ks051@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTH052              ', N'Grand Hotel Hải Dương', N'LuuTru              ', N'Lễ tân', N'0904050201', N'ks052@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTH053              ', N'Khách sạn Sông Hải Dương', N'LuuTru              ', N'Lễ tân', N'0904050301', N'ks053@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTH054              ', N'Hải Dương Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904050401', N'ks054@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTH055              ', N'Nghỉ dưỡng Hải Dương Garden', N'LuuTru              ', N'Lễ tân', N'0904050501', N'ks055@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN05                '),
+    (N'DTV06P              ', N'Dịch vụ tham quan Hưng Yên', N'HoatDong            ', N'Điều hành', N'0901060001', N'thamquan06@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTP06P              ', N'Khu vui chơi Hưng Yên', N'HoatDong            ', N'Điều hành', N'0902060001', N'vuichoi06@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTF061              ', N'Nhà hàng đặc sản Hưng Yên', N'AnUong              ', N'Bếp trưởng', N'0903060101', N'an061@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTF062              ', N'Quán cơm quê Hưng Yên', N'AnUong              ', N'Bếp trưởng', N'0903060201', N'an062@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTF063              ', N'Hải sản / vườn Hưng Yên', N'AnUong              ', N'Bếp trưởng', N'0903060301', N'an063@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTF064              ', N'Lẩu nướng Hưng Yên', N'AnUong              ', N'Bếp trưởng', N'0903060401', N'an064@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTF065              ', N'Quán ăn gia đình Hưng Yên 2', N'AnUong              ', N'Bếp trưởng', N'0903060501', N'an065@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTH061              ', N'Khách sạn Hưng Yên Center', N'LuuTru              ', N'Lễ tân', N'0904060101', N'ks061@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTH062              ', N'Grand Hotel Hưng Yên', N'LuuTru              ', N'Lễ tân', N'0904060201', N'ks062@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTH063              ', N'Khách sạn Sông Hưng Yên', N'LuuTru              ', N'Lễ tân', N'0904060301', N'ks063@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTH064              ', N'Hưng Yên Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904060401', N'ks064@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN06                '),
+    (N'DTV07P              ', N'Dịch vụ tham quan Vĩnh Phúc', N'HoatDong            ', N'Điều hành', N'0901070001', N'thamquan07@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTP07P              ', N'Khu vui chơi Vĩnh Phúc', N'HoatDong            ', N'Điều hành', N'0902070001', N'vuichoi07@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTF071              ', N'Nhà hàng đặc sản Vĩnh Phúc', N'AnUong              ', N'Bếp trưởng', N'0903070101', N'an071@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTF072              ', N'Quán cơm quê Vĩnh Phúc', N'AnUong              ', N'Bếp trưởng', N'0903070201', N'an072@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTF073              ', N'Hải sản / vườn Vĩnh Phúc', N'AnUong              ', N'Bếp trưởng', N'0903070301', N'an073@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTF074              ', N'Lẩu nướng Vĩnh Phúc', N'AnUong              ', N'Bếp trưởng', N'0903070401', N'an074@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTF075              ', N'Quán ăn gia đình Vĩnh Phúc 2', N'AnUong              ', N'Bếp trưởng', N'0903070501', N'an075@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTH071              ', N'Khách sạn Vĩnh Phúc Center', N'LuuTru              ', N'Lễ tân', N'0904070101', N'ks071@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTH072              ', N'Grand Hotel Vĩnh Phúc', N'LuuTru              ', N'Lễ tân', N'0904070201', N'ks072@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTH073              ', N'Khách sạn Sông Vĩnh Phúc', N'LuuTru              ', N'Lễ tân', N'0904070301', N'ks073@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTH074              ', N'Vĩnh Phúc Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904070401', N'ks074@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #17 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTH075              ', N'Nghỉ dưỡng Vĩnh Phúc Garden', N'LuuTru              ', N'Lễ tân', N'0904070501', N'ks075@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN07                '),
+    (N'DTV08P              ', N'Dịch vụ tham quan Thái Nguyên', N'HoatDong            ', N'Điều hành', N'0901080001', N'thamquan08@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTP08P              ', N'Khu vui chơi Thái Nguyên', N'HoatDong            ', N'Điều hành', N'0902080001', N'vuichoi08@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTF081              ', N'Nhà hàng đặc sản Thái Nguyên', N'AnUong              ', N'Bếp trưởng', N'0903080101', N'an081@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTF082              ', N'Quán cơm quê Thái Nguyên', N'AnUong              ', N'Bếp trưởng', N'0903080201', N'an082@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTF083              ', N'Hải sản / vườn Thái Nguyên', N'AnUong              ', N'Bếp trưởng', N'0903080301', N'an083@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTF084              ', N'Lẩu nướng Thái Nguyên', N'AnUong              ', N'Bếp trưởng', N'0903080401', N'an084@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTF085              ', N'Quán ăn gia đình Thái Nguyên 2', N'AnUong              ', N'Bếp trưởng', N'0903080501', N'an085@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTH081              ', N'Khách sạn Thái Nguyên Center', N'LuuTru              ', N'Lễ tân', N'0904080101', N'ks081@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTH082              ', N'Grand Hotel Thái Nguyên', N'LuuTru              ', N'Lễ tân', N'0904080201', N'ks082@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTH083              ', N'Khách sạn Sông Thái Nguyên', N'LuuTru              ', N'Lễ tân', N'0904080301', N'ks083@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTH084              ', N'Thái Nguyên Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904080401', N'ks084@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN08                '),
+    (N'DTV09P              ', N'Dịch vụ tham quan Phú Thọ', N'HoatDong            ', N'Điều hành', N'0901090001', N'thamquan09@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTP09P              ', N'Khu vui chơi Phú Thọ', N'HoatDong            ', N'Điều hành', N'0902090001', N'vuichoi09@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTF091              ', N'Nhà hàng đặc sản Phú Thọ', N'AnUong              ', N'Bếp trưởng', N'0903090101', N'an091@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTF092              ', N'Quán cơm quê Phú Thọ', N'AnUong              ', N'Bếp trưởng', N'0903090201', N'an092@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTF093              ', N'Hải sản / vườn Phú Thọ', N'AnUong              ', N'Bếp trưởng', N'0903090301', N'an093@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTF094              ', N'Lẩu nướng Phú Thọ', N'AnUong              ', N'Bếp trưởng', N'0903090401', N'an094@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTF095              ', N'Quán ăn gia đình Phú Thọ 2', N'AnUong              ', N'Bếp trưởng', N'0903090501', N'an095@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTH091              ', N'Khách sạn Phú Thọ Center', N'LuuTru              ', N'Lễ tân', N'0904090101', N'ks091@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTH092              ', N'Grand Hotel Phú Thọ', N'LuuTru              ', N'Lễ tân', N'0904090201', N'ks092@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTH093              ', N'Khách sạn Sông Phú Thọ', N'LuuTru              ', N'Lễ tân', N'0904090301', N'ks093@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTH094              ', N'Phú Thọ Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904090401', N'ks094@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTH095              ', N'Nghỉ dưỡng Phú Thọ Garden', N'LuuTru              ', N'Lễ tân', N'0904090501', N'ks095@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN09                '),
+    (N'DTV10P              ', N'Dịch vụ tham quan Bắc Giang', N'HoatDong            ', N'Điều hành', N'0901100001', N'thamquan10@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTP10P              ', N'Khu vui chơi Bắc Giang', N'HoatDong            ', N'Điều hành', N'0902100001', N'vuichoi10@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTF101              ', N'Nhà hàng đặc sản Bắc Giang', N'AnUong              ', N'Bếp trưởng', N'0903100101', N'an101@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTF102              ', N'Quán cơm quê Bắc Giang', N'AnUong              ', N'Bếp trưởng', N'0903100201', N'an102@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTF103              ', N'Hải sản / vườn Bắc Giang', N'AnUong              ', N'Bếp trưởng', N'0903100301', N'an103@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTF104              ', N'Lẩu nướng Bắc Giang', N'AnUong              ', N'Bếp trưởng', N'0903100401', N'an104@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTF105              ', N'Quán ăn gia đình Bắc Giang 2', N'AnUong              ', N'Bếp trưởng', N'0903100501', N'an105@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTH101              ', N'Khách sạn Bắc Giang Center', N'LuuTru              ', N'Lễ tân', N'0904100101', N'ks101@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTH102              ', N'Grand Hotel Bắc Giang', N'LuuTru              ', N'Lễ tân', N'0904100201', N'ks102@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTH103              ', N'Khách sạn Sông Bắc Giang', N'LuuTru              ', N'Lễ tân', N'0904100301', N'ks103@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTH104              ', N'Bắc Giang Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904100401', N'ks104@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN10                '),
+    (N'DTV11P              ', N'Dịch vụ tham quan Lạng Sơn', N'HoatDong            ', N'Điều hành', N'0901110001', N'thamquan11@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTP11P              ', N'Khu vui chơi Lạng Sơn', N'HoatDong            ', N'Điều hành', N'0902110001', N'vuichoi11@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTF111              ', N'Nhà hàng đặc sản Lạng Sơn', N'AnUong              ', N'Bếp trưởng', N'0903110101', N'an111@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTF112              ', N'Quán cơm quê Lạng Sơn', N'AnUong              ', N'Bếp trưởng', N'0903110201', N'an112@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTF113              ', N'Hải sản / vườn Lạng Sơn', N'AnUong              ', N'Bếp trưởng', N'0903110301', N'an113@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTF114              ', N'Lẩu nướng Lạng Sơn', N'AnUong              ', N'Bếp trưởng', N'0903110401', N'an114@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTF115              ', N'Quán ăn gia đình Lạng Sơn 2', N'AnUong              ', N'Bếp trưởng', N'0903110501', N'an115@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTH111              ', N'Khách sạn Lạng Sơn Center', N'LuuTru              ', N'Lễ tân', N'0904110101', N'ks111@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTH112              ', N'Grand Hotel Lạng Sơn', N'LuuTru              ', N'Lễ tân', N'0904110201', N'ks112@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTH113              ', N'Khách sạn Sông Lạng Sơn', N'LuuTru              ', N'Lễ tân', N'0904110301', N'ks113@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTH114              ', N'Lạng Sơn Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904110401', N'ks114@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTH115              ', N'Nghỉ dưỡng Lạng Sơn Garden', N'LuuTru              ', N'Lễ tân', N'0904110501', N'ks115@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN11                '),
+    (N'DTV12P              ', N'Dịch vụ tham quan Cao Bằng', N'HoatDong            ', N'Điều hành', N'0901120001', N'thamquan12@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTP12P              ', N'Khu vui chơi Cao Bằng', N'HoatDong            ', N'Điều hành', N'0902120001', N'vuichoi12@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTF121              ', N'Nhà hàng đặc sản Cao Bằng', N'AnUong              ', N'Bếp trưởng', N'0903120101', N'an121@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTF122              ', N'Quán cơm quê Cao Bằng', N'AnUong              ', N'Bếp trưởng', N'0903120201', N'an122@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTF123              ', N'Hải sản / vườn Cao Bằng', N'AnUong              ', N'Bếp trưởng', N'0903120301', N'an123@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTF124              ', N'Lẩu nướng Cao Bằng', N'AnUong              ', N'Bếp trưởng', N'0903120401', N'an124@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTF125              ', N'Quán ăn gia đình Cao Bằng 2', N'AnUong              ', N'Bếp trưởng', N'0903120501', N'an125@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTH121              ', N'Khách sạn Cao Bằng Center', N'LuuTru              ', N'Lễ tân', N'0904120101', N'ks121@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTH122              ', N'Grand Hotel Cao Bằng', N'LuuTru              ', N'Lễ tân', N'0904120201', N'ks122@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTH123              ', N'Khách sạn Sông Cao Bằng', N'LuuTru              ', N'Lễ tân', N'0904120301', N'ks123@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTH124              ', N'Cao Bằng Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904120401', N'ks124@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN12                '),
+    (N'DTV13P              ', N'Dịch vụ tham quan Hà Giang', N'HoatDong            ', N'Điều hành', N'0901130001', N'thamquan13@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTP13P              ', N'Khu vui chơi Hà Giang', N'HoatDong            ', N'Điều hành', N'0902130001', N'vuichoi13@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTF131              ', N'Nhà hàng đặc sản Hà Giang', N'AnUong              ', N'Bếp trưởng', N'0903130101', N'an131@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTF132              ', N'Quán cơm quê Hà Giang', N'AnUong              ', N'Bếp trưởng', N'0903130201', N'an132@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTF133              ', N'Hải sản / vườn Hà Giang', N'AnUong              ', N'Bếp trưởng', N'0903130301', N'an133@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTF134              ', N'Lẩu nướng Hà Giang', N'AnUong              ', N'Bếp trưởng', N'0903130401', N'an134@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTF135              ', N'Quán ăn gia đình Hà Giang 2', N'AnUong              ', N'Bếp trưởng', N'0903130501', N'an135@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTH131              ', N'Khách sạn Hà Giang Center', N'LuuTru              ', N'Lễ tân', N'0904130101', N'ks131@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTH132              ', N'Grand Hotel Hà Giang', N'LuuTru              ', N'Lễ tân', N'0904130201', N'ks132@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTH133              ', N'Khách sạn Sông Hà Giang', N'LuuTru              ', N'Lễ tân', N'0904130301', N'ks133@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTH134              ', N'Hà Giang Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904130401', N'ks134@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTH135              ', N'Nghỉ dưỡng Hà Giang Garden', N'LuuTru              ', N'Lễ tân', N'0904130501', N'ks135@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN13                '),
+    (N'DTV14P              ', N'Dịch vụ tham quan Tuyên Quang', N'HoatDong            ', N'Điều hành', N'0901140001', N'thamquan14@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTP14P              ', N'Khu vui chơi Tuyên Quang', N'HoatDong            ', N'Điều hành', N'0902140001', N'vuichoi14@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTF141              ', N'Nhà hàng đặc sản Tuyên Quang', N'AnUong              ', N'Bếp trưởng', N'0903140101', N'an141@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTF142              ', N'Quán cơm quê Tuyên Quang', N'AnUong              ', N'Bếp trưởng', N'0903140201', N'an142@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTF143              ', N'Hải sản / vườn Tuyên Quang', N'AnUong              ', N'Bếp trưởng', N'0903140301', N'an143@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTF144              ', N'Lẩu nướng Tuyên Quang', N'AnUong              ', N'Bếp trưởng', N'0903140401', N'an144@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTF145              ', N'Quán ăn gia đình Tuyên Quang 2', N'AnUong              ', N'Bếp trưởng', N'0903140501', N'an145@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTH141              ', N'Khách sạn Tuyên Quang Center', N'LuuTru              ', N'Lễ tân', N'0904140101', N'ks141@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTH142              ', N'Grand Hotel Tuyên Quang', N'LuuTru              ', N'Lễ tân', N'0904140201', N'ks142@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTH143              ', N'Khách sạn Sông Tuyên Quang', N'LuuTru              ', N'Lễ tân', N'0904140301', N'ks143@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #18 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTH144              ', N'Tuyên Quang Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904140401', N'ks144@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN14                '),
+    (N'DTV15P              ', N'Dịch vụ tham quan Lào Cai', N'HoatDong            ', N'Điều hành', N'0901150001', N'thamquan15@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTP15P              ', N'Khu vui chơi Lào Cai', N'HoatDong            ', N'Điều hành', N'0902150001', N'vuichoi15@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTF151              ', N'Nhà hàng đặc sản Lào Cai', N'AnUong              ', N'Bếp trưởng', N'0903150101', N'an151@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTF152              ', N'Quán cơm quê Lào Cai', N'AnUong              ', N'Bếp trưởng', N'0903150201', N'an152@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTF153              ', N'Hải sản / vườn Lào Cai', N'AnUong              ', N'Bếp trưởng', N'0903150301', N'an153@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTF154              ', N'Lẩu nướng Lào Cai', N'AnUong              ', N'Bếp trưởng', N'0903150401', N'an154@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTF155              ', N'Quán ăn gia đình Lào Cai 2', N'AnUong              ', N'Bếp trưởng', N'0903150501', N'an155@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTH151              ', N'Khách sạn Lào Cai Center', N'LuuTru              ', N'Lễ tân', N'0904150101', N'ks151@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTH152              ', N'Grand Hotel Lào Cai', N'LuuTru              ', N'Lễ tân', N'0904150201', N'ks152@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTH153              ', N'Khách sạn Sông Lào Cai', N'LuuTru              ', N'Lễ tân', N'0904150301', N'ks153@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTH154              ', N'Lào Cai Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904150401', N'ks154@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTH155              ', N'Nghỉ dưỡng Lào Cai Garden', N'LuuTru              ', N'Lễ tân', N'0904150501', N'ks155@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN15                '),
+    (N'DTV16P              ', N'Dịch vụ tham quan Yên Bái', N'HoatDong            ', N'Điều hành', N'0901160001', N'thamquan16@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTP16P              ', N'Khu vui chơi Yên Bái', N'HoatDong            ', N'Điều hành', N'0902160001', N'vuichoi16@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTF161              ', N'Nhà hàng đặc sản Yên Bái', N'AnUong              ', N'Bếp trưởng', N'0903160101', N'an161@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTF162              ', N'Quán cơm quê Yên Bái', N'AnUong              ', N'Bếp trưởng', N'0903160201', N'an162@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTF163              ', N'Hải sản / vườn Yên Bái', N'AnUong              ', N'Bếp trưởng', N'0903160301', N'an163@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTF164              ', N'Lẩu nướng Yên Bái', N'AnUong              ', N'Bếp trưởng', N'0903160401', N'an164@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTF165              ', N'Quán ăn gia đình Yên Bái 2', N'AnUong              ', N'Bếp trưởng', N'0903160501', N'an165@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTH161              ', N'Khách sạn Yên Bái Center', N'LuuTru              ', N'Lễ tân', N'0904160101', N'ks161@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTH162              ', N'Grand Hotel Yên Bái', N'LuuTru              ', N'Lễ tân', N'0904160201', N'ks162@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTH163              ', N'Khách sạn Sông Yên Bái', N'LuuTru              ', N'Lễ tân', N'0904160301', N'ks163@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTH164              ', N'Yên Bái Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904160401', N'ks164@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN16                '),
+    (N'DTV17P              ', N'Dịch vụ tham quan Điện Biên', N'HoatDong            ', N'Điều hành', N'0901170001', N'thamquan17@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTP17P              ', N'Khu vui chơi Điện Biên', N'HoatDong            ', N'Điều hành', N'0902170001', N'vuichoi17@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTF171              ', N'Nhà hàng đặc sản Điện Biên', N'AnUong              ', N'Bếp trưởng', N'0903170101', N'an171@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTF172              ', N'Quán cơm quê Điện Biên', N'AnUong              ', N'Bếp trưởng', N'0903170201', N'an172@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTF173              ', N'Hải sản / vườn Điện Biên', N'AnUong              ', N'Bếp trưởng', N'0903170301', N'an173@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTF174              ', N'Lẩu nướng Điện Biên', N'AnUong              ', N'Bếp trưởng', N'0903170401', N'an174@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTF175              ', N'Quán ăn gia đình Điện Biên 2', N'AnUong              ', N'Bếp trưởng', N'0903170501', N'an175@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTH171              ', N'Khách sạn Điện Biên Center', N'LuuTru              ', N'Lễ tân', N'0904170101', N'ks171@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTH172              ', N'Grand Hotel Điện Biên', N'LuuTru              ', N'Lễ tân', N'0904170201', N'ks172@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTH173              ', N'Khách sạn Sông Điện Biên', N'LuuTru              ', N'Lễ tân', N'0904170301', N'ks173@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTH174              ', N'Điện Biên Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904170401', N'ks174@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTH175              ', N'Nghỉ dưỡng Điện Biên Garden', N'LuuTru              ', N'Lễ tân', N'0904170501', N'ks175@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN17                '),
+    (N'DTV18P              ', N'Dịch vụ tham quan Lai Châu', N'HoatDong            ', N'Điều hành', N'0901180001', N'thamquan18@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTP18P              ', N'Khu vui chơi Lai Châu', N'HoatDong            ', N'Điều hành', N'0902180001', N'vuichoi18@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTF181              ', N'Nhà hàng đặc sản Lai Châu', N'AnUong              ', N'Bếp trưởng', N'0903180101', N'an181@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTF182              ', N'Quán cơm quê Lai Châu', N'AnUong              ', N'Bếp trưởng', N'0903180201', N'an182@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTF183              ', N'Hải sản / vườn Lai Châu', N'AnUong              ', N'Bếp trưởng', N'0903180301', N'an183@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTF184              ', N'Lẩu nướng Lai Châu', N'AnUong              ', N'Bếp trưởng', N'0903180401', N'an184@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTF185              ', N'Quán ăn gia đình Lai Châu 2', N'AnUong              ', N'Bếp trưởng', N'0903180501', N'an185@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTH181              ', N'Khách sạn Lai Châu Center', N'LuuTru              ', N'Lễ tân', N'0904180101', N'ks181@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTH182              ', N'Grand Hotel Lai Châu', N'LuuTru              ', N'Lễ tân', N'0904180201', N'ks182@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTH183              ', N'Khách sạn Sông Lai Châu', N'LuuTru              ', N'Lễ tân', N'0904180301', N'ks183@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTH184              ', N'Lai Châu Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904180401', N'ks184@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN18                '),
+    (N'DTV19P              ', N'Dịch vụ tham quan Sơn La', N'HoatDong            ', N'Điều hành', N'0901190001', N'thamquan19@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTP19P              ', N'Khu vui chơi Sơn La', N'HoatDong            ', N'Điều hành', N'0902190001', N'vuichoi19@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTF191              ', N'Nhà hàng đặc sản Sơn La', N'AnUong              ', N'Bếp trưởng', N'0903190101', N'an191@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTF192              ', N'Quán cơm quê Sơn La', N'AnUong              ', N'Bếp trưởng', N'0903190201', N'an192@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTF193              ', N'Hải sản / vườn Sơn La', N'AnUong              ', N'Bếp trưởng', N'0903190301', N'an193@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTF194              ', N'Lẩu nướng Sơn La', N'AnUong              ', N'Bếp trưởng', N'0903190401', N'an194@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTF195              ', N'Quán ăn gia đình Sơn La 2', N'AnUong              ', N'Bếp trưởng', N'0903190501', N'an195@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTH191              ', N'Khách sạn Sơn La Center', N'LuuTru              ', N'Lễ tân', N'0904190101', N'ks191@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTH192              ', N'Grand Hotel Sơn La', N'LuuTru              ', N'Lễ tân', N'0904190201', N'ks192@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTH193              ', N'Khách sạn Sông Sơn La', N'LuuTru              ', N'Lễ tân', N'0904190301', N'ks193@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTH194              ', N'Sơn La Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904190401', N'ks194@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTH195              ', N'Nghỉ dưỡng Sơn La Garden', N'LuuTru              ', N'Lễ tân', N'0904190501', N'ks195@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN19                '),
+    (N'DTV20P              ', N'Dịch vụ tham quan Hòa Bình', N'HoatDong            ', N'Điều hành', N'0901200001', N'thamquan20@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTP20P              ', N'Khu vui chơi Hòa Bình', N'HoatDong            ', N'Điều hành', N'0902200001', N'vuichoi20@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTF201              ', N'Nhà hàng đặc sản Hòa Bình', N'AnUong              ', N'Bếp trưởng', N'0903200101', N'an201@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTF202              ', N'Quán cơm quê Hòa Bình', N'AnUong              ', N'Bếp trưởng', N'0903200201', N'an202@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTF203              ', N'Hải sản / vườn Hòa Bình', N'AnUong              ', N'Bếp trưởng', N'0903200301', N'an203@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTF204              ', N'Lẩu nướng Hòa Bình', N'AnUong              ', N'Bếp trưởng', N'0903200401', N'an204@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTF205              ', N'Quán ăn gia đình Hòa Bình 2', N'AnUong              ', N'Bếp trưởng', N'0903200501', N'an205@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTH201              ', N'Khách sạn Hòa Bình Center', N'LuuTru              ', N'Lễ tân', N'0904200101', N'ks201@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTH202              ', N'Grand Hotel Hòa Bình', N'LuuTru              ', N'Lễ tân', N'0904200201', N'ks202@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTH203              ', N'Khách sạn Sông Hòa Bình', N'LuuTru              ', N'Lễ tân', N'0904200301', N'ks203@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTH204              ', N'Hòa Bình Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904200401', N'ks204@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN20                '),
+    (N'DTV21P              ', N'Dịch vụ tham quan Ninh Bình', N'HoatDong            ', N'Điều hành', N'0901210001', N'thamquan21@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTP21P              ', N'Khu vui chơi Ninh Bình', N'HoatDong            ', N'Điều hành', N'0902210001', N'vuichoi21@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTF211              ', N'Nhà hàng đặc sản Ninh Bình', N'AnUong              ', N'Bếp trưởng', N'0903210101', N'an211@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTF212              ', N'Quán cơm quê Ninh Bình', N'AnUong              ', N'Bếp trưởng', N'0903210201', N'an212@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTF213              ', N'Hải sản / vườn Ninh Bình', N'AnUong              ', N'Bếp trưởng', N'0903210301', N'an213@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTF214              ', N'Lẩu nướng Ninh Bình', N'AnUong              ', N'Bếp trưởng', N'0903210401', N'an214@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTF215              ', N'Quán ăn gia đình Ninh Bình 2', N'AnUong              ', N'Bếp trưởng', N'0903210501', N'an215@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTH211              ', N'Khách sạn Ninh Bình Center', N'LuuTru              ', N'Lễ tân', N'0904210101', N'ks211@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTH212              ', N'Grand Hotel Ninh Bình', N'LuuTru              ', N'Lễ tân', N'0904210201', N'ks212@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTH213              ', N'Khách sạn Sông Ninh Bình', N'LuuTru              ', N'Lễ tân', N'0904210301', N'ks213@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #19 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTH214              ', N'Ninh Bình Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904210401', N'ks214@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTH215              ', N'Nghỉ dưỡng Ninh Bình Garden', N'LuuTru              ', N'Lễ tân', N'0904210501', N'ks215@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN21                '),
+    (N'DTV22P              ', N'Dịch vụ tham quan Nam Định', N'HoatDong            ', N'Điều hành', N'0901220001', N'thamquan22@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTP22P              ', N'Khu vui chơi Nam Định', N'HoatDong            ', N'Điều hành', N'0902220001', N'vuichoi22@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTF221              ', N'Nhà hàng đặc sản Nam Định', N'AnUong              ', N'Bếp trưởng', N'0903220101', N'an221@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTF222              ', N'Quán cơm quê Nam Định', N'AnUong              ', N'Bếp trưởng', N'0903220201', N'an222@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTF223              ', N'Hải sản / vườn Nam Định', N'AnUong              ', N'Bếp trưởng', N'0903220301', N'an223@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTF224              ', N'Lẩu nướng Nam Định', N'AnUong              ', N'Bếp trưởng', N'0903220401', N'an224@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTF225              ', N'Quán ăn gia đình Nam Định 2', N'AnUong              ', N'Bếp trưởng', N'0903220501', N'an225@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTH221              ', N'Khách sạn Nam Định Center', N'LuuTru              ', N'Lễ tân', N'0904220101', N'ks221@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTH222              ', N'Grand Hotel Nam Định', N'LuuTru              ', N'Lễ tân', N'0904220201', N'ks222@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTH223              ', N'Khách sạn Sông Nam Định', N'LuuTru              ', N'Lễ tân', N'0904220301', N'ks223@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTH224              ', N'Nam Định Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904220401', N'ks224@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN22                '),
+    (N'DTV23P              ', N'Dịch vụ tham quan Thái Bình', N'HoatDong            ', N'Điều hành', N'0901230001', N'thamquan23@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTP23P              ', N'Khu vui chơi Thái Bình', N'HoatDong            ', N'Điều hành', N'0902230001', N'vuichoi23@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTF231              ', N'Nhà hàng đặc sản Thái Bình', N'AnUong              ', N'Bếp trưởng', N'0903230101', N'an231@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTF232              ', N'Quán cơm quê Thái Bình', N'AnUong              ', N'Bếp trưởng', N'0903230201', N'an232@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTF233              ', N'Hải sản / vườn Thái Bình', N'AnUong              ', N'Bếp trưởng', N'0903230301', N'an233@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTF234              ', N'Lẩu nướng Thái Bình', N'AnUong              ', N'Bếp trưởng', N'0903230401', N'an234@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTF235              ', N'Quán ăn gia đình Thái Bình 2', N'AnUong              ', N'Bếp trưởng', N'0903230501', N'an235@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTH231              ', N'Khách sạn Thái Bình Center', N'LuuTru              ', N'Lễ tân', N'0904230101', N'ks231@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTH232              ', N'Grand Hotel Thái Bình', N'LuuTru              ', N'Lễ tân', N'0904230201', N'ks232@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTH233              ', N'Khách sạn Sông Thái Bình', N'LuuTru              ', N'Lễ tân', N'0904230301', N'ks233@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTH234              ', N'Thái Bình Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904230401', N'ks234@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTH235              ', N'Nghỉ dưỡng Thái Bình Garden', N'LuuTru              ', N'Lễ tân', N'0904230501', N'ks235@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN23                '),
+    (N'DTV24P              ', N'Dịch vụ tham quan Hà Nam', N'HoatDong            ', N'Điều hành', N'0901240001', N'thamquan24@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTP24P              ', N'Khu vui chơi Hà Nam', N'HoatDong            ', N'Điều hành', N'0902240001', N'vuichoi24@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTF241              ', N'Nhà hàng đặc sản Hà Nam', N'AnUong              ', N'Bếp trưởng', N'0903240101', N'an241@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTF242              ', N'Quán cơm quê Hà Nam', N'AnUong              ', N'Bếp trưởng', N'0903240201', N'an242@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTF243              ', N'Hải sản / vườn Hà Nam', N'AnUong              ', N'Bếp trưởng', N'0903240301', N'an243@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTF244              ', N'Lẩu nướng Hà Nam', N'AnUong              ', N'Bếp trưởng', N'0903240401', N'an244@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTF245              ', N'Quán ăn gia đình Hà Nam 2', N'AnUong              ', N'Bếp trưởng', N'0903240501', N'an245@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTH241              ', N'Khách sạn Hà Nam Center', N'LuuTru              ', N'Lễ tân', N'0904240101', N'ks241@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTH242              ', N'Grand Hotel Hà Nam', N'LuuTru              ', N'Lễ tân', N'0904240201', N'ks242@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTH243              ', N'Khách sạn Sông Hà Nam', N'LuuTru              ', N'Lễ tân', N'0904240301', N'ks243@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTH244              ', N'Hà Nam Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904240401', N'ks244@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN24                '),
+    (N'DTV25P              ', N'Dịch vụ tham quan Bắc Kạn', N'HoatDong            ', N'Điều hành', N'0901250001', N'thamquan25@anam.vn', N'KV001               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTP25P              ', N'Khu vui chơi Bắc Kạn', N'HoatDong            ', N'Điều hành', N'0902250001', N'vuichoi25@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTF251              ', N'Nhà hàng đặc sản Bắc Kạn', N'AnUong              ', N'Bếp trưởng', N'0903250101', N'an251@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTF252              ', N'Quán cơm quê Bắc Kạn', N'AnUong              ', N'Bếp trưởng', N'0903250201', N'an252@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTF253              ', N'Hải sản / vườn Bắc Kạn', N'AnUong              ', N'Bếp trưởng', N'0903250301', N'an253@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTF254              ', N'Lẩu nướng Bắc Kạn', N'AnUong              ', N'Bếp trưởng', N'0903250401', N'an254@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTF255              ', N'Quán ăn gia đình Bắc Kạn 2', N'AnUong              ', N'Bếp trưởng', N'0903250501', N'an255@anam.vn', N'KV001               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTH251              ', N'Khách sạn Bắc Kạn Center', N'LuuTru              ', N'Lễ tân', N'0904250101', N'ks251@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTH252              ', N'Grand Hotel Bắc Kạn', N'LuuTru              ', N'Lễ tân', N'0904250201', N'ks252@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTH253              ', N'Khách sạn Sông Bắc Kạn', N'LuuTru              ', N'Lễ tân', N'0904250301', N'ks253@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTH254              ', N'Bắc Kạn Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904250401', N'ks254@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTH255              ', N'Nghỉ dưỡng Bắc Kạn Garden', N'LuuTru              ', N'Lễ tân', N'0904250501', N'ks255@anam.vn', N'KV001               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN25                '),
+    (N'DTV26P              ', N'Dịch vụ tham quan Thanh Hóa', N'HoatDong            ', N'Điều hành', N'0901260001', N'thamquan26@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTP26P              ', N'Khu vui chơi Thanh Hóa', N'HoatDong            ', N'Điều hành', N'0902260001', N'vuichoi26@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTF261              ', N'Nhà hàng đặc sản Thanh Hóa', N'AnUong              ', N'Bếp trưởng', N'0903260101', N'an261@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTF262              ', N'Quán cơm quê Thanh Hóa', N'AnUong              ', N'Bếp trưởng', N'0903260201', N'an262@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTF263              ', N'Hải sản / vườn Thanh Hóa', N'AnUong              ', N'Bếp trưởng', N'0903260301', N'an263@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTF264              ', N'Lẩu nướng Thanh Hóa', N'AnUong              ', N'Bếp trưởng', N'0903260401', N'an264@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTF265              ', N'Quán ăn gia đình Thanh Hóa 2', N'AnUong              ', N'Bếp trưởng', N'0903260501', N'an265@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTH261              ', N'Khách sạn Thanh Hóa Center', N'LuuTru              ', N'Lễ tân', N'0904260101', N'ks261@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTH262              ', N'Grand Hotel Thanh Hóa', N'LuuTru              ', N'Lễ tân', N'0904260201', N'ks262@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTH263              ', N'Khách sạn Sông Thanh Hóa', N'LuuTru              ', N'Lễ tân', N'0904260301', N'ks263@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTH264              ', N'Thanh Hóa Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904260401', N'ks264@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN26                '),
+    (N'DTV27P              ', N'Dịch vụ tham quan Nghệ An', N'HoatDong            ', N'Điều hành', N'0901270001', N'thamquan27@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTP27P              ', N'Khu vui chơi Nghệ An', N'HoatDong            ', N'Điều hành', N'0902270001', N'vuichoi27@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTF271              ', N'Nhà hàng đặc sản Nghệ An', N'AnUong              ', N'Bếp trưởng', N'0903270101', N'an271@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTF272              ', N'Quán cơm quê Nghệ An', N'AnUong              ', N'Bếp trưởng', N'0903270201', N'an272@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTF273              ', N'Hải sản / vườn Nghệ An', N'AnUong              ', N'Bếp trưởng', N'0903270301', N'an273@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTF274              ', N'Lẩu nướng Nghệ An', N'AnUong              ', N'Bếp trưởng', N'0903270401', N'an274@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTF275              ', N'Quán ăn gia đình Nghệ An 2', N'AnUong              ', N'Bếp trưởng', N'0903270501', N'an275@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTH271              ', N'Khách sạn Nghệ An Center', N'LuuTru              ', N'Lễ tân', N'0904270101', N'ks271@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTH272              ', N'Grand Hotel Nghệ An', N'LuuTru              ', N'Lễ tân', N'0904270201', N'ks272@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTH273              ', N'Khách sạn Sông Nghệ An', N'LuuTru              ', N'Lễ tân', N'0904270301', N'ks273@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTH274              ', N'Nghệ An Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904270401', N'ks274@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTH275              ', N'Nghỉ dưỡng Nghệ An Garden', N'LuuTru              ', N'Lễ tân', N'0904270501', N'ks275@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN27                '),
+    (N'DTV28P              ', N'Dịch vụ tham quan Hà Tĩnh', N'HoatDong            ', N'Điều hành', N'0901280001', N'thamquan28@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTP28P              ', N'Khu vui chơi Hà Tĩnh', N'HoatDong            ', N'Điều hành', N'0902280001', N'vuichoi28@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTF281              ', N'Nhà hàng đặc sản Hà Tĩnh', N'AnUong              ', N'Bếp trưởng', N'0903280101', N'an281@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTF282              ', N'Quán cơm quê Hà Tĩnh', N'AnUong              ', N'Bếp trưởng', N'0903280201', N'an282@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTF283              ', N'Hải sản / vườn Hà Tĩnh', N'AnUong              ', N'Bếp trưởng', N'0903280301', N'an283@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTF284              ', N'Lẩu nướng Hà Tĩnh', N'AnUong              ', N'Bếp trưởng', N'0903280401', N'an284@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTF285              ', N'Quán ăn gia đình Hà Tĩnh 2', N'AnUong              ', N'Bếp trưởng', N'0903280501', N'an285@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTH281              ', N'Khách sạn Hà Tĩnh Center', N'LuuTru              ', N'Lễ tân', N'0904280101', N'ks281@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTH282              ', N'Grand Hotel Hà Tĩnh', N'LuuTru              ', N'Lễ tân', N'0904280201', N'ks282@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #20 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTH283              ', N'Khách sạn Sông Hà Tĩnh', N'LuuTru              ', N'Lễ tân', N'0904280301', N'ks283@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTH284              ', N'Hà Tĩnh Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904280401', N'ks284@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN28                '),
+    (N'DTV29P              ', N'Dịch vụ tham quan Quảng Bình', N'HoatDong            ', N'Điều hành', N'0901290001', N'thamquan29@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTP29P              ', N'Khu vui chơi Quảng Bình', N'HoatDong            ', N'Điều hành', N'0902290001', N'vuichoi29@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTF291              ', N'Nhà hàng đặc sản Quảng Bình', N'AnUong              ', N'Bếp trưởng', N'0903290101', N'an291@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTF292              ', N'Quán cơm quê Quảng Bình', N'AnUong              ', N'Bếp trưởng', N'0903290201', N'an292@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTF293              ', N'Hải sản / vườn Quảng Bình', N'AnUong              ', N'Bếp trưởng', N'0903290301', N'an293@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTF294              ', N'Lẩu nướng Quảng Bình', N'AnUong              ', N'Bếp trưởng', N'0903290401', N'an294@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTF295              ', N'Quán ăn gia đình Quảng Bình 2', N'AnUong              ', N'Bếp trưởng', N'0903290501', N'an295@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTH291              ', N'Khách sạn Quảng Bình Center', N'LuuTru              ', N'Lễ tân', N'0904290101', N'ks291@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTH292              ', N'Grand Hotel Quảng Bình', N'LuuTru              ', N'Lễ tân', N'0904290201', N'ks292@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTH293              ', N'Khách sạn Sông Quảng Bình', N'LuuTru              ', N'Lễ tân', N'0904290301', N'ks293@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTH294              ', N'Quảng Bình Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904290401', N'ks294@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTH295              ', N'Nghỉ dưỡng Quảng Bình Garden', N'LuuTru              ', N'Lễ tân', N'0904290501', N'ks295@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN29                '),
+    (N'DTV30P              ', N'Dịch vụ tham quan Quảng Trị', N'HoatDong            ', N'Điều hành', N'0901300001', N'thamquan30@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTP30P              ', N'Khu vui chơi Quảng Trị', N'HoatDong            ', N'Điều hành', N'0902300001', N'vuichoi30@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTF301              ', N'Nhà hàng đặc sản Quảng Trị', N'AnUong              ', N'Bếp trưởng', N'0903300101', N'an301@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTF302              ', N'Quán cơm quê Quảng Trị', N'AnUong              ', N'Bếp trưởng', N'0903300201', N'an302@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTF303              ', N'Hải sản / vườn Quảng Trị', N'AnUong              ', N'Bếp trưởng', N'0903300301', N'an303@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTF304              ', N'Lẩu nướng Quảng Trị', N'AnUong              ', N'Bếp trưởng', N'0903300401', N'an304@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTF305              ', N'Quán ăn gia đình Quảng Trị 2', N'AnUong              ', N'Bếp trưởng', N'0903300501', N'an305@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTH301              ', N'Khách sạn Quảng Trị Center', N'LuuTru              ', N'Lễ tân', N'0904300101', N'ks301@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTH302              ', N'Grand Hotel Quảng Trị', N'LuuTru              ', N'Lễ tân', N'0904300201', N'ks302@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTH303              ', N'Khách sạn Sông Quảng Trị', N'LuuTru              ', N'Lễ tân', N'0904300301', N'ks303@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTH304              ', N'Quảng Trị Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904300401', N'ks304@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN30                '),
+    (N'DTV31P              ', N'Dịch vụ tham quan Thừa Thiên Huế', N'HoatDong            ', N'Điều hành', N'0901310001', N'thamquan31@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTP31P              ', N'Khu vui chơi Thừa Thiên Huế', N'HoatDong            ', N'Điều hành', N'0902310001', N'vuichoi31@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTF311              ', N'Nhà hàng đặc sản Thừa Thiên Huế', N'AnUong              ', N'Bếp trưởng', N'0903310101', N'an311@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTF312              ', N'Quán cơm quê Thừa Thiên Huế', N'AnUong              ', N'Bếp trưởng', N'0903310201', N'an312@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTF313              ', N'Hải sản / vườn Thừa Thiên Huế', N'AnUong              ', N'Bếp trưởng', N'0903310301', N'an313@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTF314              ', N'Lẩu nướng Thừa Thiên Huế', N'AnUong              ', N'Bếp trưởng', N'0903310401', N'an314@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTF315              ', N'Quán ăn gia đình Thừa Thiên Huế 2', N'AnUong              ', N'Bếp trưởng', N'0903310501', N'an315@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTH311              ', N'Khách sạn Thừa Thiên Huế Center', N'LuuTru              ', N'Lễ tân', N'0904310101', N'ks311@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTH312              ', N'Grand Hotel Thừa Thiên Huế', N'LuuTru              ', N'Lễ tân', N'0904310201', N'ks312@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTH313              ', N'Khách sạn Sông Thừa Thiên Huế', N'LuuTru              ', N'Lễ tân', N'0904310301', N'ks313@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTH314              ', N'Thừa Thiên Huế Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904310401', N'ks314@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTH315              ', N'Nghỉ dưỡng Thừa Thiên Huế Garden', N'LuuTru              ', N'Lễ tân', N'0904310501', N'ks315@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN31                '),
+    (N'DTV32P              ', N'Dịch vụ tham quan Đà Nẵng', N'HoatDong            ', N'Điều hành', N'0901320001', N'thamquan32@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTP32P              ', N'Khu vui chơi Đà Nẵng', N'HoatDong            ', N'Điều hành', N'0902320001', N'vuichoi32@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTF321              ', N'Nhà hàng đặc sản Đà Nẵng', N'AnUong              ', N'Bếp trưởng', N'0903320101', N'an321@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTF322              ', N'Quán cơm quê Đà Nẵng', N'AnUong              ', N'Bếp trưởng', N'0903320201', N'an322@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTF323              ', N'Hải sản / vườn Đà Nẵng', N'AnUong              ', N'Bếp trưởng', N'0903320301', N'an323@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTF324              ', N'Lẩu nướng Đà Nẵng', N'AnUong              ', N'Bếp trưởng', N'0903320401', N'an324@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTF325              ', N'Quán ăn gia đình Đà Nẵng 2', N'AnUong              ', N'Bếp trưởng', N'0903320501', N'an325@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTH321              ', N'Khách sạn Đà Nẵng Center', N'LuuTru              ', N'Lễ tân', N'0904320101', N'ks321@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTH322              ', N'Grand Hotel Đà Nẵng', N'LuuTru              ', N'Lễ tân', N'0904320201', N'ks322@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTH323              ', N'Khách sạn Sông Đà Nẵng', N'LuuTru              ', N'Lễ tân', N'0904320301', N'ks323@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTH324              ', N'Đà Nẵng Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904320401', N'ks324@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN32                '),
+    (N'DTV33P              ', N'Dịch vụ tham quan Quảng Nam', N'HoatDong            ', N'Điều hành', N'0901330001', N'thamquan33@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTP33P              ', N'Khu vui chơi Quảng Nam', N'HoatDong            ', N'Điều hành', N'0902330001', N'vuichoi33@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTF331              ', N'Cao lầu bà Bé', N'AnUong              ', N'Bếp trưởng', N'0903330101', N'an331@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTF332              ', N'Cơm gà Hội An', N'AnUong              ', N'Bếp trưởng', N'0903330201', N'an332@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTF333              ', N'Nhà hàng Morning Glory', N'AnUong              ', N'Bếp trưởng', N'0903330301', N'an333@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTF334              ', N'Bánh bao Bánh vạc', N'AnUong              ', N'Bếp trưởng', N'0903330401', N'an334@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTF335              ', N'Mì Quảng Bà Mua', N'AnUong              ', N'Bếp trưởng', N'0903330501', N'an335@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTH331              ', N'Khách sạn Quảng Nam Center', N'LuuTru              ', N'Lễ tân', N'0904330101', N'ks331@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTH332              ', N'Grand Hotel Quảng Nam', N'LuuTru              ', N'Lễ tân', N'0904330201', N'ks332@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTH333              ', N'Khách sạn Sông Quảng Nam', N'LuuTru              ', N'Lễ tân', N'0904330301', N'ks333@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTH334              ', N'Quảng Nam Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904330401', N'ks334@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTH335              ', N'Nghỉ dưỡng Quảng Nam Garden', N'LuuTru              ', N'Lễ tân', N'0904330501', N'ks335@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN33                '),
+    (N'DTV34P              ', N'Dịch vụ tham quan Quảng Ngãi', N'HoatDong            ', N'Điều hành', N'0901340001', N'thamquan34@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTP34P              ', N'Khu vui chơi Quảng Ngãi', N'HoatDong            ', N'Điều hành', N'0902340001', N'vuichoi34@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTF341              ', N'Nhà hàng đặc sản Quảng Ngãi', N'AnUong              ', N'Bếp trưởng', N'0903340101', N'an341@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTF342              ', N'Quán cơm quê Quảng Ngãi', N'AnUong              ', N'Bếp trưởng', N'0903340201', N'an342@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTF343              ', N'Hải sản / vườn Quảng Ngãi', N'AnUong              ', N'Bếp trưởng', N'0903340301', N'an343@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTF344              ', N'Lẩu nướng Quảng Ngãi', N'AnUong              ', N'Bếp trưởng', N'0903340401', N'an344@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTF345              ', N'Quán ăn gia đình Quảng Ngãi 2', N'AnUong              ', N'Bếp trưởng', N'0903340501', N'an345@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTH341              ', N'Khách sạn Quảng Ngãi Center', N'LuuTru              ', N'Lễ tân', N'0904340101', N'ks341@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTH342              ', N'Grand Hotel Quảng Ngãi', N'LuuTru              ', N'Lễ tân', N'0904340201', N'ks342@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTH343              ', N'Khách sạn Sông Quảng Ngãi', N'LuuTru              ', N'Lễ tân', N'0904340301', N'ks343@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTH344              ', N'Quảng Ngãi Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904340401', N'ks344@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN34                '),
+    (N'DTV35P              ', N'Dịch vụ tham quan Bình Định', N'HoatDong            ', N'Điều hành', N'0901350001', N'thamquan35@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTP35P              ', N'Khu vui chơi Bình Định', N'HoatDong            ', N'Điều hành', N'0902350001', N'vuichoi35@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTF351              ', N'Nhà hàng đặc sản Bình Định', N'AnUong              ', N'Bếp trưởng', N'0903350101', N'an351@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTF352              ', N'Quán cơm quê Bình Định', N'AnUong              ', N'Bếp trưởng', N'0903350201', N'an352@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTF353              ', N'Hải sản / vườn Bình Định', N'AnUong              ', N'Bếp trưởng', N'0903350301', N'an353@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTF354              ', N'Lẩu nướng Bình Định', N'AnUong              ', N'Bếp trưởng', N'0903350401', N'an354@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTF355              ', N'Quán ăn gia đình Bình Định 2', N'AnUong              ', N'Bếp trưởng', N'0903350501', N'an355@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTH351              ', N'Khách sạn Bình Định Center', N'LuuTru              ', N'Lễ tân', N'0904350101', N'ks351@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTH352              ', N'Grand Hotel Bình Định', N'LuuTru              ', N'Lễ tân', N'0904350201', N'ks352@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #21 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTH353              ', N'Khách sạn Sông Bình Định', N'LuuTru              ', N'Lễ tân', N'0904350301', N'ks353@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTH354              ', N'Bình Định Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904350401', N'ks354@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTH355              ', N'Nghỉ dưỡng Bình Định Garden', N'LuuTru              ', N'Lễ tân', N'0904350501', N'ks355@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN35                '),
+    (N'DTV36P              ', N'Dịch vụ tham quan Phú Yên', N'HoatDong            ', N'Điều hành', N'0901360001', N'thamquan36@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTP36P              ', N'Khu vui chơi Phú Yên', N'HoatDong            ', N'Điều hành', N'0902360001', N'vuichoi36@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTF361              ', N'Nhà hàng đặc sản Phú Yên', N'AnUong              ', N'Bếp trưởng', N'0903360101', N'an361@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTF362              ', N'Quán cơm quê Phú Yên', N'AnUong              ', N'Bếp trưởng', N'0903360201', N'an362@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTF363              ', N'Hải sản / vườn Phú Yên', N'AnUong              ', N'Bếp trưởng', N'0903360301', N'an363@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTF364              ', N'Lẩu nướng Phú Yên', N'AnUong              ', N'Bếp trưởng', N'0903360401', N'an364@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTF365              ', N'Quán ăn gia đình Phú Yên 2', N'AnUong              ', N'Bếp trưởng', N'0903360501', N'an365@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTH361              ', N'Khách sạn Phú Yên Center', N'LuuTru              ', N'Lễ tân', N'0904360101', N'ks361@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTH362              ', N'Grand Hotel Phú Yên', N'LuuTru              ', N'Lễ tân', N'0904360201', N'ks362@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTH363              ', N'Khách sạn Sông Phú Yên', N'LuuTru              ', N'Lễ tân', N'0904360301', N'ks363@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTH364              ', N'Phú Yên Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904360401', N'ks364@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN36                '),
+    (N'DTV37P              ', N'Dịch vụ tham quan Khánh Hòa', N'HoatDong            ', N'Điều hành', N'0901370001', N'thamquan37@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTP37P              ', N'Khu vui chơi Khánh Hòa', N'HoatDong            ', N'Điều hành', N'0902370001', N'vuichoi37@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTF371              ', N'Vietnam AncientTown', N'AnUong              ', N'Bếp trưởng', N'0903370101', N'an371@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTF372              ', N'Nhà hàng Yến Sào', N'AnUong              ', N'Bếp trưởng', N'0903370201', N'an372@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTF373              ', N'Quán bún chả cá Nha Trang', N'AnUong              ', N'Bếp trưởng', N'0903370301', N'an373@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTF374              ', N'Hải sản Tháp Bà', N'AnUong              ', N'Bếp trưởng', N'0903370401', N'an374@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTF375              ', N'Bánh căn Nhà Zô', N'AnUong              ', N'Bếp trưởng', N'0903370501', N'an375@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTH371              ', N'Khách sạn Nha Trang Beach', N'LuuTru              ', N'Lễ tân', N'0904370101', N'ks371@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTH372              ', N'Liberty Central Nha Trang', N'LuuTru              ', N'Lễ tân', N'0904370201', N'ks372@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTH373              ', N'Sunrise Nha Trang', N'LuuTru              ', N'Lễ tân', N'0904370301', N'ks373@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTH374              ', N'Mia Resort Nha Trang', N'LuuTru              ', N'Lễ tân', N'0904370401', N'ks374@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTH375              ', N'Khách sạn Hòn Chồng', N'LuuTru              ', N'Lễ tân', N'0904370501', N'ks375@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN37                '),
+    (N'DTV38P              ', N'Dịch vụ tham quan Ninh Thuận', N'HoatDong            ', N'Điều hành', N'0901380001', N'thamquan38@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTP38P              ', N'Khu vui chơi Ninh Thuận', N'HoatDong            ', N'Điều hành', N'0902380001', N'vuichoi38@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTF381              ', N'Nhà hàng đặc sản Ninh Thuận', N'AnUong              ', N'Bếp trưởng', N'0903380101', N'an381@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTF382              ', N'Quán cơm quê Ninh Thuận', N'AnUong              ', N'Bếp trưởng', N'0903380201', N'an382@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTF383              ', N'Hải sản / vườn Ninh Thuận', N'AnUong              ', N'Bếp trưởng', N'0903380301', N'an383@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTF384              ', N'Lẩu nướng Ninh Thuận', N'AnUong              ', N'Bếp trưởng', N'0903380401', N'an384@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTF385              ', N'Quán ăn gia đình Ninh Thuận 2', N'AnUong              ', N'Bếp trưởng', N'0903380501', N'an385@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTH381              ', N'Khách sạn Ninh Thuận Center', N'LuuTru              ', N'Lễ tân', N'0904380101', N'ks381@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTH382              ', N'Grand Hotel Ninh Thuận', N'LuuTru              ', N'Lễ tân', N'0904380201', N'ks382@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTH383              ', N'Khách sạn Sông Ninh Thuận', N'LuuTru              ', N'Lễ tân', N'0904380301', N'ks383@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTH384              ', N'Ninh Thuận Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904380401', N'ks384@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN38                '),
+    (N'DTV39P              ', N'Dịch vụ tham quan Bình Thuận', N'HoatDong            ', N'Điều hành', N'0901390001', N'thamquan39@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTP39P              ', N'Khu vui chơi Bình Thuận', N'HoatDong            ', N'Điều hành', N'0902390001', N'vuichoi39@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTF391              ', N'Nhà hàng đặc sản Bình Thuận', N'AnUong              ', N'Bếp trưởng', N'0903390101', N'an391@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTF392              ', N'Quán cơm quê Bình Thuận', N'AnUong              ', N'Bếp trưởng', N'0903390201', N'an392@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTF393              ', N'Hải sản / vườn Bình Thuận', N'AnUong              ', N'Bếp trưởng', N'0903390301', N'an393@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTF394              ', N'Lẩu nướng Bình Thuận', N'AnUong              ', N'Bếp trưởng', N'0903390401', N'an394@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTF395              ', N'Quán ăn gia đình Bình Thuận 2', N'AnUong              ', N'Bếp trưởng', N'0903390501', N'an395@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTH391              ', N'Khách sạn Bình Thuận Center', N'LuuTru              ', N'Lễ tân', N'0904390101', N'ks391@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTH392              ', N'Grand Hotel Bình Thuận', N'LuuTru              ', N'Lễ tân', N'0904390201', N'ks392@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTH393              ', N'Khách sạn Sông Bình Thuận', N'LuuTru              ', N'Lễ tân', N'0904390301', N'ks393@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTH394              ', N'Bình Thuận Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904390401', N'ks394@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTH395              ', N'Nghỉ dưỡng Bình Thuận Garden', N'LuuTru              ', N'Lễ tân', N'0904390501', N'ks395@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN39                '),
+    (N'DTV40P              ', N'Dịch vụ tham quan Kon Tum', N'HoatDong            ', N'Điều hành', N'0901400001', N'thamquan40@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTP40P              ', N'Khu vui chơi Kon Tum', N'HoatDong            ', N'Điều hành', N'0902400001', N'vuichoi40@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTF401              ', N'Nhà hàng đặc sản Kon Tum', N'AnUong              ', N'Bếp trưởng', N'0903400101', N'an401@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTF402              ', N'Quán cơm quê Kon Tum', N'AnUong              ', N'Bếp trưởng', N'0903400201', N'an402@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTF403              ', N'Hải sản / vườn Kon Tum', N'AnUong              ', N'Bếp trưởng', N'0903400301', N'an403@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTF404              ', N'Lẩu nướng Kon Tum', N'AnUong              ', N'Bếp trưởng', N'0903400401', N'an404@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTF405              ', N'Quán ăn gia đình Kon Tum 2', N'AnUong              ', N'Bếp trưởng', N'0903400501', N'an405@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTH401              ', N'Khách sạn Kon Tum Center', N'LuuTru              ', N'Lễ tân', N'0904400101', N'ks401@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTH402              ', N'Grand Hotel Kon Tum', N'LuuTru              ', N'Lễ tân', N'0904400201', N'ks402@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTH403              ', N'Khách sạn Sông Kon Tum', N'LuuTru              ', N'Lễ tân', N'0904400301', N'ks403@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTH404              ', N'Kon Tum Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904400401', N'ks404@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN40                '),
+    (N'DTV41P              ', N'Dịch vụ tham quan Gia Lai', N'HoatDong            ', N'Điều hành', N'0901410001', N'thamquan41@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTP41P              ', N'Khu vui chơi Gia Lai', N'HoatDong            ', N'Điều hành', N'0902410001', N'vuichoi41@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTF411              ', N'Nhà hàng đặc sản Gia Lai', N'AnUong              ', N'Bếp trưởng', N'0903410101', N'an411@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTF412              ', N'Quán cơm quê Gia Lai', N'AnUong              ', N'Bếp trưởng', N'0903410201', N'an412@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTF413              ', N'Hải sản / vườn Gia Lai', N'AnUong              ', N'Bếp trưởng', N'0903410301', N'an413@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTF414              ', N'Lẩu nướng Gia Lai', N'AnUong              ', N'Bếp trưởng', N'0903410401', N'an414@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTF415              ', N'Quán ăn gia đình Gia Lai 2', N'AnUong              ', N'Bếp trưởng', N'0903410501', N'an415@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTH411              ', N'Khách sạn Gia Lai Center', N'LuuTru              ', N'Lễ tân', N'0904410101', N'ks411@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTH412              ', N'Grand Hotel Gia Lai', N'LuuTru              ', N'Lễ tân', N'0904410201', N'ks412@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTH413              ', N'Khách sạn Sông Gia Lai', N'LuuTru              ', N'Lễ tân', N'0904410301', N'ks413@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTH414              ', N'Gia Lai Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904410401', N'ks414@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTH415              ', N'Nghỉ dưỡng Gia Lai Garden', N'LuuTru              ', N'Lễ tân', N'0904410501', N'ks415@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN41                '),
+    (N'DTV42P              ', N'Dịch vụ tham quan Đắk Lắk', N'HoatDong            ', N'Điều hành', N'0901420001', N'thamquan42@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTP42P              ', N'Khu vui chơi Đắk Lắk', N'HoatDong            ', N'Điều hành', N'0902420001', N'vuichoi42@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTF421              ', N'Nhà hàng đặc sản Đắk Lắk', N'AnUong              ', N'Bếp trưởng', N'0903420101', N'an421@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTF422              ', N'Quán cơm quê Đắk Lắk', N'AnUong              ', N'Bếp trưởng', N'0903420201', N'an422@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTF423              ', N'Hải sản / vườn Đắk Lắk', N'AnUong              ', N'Bếp trưởng', N'0903420301', N'an423@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTF424              ', N'Lẩu nướng Đắk Lắk', N'AnUong              ', N'Bếp trưởng', N'0903420401', N'an424@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTF425              ', N'Quán ăn gia đình Đắk Lắk 2', N'AnUong              ', N'Bếp trưởng', N'0903420501', N'an425@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTH421              ', N'Khách sạn Đắk Lắk Center', N'LuuTru              ', N'Lễ tân', N'0904420101', N'ks421@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #22 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTH422              ', N'Grand Hotel Đắk Lắk', N'LuuTru              ', N'Lễ tân', N'0904420201', N'ks422@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTH423              ', N'Khách sạn Sông Đắk Lắk', N'LuuTru              ', N'Lễ tân', N'0904420301', N'ks423@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTH424              ', N'Đắk Lắk Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904420401', N'ks424@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN42                '),
+    (N'DTV43P              ', N'Dịch vụ tham quan Đắk Nông', N'HoatDong            ', N'Điều hành', N'0901430001', N'thamquan43@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTP43P              ', N'Khu vui chơi Đắk Nông', N'HoatDong            ', N'Điều hành', N'0902430001', N'vuichoi43@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTF431              ', N'Nhà hàng đặc sản Đắk Nông', N'AnUong              ', N'Bếp trưởng', N'0903430101', N'an431@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTF432              ', N'Quán cơm quê Đắk Nông', N'AnUong              ', N'Bếp trưởng', N'0903430201', N'an432@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTF433              ', N'Hải sản / vườn Đắk Nông', N'AnUong              ', N'Bếp trưởng', N'0903430301', N'an433@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTF434              ', N'Lẩu nướng Đắk Nông', N'AnUong              ', N'Bếp trưởng', N'0903430401', N'an434@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTF435              ', N'Quán ăn gia đình Đắk Nông 2', N'AnUong              ', N'Bếp trưởng', N'0903430501', N'an435@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTH431              ', N'Khách sạn Đắk Nông Center', N'LuuTru              ', N'Lễ tân', N'0904430101', N'ks431@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTH432              ', N'Grand Hotel Đắk Nông', N'LuuTru              ', N'Lễ tân', N'0904430201', N'ks432@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTH433              ', N'Khách sạn Sông Đắk Nông', N'LuuTru              ', N'Lễ tân', N'0904430301', N'ks433@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTH434              ', N'Đắk Nông Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904430401', N'ks434@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTH435              ', N'Nghỉ dưỡng Đắk Nông Garden', N'LuuTru              ', N'Lễ tân', N'0904430501', N'ks435@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN43                '),
+    (N'DTV44P              ', N'Dịch vụ tham quan Lâm Đồng', N'HoatDong            ', N'Điều hành', N'0901440001', N'thamquan44@anam.vn', N'KV002               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTP44P              ', N'Khu vui chơi Lâm Đồng', N'HoatDong            ', N'Điều hành', N'0902440001', N'vuichoi44@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTF441              ', N'Nhà hàng đặc sản Lâm Đồng', N'AnUong              ', N'Bếp trưởng', N'0903440101', N'an441@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTF442              ', N'Quán cơm quê Lâm Đồng', N'AnUong              ', N'Bếp trưởng', N'0903440201', N'an442@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTF443              ', N'Hải sản / vườn Lâm Đồng', N'AnUong              ', N'Bếp trưởng', N'0903440301', N'an443@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTF444              ', N'Lẩu nướng Lâm Đồng', N'AnUong              ', N'Bếp trưởng', N'0903440401', N'an444@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTF445              ', N'Quán ăn gia đình Lâm Đồng 2', N'AnUong              ', N'Bếp trưởng', N'0903440501', N'an445@anam.vn', N'KV002               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTH441              ', N'Khách sạn Lâm Đồng Center', N'LuuTru              ', N'Lễ tân', N'0904440101', N'ks441@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTH442              ', N'Grand Hotel Lâm Đồng', N'LuuTru              ', N'Lễ tân', N'0904440201', N'ks442@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTH443              ', N'Khách sạn Sông Lâm Đồng', N'LuuTru              ', N'Lễ tân', N'0904440301', N'ks443@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTH444              ', N'Lâm Đồng Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904440401', N'ks444@anam.vn', N'KV002               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN44                '),
+    (N'DTV45P              ', N'Dịch vụ tham quan TP. Hồ Chí Minh', N'HoatDong            ', N'Điều hành', N'0901450001', N'thamquan45@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTP45P              ', N'Khu vui chơi TP. Hồ Chí Minh', N'HoatDong            ', N'Điều hành', N'0902450001', N'vuichoi45@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTF451              ', N'Cơm tấm Cali', N'AnUong              ', N'Bếp trưởng', N'0903450101', N'an451@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTF452              ', N'Nhà hàng Việt Phố', N'AnUong              ', N'Bếp trưởng', N'0903450201', N'an452@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTF453              ', N'Bánh mì Huỳnh Hoa', N'AnUong              ', N'Bếp trưởng', N'0903450301', N'an453@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTF454              ', N'Lẩu dê Đồng Nai', N'AnUong              ', N'Bếp trưởng', N'0903450401', N'an454@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTF455              ', N'The Deck Saigon', N'AnUong              ', N'Bếp trưởng', N'0903450501', N'an455@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTH451              ', N'Khách sạn TP. Hồ Chí Minh Center', N'LuuTru              ', N'Lễ tân', N'0904450101', N'ks451@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTH452              ', N'Grand Hotel TP. Hồ Chí Minh', N'LuuTru              ', N'Lễ tân', N'0904450201', N'ks452@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTH453              ', N'Khách sạn Sông TP. Hồ Chí Minh', N'LuuTru              ', N'Lễ tân', N'0904450301', N'ks453@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTH454              ', N'TP. Hồ Chí Minh Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904450401', N'ks454@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTH455              ', N'Nghỉ dưỡng TP. Hồ Chí Minh Garden', N'LuuTru              ', N'Lễ tân', N'0904450501', N'ks455@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN45                '),
+    (N'DTV46P              ', N'Dịch vụ tham quan Đồng Nai', N'HoatDong            ', N'Điều hành', N'0901460001', N'thamquan46@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTP46P              ', N'Khu vui chơi Đồng Nai', N'HoatDong            ', N'Điều hành', N'0902460001', N'vuichoi46@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTF461              ', N'Nhà hàng đặc sản Đồng Nai', N'AnUong              ', N'Bếp trưởng', N'0903460101', N'an461@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTF462              ', N'Quán cơm quê Đồng Nai', N'AnUong              ', N'Bếp trưởng', N'0903460201', N'an462@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTF463              ', N'Hải sản / vườn Đồng Nai', N'AnUong              ', N'Bếp trưởng', N'0903460301', N'an463@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTF464              ', N'Lẩu nướng Đồng Nai', N'AnUong              ', N'Bếp trưởng', N'0903460401', N'an464@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTF465              ', N'Quán ăn gia đình Đồng Nai 2', N'AnUong              ', N'Bếp trưởng', N'0903460501', N'an465@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTH461              ', N'Khách sạn Đồng Nai Center', N'LuuTru              ', N'Lễ tân', N'0904460101', N'ks461@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTH462              ', N'Grand Hotel Đồng Nai', N'LuuTru              ', N'Lễ tân', N'0904460201', N'ks462@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTH463              ', N'Khách sạn Sông Đồng Nai', N'LuuTru              ', N'Lễ tân', N'0904460301', N'ks463@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTH464              ', N'Đồng Nai Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904460401', N'ks464@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN46                '),
+    (N'DTV47P              ', N'Dịch vụ tham quan Bình Dương', N'HoatDong            ', N'Điều hành', N'0901470001', N'thamquan47@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTP47P              ', N'Khu vui chơi Bình Dương', N'HoatDong            ', N'Điều hành', N'0902470001', N'vuichoi47@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTF471              ', N'Nhà hàng đặc sản Bình Dương', N'AnUong              ', N'Bếp trưởng', N'0903470101', N'an471@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTF472              ', N'Quán cơm quê Bình Dương', N'AnUong              ', N'Bếp trưởng', N'0903470201', N'an472@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTF473              ', N'Hải sản / vườn Bình Dương', N'AnUong              ', N'Bếp trưởng', N'0903470301', N'an473@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTF474              ', N'Lẩu nướng Bình Dương', N'AnUong              ', N'Bếp trưởng', N'0903470401', N'an474@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTF475              ', N'Quán ăn gia đình Bình Dương 2', N'AnUong              ', N'Bếp trưởng', N'0903470501', N'an475@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTH471              ', N'Khách sạn Bình Dương Center', N'LuuTru              ', N'Lễ tân', N'0904470101', N'ks471@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTH472              ', N'Grand Hotel Bình Dương', N'LuuTru              ', N'Lễ tân', N'0904470201', N'ks472@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTH473              ', N'Khách sạn Sông Bình Dương', N'LuuTru              ', N'Lễ tân', N'0904470301', N'ks473@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTH474              ', N'Bình Dương Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904470401', N'ks474@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTH475              ', N'Nghỉ dưỡng Bình Dương Garden', N'LuuTru              ', N'Lễ tân', N'0904470501', N'ks475@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN47                '),
+    (N'DTV48P              ', N'Dịch vụ tham quan Bà Rịa - Vũng Tàu', N'HoatDong            ', N'Điều hành', N'0901480001', N'thamquan48@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTP48P              ', N'Khu vui chơi Bà Rịa - Vũng Tàu', N'HoatDong            ', N'Điều hành', N'0902480001', N'vuichoi48@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTF481              ', N'Nhà hàng đặc sản Bà Rịa - Vũng Tàu', N'AnUong              ', N'Bếp trưởng', N'0903480101', N'an481@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTF482              ', N'Quán cơm quê Bà Rịa - Vũng Tàu', N'AnUong              ', N'Bếp trưởng', N'0903480201', N'an482@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTF483              ', N'Hải sản / vườn Bà Rịa - Vũng Tàu', N'AnUong              ', N'Bếp trưởng', N'0903480301', N'an483@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTF484              ', N'Lẩu nướng Bà Rịa - Vũng Tàu', N'AnUong              ', N'Bếp trưởng', N'0903480401', N'an484@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTF485              ', N'Quán ăn gia đình Bà Rịa - Vũng Tàu 2', N'AnUong              ', N'Bếp trưởng', N'0903480501', N'an485@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTH481              ', N'Khách sạn Bà Rịa - Vũng Tàu Center', N'LuuTru              ', N'Lễ tân', N'0904480101', N'ks481@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTH482              ', N'Grand Hotel Bà Rịa - Vũng Tàu', N'LuuTru              ', N'Lễ tân', N'0904480201', N'ks482@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTH483              ', N'Khách sạn Sông Bà Rịa - Vũng Tàu', N'LuuTru              ', N'Lễ tân', N'0904480301', N'ks483@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTH484              ', N'Bà Rịa - Vũng Tàu Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904480401', N'ks484@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN48                '),
+    (N'DTV49P              ', N'Dịch vụ tham quan Tây Ninh', N'HoatDong            ', N'Điều hành', N'0901490001', N'thamquan49@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTP49P              ', N'Khu vui chơi Tây Ninh', N'HoatDong            ', N'Điều hành', N'0902490001', N'vuichoi49@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTF491              ', N'Nhà hàng đặc sản Tây Ninh', N'AnUong              ', N'Bếp trưởng', N'0903490101', N'an491@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTF492              ', N'Quán cơm quê Tây Ninh', N'AnUong              ', N'Bếp trưởng', N'0903490201', N'an492@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTF493              ', N'Hải sản / vườn Tây Ninh', N'AnUong              ', N'Bếp trưởng', N'0903490301', N'an493@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTF494              ', N'Lẩu nướng Tây Ninh', N'AnUong              ', N'Bếp trưởng', N'0903490401', N'an494@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTF495              ', N'Quán ăn gia đình Tây Ninh 2', N'AnUong              ', N'Bếp trưởng', N'0903490501', N'an495@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTH491              ', N'Khách sạn Tây Ninh Center', N'LuuTru              ', N'Lễ tân', N'0904490101', N'ks491@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #23 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTH492              ', N'Grand Hotel Tây Ninh', N'LuuTru              ', N'Lễ tân', N'0904490201', N'ks492@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTH493              ', N'Khách sạn Sông Tây Ninh', N'LuuTru              ', N'Lễ tân', N'0904490301', N'ks493@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTH494              ', N'Tây Ninh Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904490401', N'ks494@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTH495              ', N'Nghỉ dưỡng Tây Ninh Garden', N'LuuTru              ', N'Lễ tân', N'0904490501', N'ks495@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN49                '),
+    (N'DTV50P              ', N'Dịch vụ tham quan Bình Phước', N'HoatDong            ', N'Điều hành', N'0901500001', N'thamquan50@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTP50P              ', N'Khu vui chơi Bình Phước', N'HoatDong            ', N'Điều hành', N'0902500001', N'vuichoi50@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTF501              ', N'Nhà hàng đặc sản Bình Phước', N'AnUong              ', N'Bếp trưởng', N'0903500101', N'an501@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTF502              ', N'Quán cơm quê Bình Phước', N'AnUong              ', N'Bếp trưởng', N'0903500201', N'an502@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTF503              ', N'Hải sản / vườn Bình Phước', N'AnUong              ', N'Bếp trưởng', N'0903500301', N'an503@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTF504              ', N'Lẩu nướng Bình Phước', N'AnUong              ', N'Bếp trưởng', N'0903500401', N'an504@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTF505              ', N'Quán ăn gia đình Bình Phước 2', N'AnUong              ', N'Bếp trưởng', N'0903500501', N'an505@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTH501              ', N'Khách sạn Bình Phước Center', N'LuuTru              ', N'Lễ tân', N'0904500101', N'ks501@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTH502              ', N'Grand Hotel Bình Phước', N'LuuTru              ', N'Lễ tân', N'0904500201', N'ks502@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTH503              ', N'Khách sạn Sông Bình Phước', N'LuuTru              ', N'Lễ tân', N'0904500301', N'ks503@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTH504              ', N'Bình Phước Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904500401', N'ks504@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN50                '),
+    (N'DTV51P              ', N'Dịch vụ tham quan Long An', N'HoatDong            ', N'Điều hành', N'0901510001', N'thamquan51@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTP51P              ', N'Khu vui chơi Long An', N'HoatDong            ', N'Điều hành', N'0902510001', N'vuichoi51@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTF511              ', N'Nhà hàng đặc sản Long An', N'AnUong              ', N'Bếp trưởng', N'0903510101', N'an511@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTF512              ', N'Quán cơm quê Long An', N'AnUong              ', N'Bếp trưởng', N'0903510201', N'an512@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTF513              ', N'Hải sản / vườn Long An', N'AnUong              ', N'Bếp trưởng', N'0903510301', N'an513@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTF514              ', N'Lẩu nướng Long An', N'AnUong              ', N'Bếp trưởng', N'0903510401', N'an514@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTF515              ', N'Quán ăn gia đình Long An 2', N'AnUong              ', N'Bếp trưởng', N'0903510501', N'an515@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTH511              ', N'Khách sạn Long An Center', N'LuuTru              ', N'Lễ tân', N'0904510101', N'ks511@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTH512              ', N'Grand Hotel Long An', N'LuuTru              ', N'Lễ tân', N'0904510201', N'ks512@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTH513              ', N'Khách sạn Sông Long An', N'LuuTru              ', N'Lễ tân', N'0904510301', N'ks513@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTH514              ', N'Long An Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904510401', N'ks514@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTH515              ', N'Nghỉ dưỡng Long An Garden', N'LuuTru              ', N'Lễ tân', N'0904510501', N'ks515@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN51                '),
+    (N'DTV52P              ', N'Dịch vụ tham quan Tiền Giang', N'HoatDong            ', N'Điều hành', N'0901520001', N'thamquan52@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTP52P              ', N'Khu vui chơi Tiền Giang', N'HoatDong            ', N'Điều hành', N'0902520001', N'vuichoi52@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTF521              ', N'Nhà hàng đặc sản Tiền Giang', N'AnUong              ', N'Bếp trưởng', N'0903520101', N'an521@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTF522              ', N'Quán cơm quê Tiền Giang', N'AnUong              ', N'Bếp trưởng', N'0903520201', N'an522@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTF523              ', N'Hải sản / vườn Tiền Giang', N'AnUong              ', N'Bếp trưởng', N'0903520301', N'an523@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTF524              ', N'Lẩu nướng Tiền Giang', N'AnUong              ', N'Bếp trưởng', N'0903520401', N'an524@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTF525              ', N'Quán ăn gia đình Tiền Giang 2', N'AnUong              ', N'Bếp trưởng', N'0903520501', N'an525@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTH521              ', N'Khách sạn Tiền Giang Center', N'LuuTru              ', N'Lễ tân', N'0904520101', N'ks521@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTH522              ', N'Grand Hotel Tiền Giang', N'LuuTru              ', N'Lễ tân', N'0904520201', N'ks522@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTH523              ', N'Khách sạn Sông Tiền Giang', N'LuuTru              ', N'Lễ tân', N'0904520301', N'ks523@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTH524              ', N'Tiền Giang Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904520401', N'ks524@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN52                '),
+    (N'DTV53P              ', N'Dịch vụ tham quan Bến Tre', N'HoatDong            ', N'Điều hành', N'0901530001', N'thamquan53@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTP53P              ', N'Khu vui chơi Bến Tre', N'HoatDong            ', N'Điều hành', N'0902530001', N'vuichoi53@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTF531              ', N'Nhà hàng đặc sản Bến Tre', N'AnUong              ', N'Bếp trưởng', N'0903530101', N'an531@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTF532              ', N'Quán cơm quê Bến Tre', N'AnUong              ', N'Bếp trưởng', N'0903530201', N'an532@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTF533              ', N'Hải sản / vườn Bến Tre', N'AnUong              ', N'Bếp trưởng', N'0903530301', N'an533@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTF534              ', N'Lẩu nướng Bến Tre', N'AnUong              ', N'Bếp trưởng', N'0903530401', N'an534@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTF535              ', N'Quán ăn gia đình Bến Tre 2', N'AnUong              ', N'Bếp trưởng', N'0903530501', N'an535@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTH531              ', N'Khách sạn Bến Tre Center', N'LuuTru              ', N'Lễ tân', N'0904530101', N'ks531@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTH532              ', N'Grand Hotel Bến Tre', N'LuuTru              ', N'Lễ tân', N'0904530201', N'ks532@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTH533              ', N'Khách sạn Sông Bến Tre', N'LuuTru              ', N'Lễ tân', N'0904530301', N'ks533@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTH534              ', N'Bến Tre Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904530401', N'ks534@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTH535              ', N'Nghỉ dưỡng Bến Tre Garden', N'LuuTru              ', N'Lễ tân', N'0904530501', N'ks535@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN53                '),
+    (N'DTV54P              ', N'Dịch vụ tham quan Vĩnh Long', N'HoatDong            ', N'Điều hành', N'0901540001', N'thamquan54@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTP54P              ', N'Khu vui chơi Vĩnh Long', N'HoatDong            ', N'Điều hành', N'0902540001', N'vuichoi54@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTF541              ', N'Nhà hàng đặc sản Vĩnh Long', N'AnUong              ', N'Bếp trưởng', N'0903540101', N'an541@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTF542              ', N'Quán cơm quê Vĩnh Long', N'AnUong              ', N'Bếp trưởng', N'0903540201', N'an542@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTF543              ', N'Hải sản / vườn Vĩnh Long', N'AnUong              ', N'Bếp trưởng', N'0903540301', N'an543@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTF544              ', N'Lẩu nướng Vĩnh Long', N'AnUong              ', N'Bếp trưởng', N'0903540401', N'an544@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTF545              ', N'Quán ăn gia đình Vĩnh Long 2', N'AnUong              ', N'Bếp trưởng', N'0903540501', N'an545@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTH541              ', N'Khách sạn Vĩnh Long Center', N'LuuTru              ', N'Lễ tân', N'0904540101', N'ks541@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTH542              ', N'Grand Hotel Vĩnh Long', N'LuuTru              ', N'Lễ tân', N'0904540201', N'ks542@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTH543              ', N'Khách sạn Sông Vĩnh Long', N'LuuTru              ', N'Lễ tân', N'0904540301', N'ks543@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTH544              ', N'Vĩnh Long Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904540401', N'ks544@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN54                '),
+    (N'DTV55P              ', N'Dịch vụ tham quan Trà Vinh', N'HoatDong            ', N'Điều hành', N'0901550001', N'thamquan55@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTP55P              ', N'Khu vui chơi Trà Vinh', N'HoatDong            ', N'Điều hành', N'0902550001', N'vuichoi55@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTF551              ', N'Nhà hàng đặc sản Trà Vinh', N'AnUong              ', N'Bếp trưởng', N'0903550101', N'an551@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTF552              ', N'Quán cơm quê Trà Vinh', N'AnUong              ', N'Bếp trưởng', N'0903550201', N'an552@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTF553              ', N'Hải sản / vườn Trà Vinh', N'AnUong              ', N'Bếp trưởng', N'0903550301', N'an553@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTF554              ', N'Lẩu nướng Trà Vinh', N'AnUong              ', N'Bếp trưởng', N'0903550401', N'an554@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTF555              ', N'Quán ăn gia đình Trà Vinh 2', N'AnUong              ', N'Bếp trưởng', N'0903550501', N'an555@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTH551              ', N'Khách sạn Trà Vinh Center', N'LuuTru              ', N'Lễ tân', N'0904550101', N'ks551@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTH552              ', N'Grand Hotel Trà Vinh', N'LuuTru              ', N'Lễ tân', N'0904550201', N'ks552@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTH553              ', N'Khách sạn Sông Trà Vinh', N'LuuTru              ', N'Lễ tân', N'0904550301', N'ks553@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTH554              ', N'Trà Vinh Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904550401', N'ks554@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTH555              ', N'Nghỉ dưỡng Trà Vinh Garden', N'LuuTru              ', N'Lễ tân', N'0904550501', N'ks555@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN55                '),
+    (N'DTV56P              ', N'Dịch vụ tham quan Đồng Tháp', N'HoatDong            ', N'Điều hành', N'0901560001', N'thamquan56@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTP56P              ', N'Khu vui chơi Đồng Tháp', N'HoatDong            ', N'Điều hành', N'0902560001', N'vuichoi56@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTF561              ', N'Nhà hàng đặc sản Đồng Tháp', N'AnUong              ', N'Bếp trưởng', N'0903560101', N'an561@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTF562              ', N'Quán cơm quê Đồng Tháp', N'AnUong              ', N'Bếp trưởng', N'0903560201', N'an562@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTF563              ', N'Hải sản / vườn Đồng Tháp', N'AnUong              ', N'Bếp trưởng', N'0903560301', N'an563@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTF564              ', N'Lẩu nướng Đồng Tháp', N'AnUong              ', N'Bếp trưởng', N'0903560401', N'an564@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTF565              ', N'Quán ăn gia đình Đồng Tháp 2', N'AnUong              ', N'Bếp trưởng', N'0903560501', N'an565@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #24 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTH561              ', N'Khách sạn Đồng Tháp Center', N'LuuTru              ', N'Lễ tân', N'0904560101', N'ks561@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTH562              ', N'Grand Hotel Đồng Tháp', N'LuuTru              ', N'Lễ tân', N'0904560201', N'ks562@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTH563              ', N'Khách sạn Sông Đồng Tháp', N'LuuTru              ', N'Lễ tân', N'0904560301', N'ks563@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTH564              ', N'Đồng Tháp Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904560401', N'ks564@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN56                '),
+    (N'DTV57P              ', N'Dịch vụ tham quan An Giang', N'HoatDong            ', N'Điều hành', N'0901570001', N'thamquan57@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTP57P              ', N'Khu vui chơi An Giang', N'HoatDong            ', N'Điều hành', N'0902570001', N'vuichoi57@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTF571              ', N'Nhà hàng đặc sản An Giang', N'AnUong              ', N'Bếp trưởng', N'0903570101', N'an571@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTF572              ', N'Quán cơm quê An Giang', N'AnUong              ', N'Bếp trưởng', N'0903570201', N'an572@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTF573              ', N'Hải sản / vườn An Giang', N'AnUong              ', N'Bếp trưởng', N'0903570301', N'an573@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTF574              ', N'Lẩu nướng An Giang', N'AnUong              ', N'Bếp trưởng', N'0903570401', N'an574@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTF575              ', N'Quán ăn gia đình An Giang 2', N'AnUong              ', N'Bếp trưởng', N'0903570501', N'an575@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTH571              ', N'Khách sạn An Giang Center', N'LuuTru              ', N'Lễ tân', N'0904570101', N'ks571@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTH572              ', N'Grand Hotel An Giang', N'LuuTru              ', N'Lễ tân', N'0904570201', N'ks572@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTH573              ', N'Khách sạn Sông An Giang', N'LuuTru              ', N'Lễ tân', N'0904570301', N'ks573@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTH574              ', N'An Giang Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904570401', N'ks574@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTH575              ', N'Nghỉ dưỡng An Giang Garden', N'LuuTru              ', N'Lễ tân', N'0904570501', N'ks575@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN57                '),
+    (N'DTV58P              ', N'Dịch vụ tham quan Kiên Giang', N'HoatDong            ', N'Điều hành', N'0901580001', N'thamquan58@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTP58P              ', N'Khu vui chơi Kiên Giang', N'HoatDong            ', N'Điều hành', N'0902580001', N'vuichoi58@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTF581              ', N'Nhà hàng đặc sản Kiên Giang', N'AnUong              ', N'Bếp trưởng', N'0903580101', N'an581@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTF582              ', N'Quán cơm quê Kiên Giang', N'AnUong              ', N'Bếp trưởng', N'0903580201', N'an582@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTF583              ', N'Hải sản / vườn Kiên Giang', N'AnUong              ', N'Bếp trưởng', N'0903580301', N'an583@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTF584              ', N'Lẩu nướng Kiên Giang', N'AnUong              ', N'Bếp trưởng', N'0903580401', N'an584@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTF585              ', N'Quán ăn gia đình Kiên Giang 2', N'AnUong              ', N'Bếp trưởng', N'0903580501', N'an585@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTH581              ', N'Khách sạn Kiên Giang Center', N'LuuTru              ', N'Lễ tân', N'0904580101', N'ks581@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTH582              ', N'Grand Hotel Kiên Giang', N'LuuTru              ', N'Lễ tân', N'0904580201', N'ks582@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTH583              ', N'Khách sạn Sông Kiên Giang', N'LuuTru              ', N'Lễ tân', N'0904580301', N'ks583@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTH584              ', N'Kiên Giang Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904580401', N'ks584@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN58                '),
+    (N'DTV59P              ', N'Dịch vụ tham quan Cần Thơ', N'HoatDong            ', N'Điều hành', N'0901590001', N'thamquan59@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTP59P              ', N'Khu vui chơi Cần Thơ', N'HoatDong            ', N'Điều hành', N'0902590001', N'vuichoi59@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTF591              ', N'Nhà hàng đặc sản Cần Thơ', N'AnUong              ', N'Bếp trưởng', N'0903590101', N'an591@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTF592              ', N'Quán cơm quê Cần Thơ', N'AnUong              ', N'Bếp trưởng', N'0903590201', N'an592@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTF593              ', N'Hải sản / vườn Cần Thơ', N'AnUong              ', N'Bếp trưởng', N'0903590301', N'an593@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTF594              ', N'Lẩu nướng Cần Thơ', N'AnUong              ', N'Bếp trưởng', N'0903590401', N'an594@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTF595              ', N'Quán ăn gia đình Cần Thơ 2', N'AnUong              ', N'Bếp trưởng', N'0903590501', N'an595@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTH591              ', N'Khách sạn Cần Thơ Center', N'LuuTru              ', N'Lễ tân', N'0904590101', N'ks591@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTH592              ', N'Grand Hotel Cần Thơ', N'LuuTru              ', N'Lễ tân', N'0904590201', N'ks592@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTH593              ', N'Khách sạn Sông Cần Thơ', N'LuuTru              ', N'Lễ tân', N'0904590301', N'ks593@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTH594              ', N'Cần Thơ Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904590401', N'ks594@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTH595              ', N'Nghỉ dưỡng Cần Thơ Garden', N'LuuTru              ', N'Lễ tân', N'0904590501', N'ks595@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN59                '),
+    (N'DTV60P              ', N'Dịch vụ tham quan Hậu Giang', N'HoatDong            ', N'Điều hành', N'0901600001', N'thamquan60@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTP60P              ', N'Khu vui chơi Hậu Giang', N'HoatDong            ', N'Điều hành', N'0902600001', N'vuichoi60@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTF601              ', N'Nhà hàng đặc sản Hậu Giang', N'AnUong              ', N'Bếp trưởng', N'0903600101', N'an601@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTF602              ', N'Quán cơm quê Hậu Giang', N'AnUong              ', N'Bếp trưởng', N'0903600201', N'an602@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTF603              ', N'Hải sản / vườn Hậu Giang', N'AnUong              ', N'Bếp trưởng', N'0903600301', N'an603@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTF604              ', N'Lẩu nướng Hậu Giang', N'AnUong              ', N'Bếp trưởng', N'0903600401', N'an604@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTF605              ', N'Quán ăn gia đình Hậu Giang 2', N'AnUong              ', N'Bếp trưởng', N'0903600501', N'an605@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTH601              ', N'Khách sạn Hậu Giang Center', N'LuuTru              ', N'Lễ tân', N'0904600101', N'ks601@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTH602              ', N'Grand Hotel Hậu Giang', N'LuuTru              ', N'Lễ tân', N'0904600201', N'ks602@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTH603              ', N'Khách sạn Sông Hậu Giang', N'LuuTru              ', N'Lễ tân', N'0904600301', N'ks603@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTH604              ', N'Hậu Giang Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904600401', N'ks604@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN60                '),
+    (N'DTV61P              ', N'Dịch vụ tham quan Sóc Trăng', N'HoatDong            ', N'Điều hành', N'0901610001', N'thamquan61@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTP61P              ', N'Khu vui chơi Sóc Trăng', N'HoatDong            ', N'Điều hành', N'0902610001', N'vuichoi61@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTF611              ', N'Nhà hàng đặc sản Sóc Trăng', N'AnUong              ', N'Bếp trưởng', N'0903610101', N'an611@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTF612              ', N'Quán cơm quê Sóc Trăng', N'AnUong              ', N'Bếp trưởng', N'0903610201', N'an612@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTF613              ', N'Hải sản / vườn Sóc Trăng', N'AnUong              ', N'Bếp trưởng', N'0903610301', N'an613@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTF614              ', N'Lẩu nướng Sóc Trăng', N'AnUong              ', N'Bếp trưởng', N'0903610401', N'an614@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTF615              ', N'Quán ăn gia đình Sóc Trăng 2', N'AnUong              ', N'Bếp trưởng', N'0903610501', N'an615@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTH611              ', N'Khách sạn Sóc Trăng Center', N'LuuTru              ', N'Lễ tân', N'0904610101', N'ks611@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTH612              ', N'Grand Hotel Sóc Trăng', N'LuuTru              ', N'Lễ tân', N'0904610201', N'ks612@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTH613              ', N'Khách sạn Sông Sóc Trăng', N'LuuTru              ', N'Lễ tân', N'0904610301', N'ks613@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTH614              ', N'Sóc Trăng Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904610401', N'ks614@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTH615              ', N'Nghỉ dưỡng Sóc Trăng Garden', N'LuuTru              ', N'Lễ tân', N'0904610501', N'ks615@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN61                '),
+    (N'DTV62P              ', N'Dịch vụ tham quan Bạc Liêu', N'HoatDong            ', N'Điều hành', N'0901620001', N'thamquan62@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTP62P              ', N'Khu vui chơi Bạc Liêu', N'HoatDong            ', N'Điều hành', N'0902620001', N'vuichoi62@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTF621              ', N'Nhà hàng đặc sản Bạc Liêu', N'AnUong              ', N'Bếp trưởng', N'0903620101', N'an621@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTF622              ', N'Quán cơm quê Bạc Liêu', N'AnUong              ', N'Bếp trưởng', N'0903620201', N'an622@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTF623              ', N'Hải sản / vườn Bạc Liêu', N'AnUong              ', N'Bếp trưởng', N'0903620301', N'an623@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTF624              ', N'Lẩu nướng Bạc Liêu', N'AnUong              ', N'Bếp trưởng', N'0903620401', N'an624@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTF625              ', N'Quán ăn gia đình Bạc Liêu 2', N'AnUong              ', N'Bếp trưởng', N'0903620501', N'an625@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTH621              ', N'Khách sạn Bạc Liêu Center', N'LuuTru              ', N'Lễ tân', N'0904620101', N'ks621@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTH622              ', N'Grand Hotel Bạc Liêu', N'LuuTru              ', N'Lễ tân', N'0904620201', N'ks622@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTH623              ', N'Khách sạn Sông Bạc Liêu', N'LuuTru              ', N'Lễ tân', N'0904620301', N'ks623@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTH624              ', N'Bạc Liêu Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904620401', N'ks624@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN62                '),
+    (N'DTV63P              ', N'Dịch vụ tham quan Cà Mau', N'HoatDong            ', N'Điều hành', N'0901630001', N'thamquan63@anam.vn', N'KV003               ', CAST(8.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTP63P              ', N'Khu vui chơi Cà Mau', N'HoatDong            ', N'Điều hành', N'0902630001', N'vuichoi63@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTF631              ', N'Nhà hàng đặc sản Cà Mau', N'AnUong              ', N'Bếp trưởng', N'0903630101', N'an631@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTF632              ', N'Quán cơm quê Cà Mau', N'AnUong              ', N'Bếp trưởng', N'0903630201', N'an632@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTF633              ', N'Hải sản / vườn Cà Mau', N'AnUong              ', N'Bếp trưởng', N'0903630301', N'an633@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTF634              ', N'Lẩu nướng Cà Mau', N'AnUong              ', N'Bếp trưởng', N'0903630401', N'an634@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTF635              ', N'Quán ăn gia đình Cà Mau 2', N'AnUong              ', N'Bếp trưởng', N'0903630501', N'an635@anam.vn', N'KV003               ', CAST(12.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #25 ===== */
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+SELECT * FROM (VALUES
+    (N'DTH631              ', N'Khách sạn Cà Mau Center', N'LuuTru              ', N'Lễ tân', N'0904630101', N'ks631@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTH632              ', N'Grand Hotel Cà Mau', N'LuuTru              ', N'Lễ tân', N'0904630201', N'ks632@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTH633              ', N'Khách sạn Sông Cà Mau', N'LuuTru              ', N'Lễ tân', N'0904630301', N'ks633@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTH634              ', N'Cà Mau Boutique Hotel', N'LuuTru              ', N'Lễ tân', N'0904630401', N'ks634@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                '),
+    (N'DTH635              ', N'Nghỉ dưỡng Cà Mau Garden', N'LuuTru              ', N'Lễ tân', N'0904630501', N'ks635@anam.vn', N'KV003               ', CAST(10.00 AS decimal(5,2)), N'HoatDong            ', N'TN63                ')
+) v(MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DoiTac x WHERE x.MaDoiTac = v.MaDoiTac);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #26 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPV011              ', N'DTV01P              ', N'Vé Hồ Hoàn Kiếm', N've', 0, N'DTV011              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV012              ', N'DTV01P              ', N'Vé Văn Miếu Quốc Tử Giám', N've', 40000, N'DTV012              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV013              ', N'DTV01P              ', N'Vé Lăng Chủ tịch Hồ Chí Minh', N've', 60000, N'DTV013              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV014              ', N'DTV01P              ', N'Vé Phố cổ Hà Nội', N've', 80000, N'DTV014              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV015              ', N'DTV01P              ', N'Vé Chùa Trấn Quốc', N've', 100000, N'DTV015              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP011              ', N'DTP01P              ', N'Vé Công viên Thủ Lệ', N've', 120000, N'DTP011              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP012              ', N'DTP01P              ', N'Vé Vinpearl Aquarium', N've', 160000, N'DTP012              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP013              ', N'DTP01P              ', N'Vé Công viên nước Hồ Tây', N've', 200000, N'DTP013              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP014              ', N'DTP01P              ', N'Vé Làng văn hóa các dân tộc', N've', 240000, N'DTP014              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP015              ', N'DTP01P              ', N'Vé Rạp Xiếc Trung ương', N've', 280000, N'DTP015              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF011              ', N'DTF011              ', N'Suất ăn Phở Gia Truyền', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF012              ', N'DTF012              ', N'Suất ăn Bún chả Hàng Quạt', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF013              ', N'DTF013              ', N'Suất ăn Chả cá Lã Vọng', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF014              ', N'DTF014              ', N'Suất ăn Nhà hàng quán ăn Ngon', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF015              ', N'DTF015              ', N'Suất ăn Cà phê Giảng', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR0111             ', N'DTH011              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0112             ', N'DTH011              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0113             ', N'DTH011              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0121             ', N'DTH012              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0122             ', N'DTH012              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0123             ', N'DTH012              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0131             ', N'DTH013              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0132             ', N'DTH013              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0133             ', N'DTH013              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0141             ', N'DTH014              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0142             ', N'DTH014              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0143             ', N'DTH014              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0151             ', N'DTH015              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0152             ', N'DTH015              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0153             ', N'DTH015              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV021              ', N'DTV02P              ', N'Vé Đồ Sơn', N've', 0, N'DTV021              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV022              ', N'DTV02P              ', N'Vé Cát Bà', N've', 40000, N'DTV022              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV023              ', N'DTV02P              ', N'Vé Nhà hát lớn Hải Phòng', N've', 60000, N'DTV023              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV024              ', N'DTV02P              ', N'Vé Đền Nghè', N've', 80000, N'DTV024              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV025              ', N'DTV02P              ', N'Vé Bãi Cháy Cát Bà', N've', 100000, N'DTV025              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP021              ', N'DTP02P              ', N'Vé Công viên giải trí Hải Phòng', N've', 120000, N'DTP021              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP022              ', N'DTP02P              ', N'Vé Khu vui chơi gia đình Hải Phòng', N've', 160000, N'DTP022              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP023              ', N'DTP02P              ', N'Vé Công viên nước Hải Phòng', N've', 200000, N'DTP023              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP024              ', N'DTP02P              ', N'Vé Khu thể thao Hải Phòng', N've', 240000, N'DTP024              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP025              ', N'DTP02P              ', N'Vé Quảng trường lễ hội Hải Phòng', N've', 280000, N'DTP025              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF021              ', N'DTF021              ', N'Suất ăn Nhà hàng đặc sản Hải Phòng', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF022              ', N'DTF022              ', N'Suất ăn Quán cơm quê Hải Phòng', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF023              ', N'DTF023              ', N'Suất ăn Hải sản / vườn Hải Phòng', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF024              ', N'DTF024              ', N'Suất ăn Lẩu nướng Hải Phòng', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF025              ', N'DTF025              ', N'Suất ăn Quán ăn gia đình Hải Phòng 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR0211             ', N'DTH021              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0212             ', N'DTH021              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0213             ', N'DTH021              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0221             ', N'DTH022              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0222             ', N'DTH022              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0223             ', N'DTH022              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0231             ', N'DTH023              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0232             ', N'DTH023              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0233             ', N'DTH023              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0241             ', N'DTH024              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0242             ', N'DTH024              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0243             ', N'DTH024              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV031              ', N'DTV03P              ', N'Vé Vịnh Hạ Long', N've', 0, N'DTV031              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV032              ', N'DTV03P              ', N'Vé Đảo Tuần Châu', N've', 40000, N'DTV032              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV033              ', N'DTV03P              ', N'Vé Yên Tử', N've', 60000, N'DTV033              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV034              ', N'DTV03P              ', N'Vé Bãi Cháy', N've', 80000, N'DTV034              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV035              ', N'DTV03P              ', N'Vé Cột cờ Hạ Long', N've', 100000, N'DTV035              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP031              ', N'DTP03P              ', N'Vé Công viên giải trí Quảng Ninh', N've', 120000, N'DTP031              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP032              ', N'DTP03P              ', N'Vé Khu vui chơi gia đình Quảng Ninh', N've', 160000, N'DTP032              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP033              ', N'DTP03P              ', N'Vé Công viên nước Quảng Ninh', N've', 200000, N'DTP033              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP034              ', N'DTP03P              ', N'Vé Khu thể thao Quảng Ninh', N've', 240000, N'DTP034              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP035              ', N'DTP03P              ', N'Vé Quảng trường lễ hội Quảng Ninh', N've', 280000, N'DTP035              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF031              ', N'DTF031              ', N'Suất ăn Nhà hàng đặc sản Quảng Ninh', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF032              ', N'DTF032              ', N'Suất ăn Quán cơm quê Quảng Ninh', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF033              ', N'DTF033              ', N'Suất ăn Hải sản / vườn Quảng Ninh', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF034              ', N'DTF034              ', N'Suất ăn Lẩu nướng Quảng Ninh', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF035              ', N'DTF035              ', N'Suất ăn Quán ăn gia đình Quảng Ninh 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR0311             ', N'DTH031              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0312             ', N'DTH031              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0313             ', N'DTH031              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0321             ', N'DTH032              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0322             ', N'DTH032              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0323             ', N'DTH032              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0331             ', N'DTH033              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0332             ', N'DTH033              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #27 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR0333             ', N'DTH033              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0341             ', N'DTH034              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0342             ', N'DTH034              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0343             ', N'DTH034              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0351             ', N'DTH035              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0352             ', N'DTH035              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0353             ', N'DTH035              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV041              ', N'DTV04P              ', N'Vé Trung tâm thành phố Bắc Ninh', N've', 0, N'DTV041              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV042              ', N'DTV04P              ', N'Vé Bảo tàng Bắc Ninh', N've', 40000, N'DTV042              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV043              ', N'DTV04P              ', N'Vé Đền / chùa cổ Bắc Ninh', N've', 60000, N'DTV043              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV044              ', N'DTV04P              ', N'Vé Công viên văn hóa Bắc Ninh', N've', 80000, N'DTV044              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV045              ', N'DTV04P              ', N'Vé Chợ đêm Bắc Ninh', N've', 100000, N'DTV045              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP041              ', N'DTP04P              ', N'Vé Công viên giải trí Bắc Ninh', N've', 120000, N'DTP041              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP042              ', N'DTP04P              ', N'Vé Khu vui chơi gia đình Bắc Ninh', N've', 160000, N'DTP042              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP043              ', N'DTP04P              ', N'Vé Công viên nước Bắc Ninh', N've', 200000, N'DTP043              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP044              ', N'DTP04P              ', N'Vé Khu thể thao Bắc Ninh', N've', 240000, N'DTP044              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP045              ', N'DTP04P              ', N'Vé Quảng trường lễ hội Bắc Ninh', N've', 280000, N'DTP045              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF041              ', N'DTF041              ', N'Suất ăn Nhà hàng đặc sản Bắc Ninh', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF042              ', N'DTF042              ', N'Suất ăn Quán cơm quê Bắc Ninh', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF043              ', N'DTF043              ', N'Suất ăn Hải sản / vườn Bắc Ninh', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF044              ', N'DTF044              ', N'Suất ăn Lẩu nướng Bắc Ninh', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF045              ', N'DTF045              ', N'Suất ăn Quán ăn gia đình Bắc Ninh 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR0411             ', N'DTH041              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0412             ', N'DTH041              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0413             ', N'DTH041              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0421             ', N'DTH042              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0422             ', N'DTH042              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0423             ', N'DTH042              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0431             ', N'DTH043              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0432             ', N'DTH043              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0433             ', N'DTH043              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0441             ', N'DTH044              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0442             ', N'DTH044              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0443             ', N'DTH044              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV051              ', N'DTV05P              ', N'Vé Trung tâm thành phố Hải Dương', N've', 0, N'DTV051              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV052              ', N'DTV05P              ', N'Vé Bảo tàng Hải Dương', N've', 40000, N'DTV052              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV053              ', N'DTV05P              ', N'Vé Đền / chùa cổ Hải Dương', N've', 60000, N'DTV053              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV054              ', N'DTV05P              ', N'Vé Công viên văn hóa Hải Dương', N've', 80000, N'DTV054              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV055              ', N'DTV05P              ', N'Vé Chợ đêm Hải Dương', N've', 100000, N'DTV055              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP051              ', N'DTP05P              ', N'Vé Công viên giải trí Hải Dương', N've', 120000, N'DTP051              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP052              ', N'DTP05P              ', N'Vé Khu vui chơi gia đình Hải Dương', N've', 160000, N'DTP052              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP053              ', N'DTP05P              ', N'Vé Công viên nước Hải Dương', N've', 200000, N'DTP053              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP054              ', N'DTP05P              ', N'Vé Khu thể thao Hải Dương', N've', 240000, N'DTP054              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP055              ', N'DTP05P              ', N'Vé Quảng trường lễ hội Hải Dương', N've', 280000, N'DTP055              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF051              ', N'DTF051              ', N'Suất ăn Nhà hàng đặc sản Hải Dương', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF052              ', N'DTF052              ', N'Suất ăn Quán cơm quê Hải Dương', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF053              ', N'DTF053              ', N'Suất ăn Hải sản / vườn Hải Dương', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF054              ', N'DTF054              ', N'Suất ăn Lẩu nướng Hải Dương', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF055              ', N'DTF055              ', N'Suất ăn Quán ăn gia đình Hải Dương 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR0511             ', N'DTH051              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0512             ', N'DTH051              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0513             ', N'DTH051              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0521             ', N'DTH052              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0522             ', N'DTH052              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0523             ', N'DTH052              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0531             ', N'DTH053              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0532             ', N'DTH053              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0533             ', N'DTH053              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0541             ', N'DTH054              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0542             ', N'DTH054              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0543             ', N'DTH054              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0551             ', N'DTH055              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0552             ', N'DTH055              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0553             ', N'DTH055              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV061              ', N'DTV06P              ', N'Vé Trung tâm thành phố Hưng Yên', N've', 0, N'DTV061              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV062              ', N'DTV06P              ', N'Vé Bảo tàng Hưng Yên', N've', 40000, N'DTV062              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV063              ', N'DTV06P              ', N'Vé Đền / chùa cổ Hưng Yên', N've', 60000, N'DTV063              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV064              ', N'DTV06P              ', N'Vé Công viên văn hóa Hưng Yên', N've', 80000, N'DTV064              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV065              ', N'DTV06P              ', N'Vé Chợ đêm Hưng Yên', N've', 100000, N'DTV065              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP061              ', N'DTP06P              ', N'Vé Công viên giải trí Hưng Yên', N've', 120000, N'DTP061              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP062              ', N'DTP06P              ', N'Vé Khu vui chơi gia đình Hưng Yên', N've', 160000, N'DTP062              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP063              ', N'DTP06P              ', N'Vé Công viên nước Hưng Yên', N've', 200000, N'DTP063              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP064              ', N'DTP06P              ', N'Vé Khu thể thao Hưng Yên', N've', 240000, N'DTP064              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP065              ', N'DTP06P              ', N'Vé Quảng trường lễ hội Hưng Yên', N've', 280000, N'DTP065              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF061              ', N'DTF061              ', N'Suất ăn Nhà hàng đặc sản Hưng Yên', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF062              ', N'DTF062              ', N'Suất ăn Quán cơm quê Hưng Yên', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF063              ', N'DTF063              ', N'Suất ăn Hải sản / vườn Hưng Yên', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF064              ', N'DTF064              ', N'Suất ăn Lẩu nướng Hưng Yên', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF065              ', N'DTF065              ', N'Suất ăn Quán ăn gia đình Hưng Yên 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR0611             ', N'DTH061              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #28 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR0612             ', N'DTH061              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0613             ', N'DTH061              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0621             ', N'DTH062              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0622             ', N'DTH062              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0623             ', N'DTH062              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0631             ', N'DTH063              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0632             ', N'DTH063              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0633             ', N'DTH063              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0641             ', N'DTH064              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0642             ', N'DTH064              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0643             ', N'DTH064              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV071              ', N'DTV07P              ', N'Vé Trung tâm thành phố Vĩnh Phúc', N've', 0, N'DTV071              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV072              ', N'DTV07P              ', N'Vé Bảo tàng Vĩnh Phúc', N've', 40000, N'DTV072              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV073              ', N'DTV07P              ', N'Vé Đền / chùa cổ Vĩnh Phúc', N've', 60000, N'DTV073              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV074              ', N'DTV07P              ', N'Vé Công viên văn hóa Vĩnh Phúc', N've', 80000, N'DTV074              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV075              ', N'DTV07P              ', N'Vé Chợ đêm Vĩnh Phúc', N've', 100000, N'DTV075              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP071              ', N'DTP07P              ', N'Vé Công viên giải trí Vĩnh Phúc', N've', 120000, N'DTP071              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP072              ', N'DTP07P              ', N'Vé Khu vui chơi gia đình Vĩnh Phúc', N've', 160000, N'DTP072              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP073              ', N'DTP07P              ', N'Vé Công viên nước Vĩnh Phúc', N've', 200000, N'DTP073              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP074              ', N'DTP07P              ', N'Vé Khu thể thao Vĩnh Phúc', N've', 240000, N'DTP074              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP075              ', N'DTP07P              ', N'Vé Quảng trường lễ hội Vĩnh Phúc', N've', 280000, N'DTP075              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF071              ', N'DTF071              ', N'Suất ăn Nhà hàng đặc sản Vĩnh Phúc', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF072              ', N'DTF072              ', N'Suất ăn Quán cơm quê Vĩnh Phúc', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF073              ', N'DTF073              ', N'Suất ăn Hải sản / vườn Vĩnh Phúc', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF074              ', N'DTF074              ', N'Suất ăn Lẩu nướng Vĩnh Phúc', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF075              ', N'DTF075              ', N'Suất ăn Quán ăn gia đình Vĩnh Phúc 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR0711             ', N'DTH071              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0712             ', N'DTH071              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0713             ', N'DTH071              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0721             ', N'DTH072              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0722             ', N'DTH072              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0723             ', N'DTH072              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0731             ', N'DTH073              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0732             ', N'DTH073              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0733             ', N'DTH073              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0741             ', N'DTH074              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0742             ', N'DTH074              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0743             ', N'DTH074              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0751             ', N'DTH075              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0752             ', N'DTH075              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0753             ', N'DTH075              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV081              ', N'DTV08P              ', N'Vé Trung tâm thành phố Thái Nguyên', N've', 0, N'DTV081              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV082              ', N'DTV08P              ', N'Vé Bảo tàng Thái Nguyên', N've', 40000, N'DTV082              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV083              ', N'DTV08P              ', N'Vé Đền / chùa cổ Thái Nguyên', N've', 60000, N'DTV083              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV084              ', N'DTV08P              ', N'Vé Công viên văn hóa Thái Nguyên', N've', 80000, N'DTV084              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV085              ', N'DTV08P              ', N'Vé Chợ đêm Thái Nguyên', N've', 100000, N'DTV085              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP081              ', N'DTP08P              ', N'Vé Công viên giải trí Thái Nguyên', N've', 120000, N'DTP081              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP082              ', N'DTP08P              ', N'Vé Khu vui chơi gia đình Thái Nguyên', N've', 160000, N'DTP082              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP083              ', N'DTP08P              ', N'Vé Công viên nước Thái Nguyên', N've', 200000, N'DTP083              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP084              ', N'DTP08P              ', N'Vé Khu thể thao Thái Nguyên', N've', 240000, N'DTP084              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP085              ', N'DTP08P              ', N'Vé Quảng trường lễ hội Thái Nguyên', N've', 280000, N'DTP085              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF081              ', N'DTF081              ', N'Suất ăn Nhà hàng đặc sản Thái Nguyên', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF082              ', N'DTF082              ', N'Suất ăn Quán cơm quê Thái Nguyên', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF083              ', N'DTF083              ', N'Suất ăn Hải sản / vườn Thái Nguyên', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF084              ', N'DTF084              ', N'Suất ăn Lẩu nướng Thái Nguyên', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF085              ', N'DTF085              ', N'Suất ăn Quán ăn gia đình Thái Nguyên 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR0811             ', N'DTH081              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0812             ', N'DTH081              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0813             ', N'DTH081              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0821             ', N'DTH082              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0822             ', N'DTH082              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0823             ', N'DTH082              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0831             ', N'DTH083              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0832             ', N'DTH083              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0833             ', N'DTH083              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0841             ', N'DTH084              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0842             ', N'DTH084              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0843             ', N'DTH084              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV091              ', N'DTV09P              ', N'Vé Trung tâm thành phố Phú Thọ', N've', 0, N'DTV091              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV092              ', N'DTV09P              ', N'Vé Bảo tàng Phú Thọ', N've', 40000, N'DTV092              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV093              ', N'DTV09P              ', N'Vé Đền / chùa cổ Phú Thọ', N've', 60000, N'DTV093              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV094              ', N'DTV09P              ', N'Vé Công viên văn hóa Phú Thọ', N've', 80000, N'DTV094              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV095              ', N'DTV09P              ', N'Vé Chợ đêm Phú Thọ', N've', 100000, N'DTV095              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP091              ', N'DTP09P              ', N'Vé Công viên giải trí Phú Thọ', N've', 120000, N'DTP091              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP092              ', N'DTP09P              ', N'Vé Khu vui chơi gia đình Phú Thọ', N've', 160000, N'DTP092              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP093              ', N'DTP09P              ', N'Vé Công viên nước Phú Thọ', N've', 200000, N'DTP093              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP094              ', N'DTP09P              ', N'Vé Khu thể thao Phú Thọ', N've', 240000, N'DTP094              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP095              ', N'DTP09P              ', N'Vé Quảng trường lễ hội Phú Thọ', N've', 280000, N'DTP095              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF091              ', N'DTF091              ', N'Suất ăn Nhà hàng đặc sản Phú Thọ', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF092              ', N'DTF092              ', N'Suất ăn Quán cơm quê Phú Thọ', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #29 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPF093              ', N'DTF093              ', N'Suất ăn Hải sản / vườn Phú Thọ', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF094              ', N'DTF094              ', N'Suất ăn Lẩu nướng Phú Thọ', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF095              ', N'DTF095              ', N'Suất ăn Quán ăn gia đình Phú Thọ 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR0911             ', N'DTH091              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0912             ', N'DTH091              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0913             ', N'DTH091              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0921             ', N'DTH092              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0922             ', N'DTH092              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0923             ', N'DTH092              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0931             ', N'DTH093              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0932             ', N'DTH093              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0933             ', N'DTH093              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0941             ', N'DTH094              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0942             ', N'DTH094              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0943             ', N'DTH094              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0951             ', N'DTH095              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0952             ', N'DTH095              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR0953             ', N'DTH095              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV101              ', N'DTV10P              ', N'Vé Trung tâm thành phố Bắc Giang', N've', 0, N'DTV101              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV102              ', N'DTV10P              ', N'Vé Bảo tàng Bắc Giang', N've', 40000, N'DTV102              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV103              ', N'DTV10P              ', N'Vé Đền / chùa cổ Bắc Giang', N've', 60000, N'DTV103              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV104              ', N'DTV10P              ', N'Vé Công viên văn hóa Bắc Giang', N've', 80000, N'DTV104              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV105              ', N'DTV10P              ', N'Vé Chợ đêm Bắc Giang', N've', 100000, N'DTV105              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP101              ', N'DTP10P              ', N'Vé Công viên giải trí Bắc Giang', N've', 120000, N'DTP101              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP102              ', N'DTP10P              ', N'Vé Khu vui chơi gia đình Bắc Giang', N've', 160000, N'DTP102              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP103              ', N'DTP10P              ', N'Vé Công viên nước Bắc Giang', N've', 200000, N'DTP103              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP104              ', N'DTP10P              ', N'Vé Khu thể thao Bắc Giang', N've', 240000, N'DTP104              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP105              ', N'DTP10P              ', N'Vé Quảng trường lễ hội Bắc Giang', N've', 280000, N'DTP105              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF101              ', N'DTF101              ', N'Suất ăn Nhà hàng đặc sản Bắc Giang', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF102              ', N'DTF102              ', N'Suất ăn Quán cơm quê Bắc Giang', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF103              ', N'DTF103              ', N'Suất ăn Hải sản / vườn Bắc Giang', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF104              ', N'DTF104              ', N'Suất ăn Lẩu nướng Bắc Giang', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF105              ', N'DTF105              ', N'Suất ăn Quán ăn gia đình Bắc Giang 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1011             ', N'DTH101              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1012             ', N'DTH101              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1013             ', N'DTH101              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1021             ', N'DTH102              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1022             ', N'DTH102              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1023             ', N'DTH102              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1031             ', N'DTH103              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1032             ', N'DTH103              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1033             ', N'DTH103              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1041             ', N'DTH104              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1042             ', N'DTH104              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1043             ', N'DTH104              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV111              ', N'DTV11P              ', N'Vé Trung tâm thành phố Lạng Sơn', N've', 0, N'DTV111              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV112              ', N'DTV11P              ', N'Vé Bảo tàng Lạng Sơn', N've', 40000, N'DTV112              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV113              ', N'DTV11P              ', N'Vé Đền / chùa cổ Lạng Sơn', N've', 60000, N'DTV113              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV114              ', N'DTV11P              ', N'Vé Công viên văn hóa Lạng Sơn', N've', 80000, N'DTV114              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV115              ', N'DTV11P              ', N'Vé Chợ đêm Lạng Sơn', N've', 100000, N'DTV115              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP111              ', N'DTP11P              ', N'Vé Công viên giải trí Lạng Sơn', N've', 120000, N'DTP111              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP112              ', N'DTP11P              ', N'Vé Khu vui chơi gia đình Lạng Sơn', N've', 160000, N'DTP112              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP113              ', N'DTP11P              ', N'Vé Công viên nước Lạng Sơn', N've', 200000, N'DTP113              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP114              ', N'DTP11P              ', N'Vé Khu thể thao Lạng Sơn', N've', 240000, N'DTP114              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP115              ', N'DTP11P              ', N'Vé Quảng trường lễ hội Lạng Sơn', N've', 280000, N'DTP115              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF111              ', N'DTF111              ', N'Suất ăn Nhà hàng đặc sản Lạng Sơn', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF112              ', N'DTF112              ', N'Suất ăn Quán cơm quê Lạng Sơn', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF113              ', N'DTF113              ', N'Suất ăn Hải sản / vườn Lạng Sơn', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF114              ', N'DTF114              ', N'Suất ăn Lẩu nướng Lạng Sơn', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF115              ', N'DTF115              ', N'Suất ăn Quán ăn gia đình Lạng Sơn 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1111             ', N'DTH111              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1112             ', N'DTH111              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1113             ', N'DTH111              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1121             ', N'DTH112              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1122             ', N'DTH112              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1123             ', N'DTH112              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1131             ', N'DTH113              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1132             ', N'DTH113              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1133             ', N'DTH113              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1141             ', N'DTH114              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1142             ', N'DTH114              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1143             ', N'DTH114              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1151             ', N'DTH115              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1152             ', N'DTH115              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1153             ', N'DTH115              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV121              ', N'DTV12P              ', N'Vé Trung tâm thành phố Cao Bằng', N've', 0, N'DTV121              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV122              ', N'DTV12P              ', N'Vé Bảo tàng Cao Bằng', N've', 40000, N'DTV122              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV123              ', N'DTV12P              ', N'Vé Đền / chùa cổ Cao Bằng', N've', 60000, N'DTV123              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV124              ', N'DTV12P              ', N'Vé Công viên văn hóa Cao Bằng', N've', 80000, N'DTV124              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV125              ', N'DTV12P              ', N'Vé Chợ đêm Cao Bằng', N've', 100000, N'DTV125              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #30 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPP121              ', N'DTP12P              ', N'Vé Công viên giải trí Cao Bằng', N've', 120000, N'DTP121              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP122              ', N'DTP12P              ', N'Vé Khu vui chơi gia đình Cao Bằng', N've', 160000, N'DTP122              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP123              ', N'DTP12P              ', N'Vé Công viên nước Cao Bằng', N've', 200000, N'DTP123              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP124              ', N'DTP12P              ', N'Vé Khu thể thao Cao Bằng', N've', 240000, N'DTP124              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP125              ', N'DTP12P              ', N'Vé Quảng trường lễ hội Cao Bằng', N've', 280000, N'DTP125              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF121              ', N'DTF121              ', N'Suất ăn Nhà hàng đặc sản Cao Bằng', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF122              ', N'DTF122              ', N'Suất ăn Quán cơm quê Cao Bằng', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF123              ', N'DTF123              ', N'Suất ăn Hải sản / vườn Cao Bằng', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF124              ', N'DTF124              ', N'Suất ăn Lẩu nướng Cao Bằng', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF125              ', N'DTF125              ', N'Suất ăn Quán ăn gia đình Cao Bằng 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1211             ', N'DTH121              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1212             ', N'DTH121              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1213             ', N'DTH121              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1221             ', N'DTH122              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1222             ', N'DTH122              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1223             ', N'DTH122              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1231             ', N'DTH123              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1232             ', N'DTH123              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1233             ', N'DTH123              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1241             ', N'DTH124              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1242             ', N'DTH124              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1243             ', N'DTH124              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV131              ', N'DTV13P              ', N'Vé Trung tâm thành phố Hà Giang', N've', 0, N'DTV131              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV132              ', N'DTV13P              ', N'Vé Bảo tàng Hà Giang', N've', 40000, N'DTV132              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV133              ', N'DTV13P              ', N'Vé Đền / chùa cổ Hà Giang', N've', 60000, N'DTV133              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV134              ', N'DTV13P              ', N'Vé Công viên văn hóa Hà Giang', N've', 80000, N'DTV134              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV135              ', N'DTV13P              ', N'Vé Chợ đêm Hà Giang', N've', 100000, N'DTV135              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP131              ', N'DTP13P              ', N'Vé Công viên giải trí Hà Giang', N've', 120000, N'DTP131              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP132              ', N'DTP13P              ', N'Vé Khu vui chơi gia đình Hà Giang', N've', 160000, N'DTP132              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP133              ', N'DTP13P              ', N'Vé Công viên nước Hà Giang', N've', 200000, N'DTP133              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP134              ', N'DTP13P              ', N'Vé Khu thể thao Hà Giang', N've', 240000, N'DTP134              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP135              ', N'DTP13P              ', N'Vé Quảng trường lễ hội Hà Giang', N've', 280000, N'DTP135              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF131              ', N'DTF131              ', N'Suất ăn Nhà hàng đặc sản Hà Giang', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF132              ', N'DTF132              ', N'Suất ăn Quán cơm quê Hà Giang', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF133              ', N'DTF133              ', N'Suất ăn Hải sản / vườn Hà Giang', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF134              ', N'DTF134              ', N'Suất ăn Lẩu nướng Hà Giang', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF135              ', N'DTF135              ', N'Suất ăn Quán ăn gia đình Hà Giang 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1311             ', N'DTH131              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1312             ', N'DTH131              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1313             ', N'DTH131              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1321             ', N'DTH132              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1322             ', N'DTH132              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1323             ', N'DTH132              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1331             ', N'DTH133              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1332             ', N'DTH133              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1333             ', N'DTH133              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1341             ', N'DTH134              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1342             ', N'DTH134              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1343             ', N'DTH134              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1351             ', N'DTH135              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1352             ', N'DTH135              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1353             ', N'DTH135              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV141              ', N'DTV14P              ', N'Vé Trung tâm thành phố Tuyên Quang', N've', 0, N'DTV141              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV142              ', N'DTV14P              ', N'Vé Bảo tàng Tuyên Quang', N've', 40000, N'DTV142              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV143              ', N'DTV14P              ', N'Vé Đền / chùa cổ Tuyên Quang', N've', 60000, N'DTV143              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV144              ', N'DTV14P              ', N'Vé Công viên văn hóa Tuyên Quang', N've', 80000, N'DTV144              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV145              ', N'DTV14P              ', N'Vé Chợ đêm Tuyên Quang', N've', 100000, N'DTV145              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP141              ', N'DTP14P              ', N'Vé Công viên giải trí Tuyên Quang', N've', 120000, N'DTP141              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP142              ', N'DTP14P              ', N'Vé Khu vui chơi gia đình Tuyên Quang', N've', 160000, N'DTP142              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP143              ', N'DTP14P              ', N'Vé Công viên nước Tuyên Quang', N've', 200000, N'DTP143              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP144              ', N'DTP14P              ', N'Vé Khu thể thao Tuyên Quang', N've', 240000, N'DTP144              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP145              ', N'DTP14P              ', N'Vé Quảng trường lễ hội Tuyên Quang', N've', 280000, N'DTP145              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF141              ', N'DTF141              ', N'Suất ăn Nhà hàng đặc sản Tuyên Quang', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF142              ', N'DTF142              ', N'Suất ăn Quán cơm quê Tuyên Quang', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF143              ', N'DTF143              ', N'Suất ăn Hải sản / vườn Tuyên Quang', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF144              ', N'DTF144              ', N'Suất ăn Lẩu nướng Tuyên Quang', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF145              ', N'DTF145              ', N'Suất ăn Quán ăn gia đình Tuyên Quang 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1411             ', N'DTH141              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1412             ', N'DTH141              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1413             ', N'DTH141              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1421             ', N'DTH142              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1422             ', N'DTH142              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1423             ', N'DTH142              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1431             ', N'DTH143              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1432             ', N'DTH143              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1433             ', N'DTH143              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1441             ', N'DTH144              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1442             ', N'DTH144              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1443             ', N'DTH144              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV151              ', N'DTV15P              ', N'Vé Thị trấn Sa Pa', N've', 0, N'DTV151              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #31 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPV152              ', N'DTV15P              ', N'Vé Fansipan', N've', 40000, N'DTV152              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV153              ', N'DTV15P              ', N'Vé Bản Cát Cát', N've', 60000, N'DTV153              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV154              ', N'DTV15P              ', N'Vé Núi Hàm Rồng', N've', 80000, N'DTV154              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV155              ', N'DTV15P              ', N'Vé Chợ tình Sa Pa', N've', 100000, N'DTV155              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP151              ', N'DTP15P              ', N'Vé Công viên giải trí Lào Cai', N've', 120000, N'DTP151              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP152              ', N'DTP15P              ', N'Vé Khu vui chơi gia đình Lào Cai', N've', 160000, N'DTP152              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP153              ', N'DTP15P              ', N'Vé Công viên nước Lào Cai', N've', 200000, N'DTP153              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP154              ', N'DTP15P              ', N'Vé Khu thể thao Lào Cai', N've', 240000, N'DTP154              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP155              ', N'DTP15P              ', N'Vé Quảng trường lễ hội Lào Cai', N've', 280000, N'DTP155              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF151              ', N'DTF151              ', N'Suất ăn Nhà hàng đặc sản Lào Cai', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF152              ', N'DTF152              ', N'Suất ăn Quán cơm quê Lào Cai', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF153              ', N'DTF153              ', N'Suất ăn Hải sản / vườn Lào Cai', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF154              ', N'DTF154              ', N'Suất ăn Lẩu nướng Lào Cai', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF155              ', N'DTF155              ', N'Suất ăn Quán ăn gia đình Lào Cai 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1511             ', N'DTH151              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1512             ', N'DTH151              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1513             ', N'DTH151              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1521             ', N'DTH152              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1522             ', N'DTH152              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1523             ', N'DTH152              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1531             ', N'DTH153              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1532             ', N'DTH153              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1533             ', N'DTH153              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1541             ', N'DTH154              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1542             ', N'DTH154              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1543             ', N'DTH154              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1551             ', N'DTH155              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1552             ', N'DTH155              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1553             ', N'DTH155              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV161              ', N'DTV16P              ', N'Vé Trung tâm thành phố Yên Bái', N've', 0, N'DTV161              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV162              ', N'DTV16P              ', N'Vé Bảo tàng Yên Bái', N've', 40000, N'DTV162              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV163              ', N'DTV16P              ', N'Vé Đền / chùa cổ Yên Bái', N've', 60000, N'DTV163              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV164              ', N'DTV16P              ', N'Vé Công viên văn hóa Yên Bái', N've', 80000, N'DTV164              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV165              ', N'DTV16P              ', N'Vé Chợ đêm Yên Bái', N've', 100000, N'DTV165              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP161              ', N'DTP16P              ', N'Vé Công viên giải trí Yên Bái', N've', 120000, N'DTP161              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP162              ', N'DTP16P              ', N'Vé Khu vui chơi gia đình Yên Bái', N've', 160000, N'DTP162              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP163              ', N'DTP16P              ', N'Vé Công viên nước Yên Bái', N've', 200000, N'DTP163              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP164              ', N'DTP16P              ', N'Vé Khu thể thao Yên Bái', N've', 240000, N'DTP164              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP165              ', N'DTP16P              ', N'Vé Quảng trường lễ hội Yên Bái', N've', 280000, N'DTP165              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF161              ', N'DTF161              ', N'Suất ăn Nhà hàng đặc sản Yên Bái', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF162              ', N'DTF162              ', N'Suất ăn Quán cơm quê Yên Bái', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF163              ', N'DTF163              ', N'Suất ăn Hải sản / vườn Yên Bái', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF164              ', N'DTF164              ', N'Suất ăn Lẩu nướng Yên Bái', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF165              ', N'DTF165              ', N'Suất ăn Quán ăn gia đình Yên Bái 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1611             ', N'DTH161              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1612             ', N'DTH161              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1613             ', N'DTH161              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1621             ', N'DTH162              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1622             ', N'DTH162              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1623             ', N'DTH162              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1631             ', N'DTH163              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1632             ', N'DTH163              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1633             ', N'DTH163              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1641             ', N'DTH164              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1642             ', N'DTH164              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1643             ', N'DTH164              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV171              ', N'DTV17P              ', N'Vé Trung tâm thành phố Điện Biên', N've', 0, N'DTV171              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV172              ', N'DTV17P              ', N'Vé Bảo tàng Điện Biên', N've', 40000, N'DTV172              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV173              ', N'DTV17P              ', N'Vé Đền / chùa cổ Điện Biên', N've', 60000, N'DTV173              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV174              ', N'DTV17P              ', N'Vé Công viên văn hóa Điện Biên', N've', 80000, N'DTV174              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV175              ', N'DTV17P              ', N'Vé Chợ đêm Điện Biên', N've', 100000, N'DTV175              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP171              ', N'DTP17P              ', N'Vé Công viên giải trí Điện Biên', N've', 120000, N'DTP171              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP172              ', N'DTP17P              ', N'Vé Khu vui chơi gia đình Điện Biên', N've', 160000, N'DTP172              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP173              ', N'DTP17P              ', N'Vé Công viên nước Điện Biên', N've', 200000, N'DTP173              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP174              ', N'DTP17P              ', N'Vé Khu thể thao Điện Biên', N've', 240000, N'DTP174              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP175              ', N'DTP17P              ', N'Vé Quảng trường lễ hội Điện Biên', N've', 280000, N'DTP175              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF171              ', N'DTF171              ', N'Suất ăn Nhà hàng đặc sản Điện Biên', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF172              ', N'DTF172              ', N'Suất ăn Quán cơm quê Điện Biên', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF173              ', N'DTF173              ', N'Suất ăn Hải sản / vườn Điện Biên', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF174              ', N'DTF174              ', N'Suất ăn Lẩu nướng Điện Biên', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF175              ', N'DTF175              ', N'Suất ăn Quán ăn gia đình Điện Biên 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1711             ', N'DTH171              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1712             ', N'DTH171              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1713             ', N'DTH171              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1721             ', N'DTH172              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1722             ', N'DTH172              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1723             ', N'DTH172              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1731             ', N'DTH173              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1732             ', N'DTH173              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1733             ', N'DTH173              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #32 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR1741             ', N'DTH174              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1742             ', N'DTH174              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1743             ', N'DTH174              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1751             ', N'DTH175              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1752             ', N'DTH175              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1753             ', N'DTH175              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV181              ', N'DTV18P              ', N'Vé Trung tâm thành phố Lai Châu', N've', 0, N'DTV181              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV182              ', N'DTV18P              ', N'Vé Bảo tàng Lai Châu', N've', 40000, N'DTV182              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV183              ', N'DTV18P              ', N'Vé Đền / chùa cổ Lai Châu', N've', 60000, N'DTV183              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV184              ', N'DTV18P              ', N'Vé Công viên văn hóa Lai Châu', N've', 80000, N'DTV184              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV185              ', N'DTV18P              ', N'Vé Chợ đêm Lai Châu', N've', 100000, N'DTV185              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP181              ', N'DTP18P              ', N'Vé Công viên giải trí Lai Châu', N've', 120000, N'DTP181              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP182              ', N'DTP18P              ', N'Vé Khu vui chơi gia đình Lai Châu', N've', 160000, N'DTP182              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP183              ', N'DTP18P              ', N'Vé Công viên nước Lai Châu', N've', 200000, N'DTP183              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP184              ', N'DTP18P              ', N'Vé Khu thể thao Lai Châu', N've', 240000, N'DTP184              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP185              ', N'DTP18P              ', N'Vé Quảng trường lễ hội Lai Châu', N've', 280000, N'DTP185              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF181              ', N'DTF181              ', N'Suất ăn Nhà hàng đặc sản Lai Châu', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF182              ', N'DTF182              ', N'Suất ăn Quán cơm quê Lai Châu', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF183              ', N'DTF183              ', N'Suất ăn Hải sản / vườn Lai Châu', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF184              ', N'DTF184              ', N'Suất ăn Lẩu nướng Lai Châu', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF185              ', N'DTF185              ', N'Suất ăn Quán ăn gia đình Lai Châu 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1811             ', N'DTH181              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1812             ', N'DTH181              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1813             ', N'DTH181              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1821             ', N'DTH182              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1822             ', N'DTH182              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1823             ', N'DTH182              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1831             ', N'DTH183              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1832             ', N'DTH183              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1833             ', N'DTH183              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1841             ', N'DTH184              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1842             ', N'DTH184              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1843             ', N'DTH184              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV191              ', N'DTV19P              ', N'Vé Trung tâm thành phố Sơn La', N've', 0, N'DTV191              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV192              ', N'DTV19P              ', N'Vé Bảo tàng Sơn La', N've', 40000, N'DTV192              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV193              ', N'DTV19P              ', N'Vé Đền / chùa cổ Sơn La', N've', 60000, N'DTV193              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV194              ', N'DTV19P              ', N'Vé Công viên văn hóa Sơn La', N've', 80000, N'DTV194              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV195              ', N'DTV19P              ', N'Vé Chợ đêm Sơn La', N've', 100000, N'DTV195              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP191              ', N'DTP19P              ', N'Vé Công viên giải trí Sơn La', N've', 120000, N'DTP191              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP192              ', N'DTP19P              ', N'Vé Khu vui chơi gia đình Sơn La', N've', 160000, N'DTP192              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP193              ', N'DTP19P              ', N'Vé Công viên nước Sơn La', N've', 200000, N'DTP193              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP194              ', N'DTP19P              ', N'Vé Khu thể thao Sơn La', N've', 240000, N'DTP194              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP195              ', N'DTP19P              ', N'Vé Quảng trường lễ hội Sơn La', N've', 280000, N'DTP195              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF191              ', N'DTF191              ', N'Suất ăn Nhà hàng đặc sản Sơn La', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF192              ', N'DTF192              ', N'Suất ăn Quán cơm quê Sơn La', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF193              ', N'DTF193              ', N'Suất ăn Hải sản / vườn Sơn La', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF194              ', N'DTF194              ', N'Suất ăn Lẩu nướng Sơn La', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF195              ', N'DTF195              ', N'Suất ăn Quán ăn gia đình Sơn La 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR1911             ', N'DTH191              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1912             ', N'DTH191              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1913             ', N'DTH191              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1921             ', N'DTH192              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1922             ', N'DTH192              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1923             ', N'DTH192              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1931             ', N'DTH193              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1932             ', N'DTH193              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1933             ', N'DTH193              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1941             ', N'DTH194              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1942             ', N'DTH194              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1943             ', N'DTH194              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1951             ', N'DTH195              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1952             ', N'DTH195              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR1953             ', N'DTH195              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV201              ', N'DTV20P              ', N'Vé Trung tâm thành phố Hòa Bình', N've', 0, N'DTV201              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV202              ', N'DTV20P              ', N'Vé Bảo tàng Hòa Bình', N've', 40000, N'DTV202              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV203              ', N'DTV20P              ', N'Vé Đền / chùa cổ Hòa Bình', N've', 60000, N'DTV203              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV204              ', N'DTV20P              ', N'Vé Công viên văn hóa Hòa Bình', N've', 80000, N'DTV204              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV205              ', N'DTV20P              ', N'Vé Chợ đêm Hòa Bình', N've', 100000, N'DTV205              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP201              ', N'DTP20P              ', N'Vé Công viên giải trí Hòa Bình', N've', 120000, N'DTP201              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP202              ', N'DTP20P              ', N'Vé Khu vui chơi gia đình Hòa Bình', N've', 160000, N'DTP202              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP203              ', N'DTP20P              ', N'Vé Công viên nước Hòa Bình', N've', 200000, N'DTP203              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP204              ', N'DTP20P              ', N'Vé Khu thể thao Hòa Bình', N've', 240000, N'DTP204              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP205              ', N'DTP20P              ', N'Vé Quảng trường lễ hội Hòa Bình', N've', 280000, N'DTP205              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF201              ', N'DTF201              ', N'Suất ăn Nhà hàng đặc sản Hòa Bình', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF202              ', N'DTF202              ', N'Suất ăn Quán cơm quê Hòa Bình', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF203              ', N'DTF203              ', N'Suất ăn Hải sản / vườn Hòa Bình', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF204              ', N'DTF204              ', N'Suất ăn Lẩu nướng Hòa Bình', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF205              ', N'DTF205              ', N'Suất ăn Quán ăn gia đình Hòa Bình 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2011             ', N'DTH201              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2012             ', N'DTH201              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #33 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR2013             ', N'DTH201              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2021             ', N'DTH202              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2022             ', N'DTH202              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2023             ', N'DTH202              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2031             ', N'DTH203              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2032             ', N'DTH203              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2033             ', N'DTH203              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2041             ', N'DTH204              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2042             ', N'DTH204              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2043             ', N'DTH204              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV211              ', N'DTV21P              ', N'Vé Tràng An', N've', 0, N'DTV211              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV212              ', N'DTV21P              ', N'Vé Tam Cốc', N've', 40000, N'DTV212              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV213              ', N'DTV21P              ', N'Vé Chùa Bái Đính', N've', 60000, N'DTV213              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV214              ', N'DTV21P              ', N'Vé Cố đô Hoa Lư', N've', 80000, N'DTV214              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV215              ', N'DTV21P              ', N'Vé Hang Múa', N've', 100000, N'DTV215              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP211              ', N'DTP21P              ', N'Vé Công viên giải trí Ninh Bình', N've', 120000, N'DTP211              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP212              ', N'DTP21P              ', N'Vé Khu vui chơi gia đình Ninh Bình', N've', 160000, N'DTP212              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP213              ', N'DTP21P              ', N'Vé Công viên nước Ninh Bình', N've', 200000, N'DTP213              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP214              ', N'DTP21P              ', N'Vé Khu thể thao Ninh Bình', N've', 240000, N'DTP214              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP215              ', N'DTP21P              ', N'Vé Quảng trường lễ hội Ninh Bình', N've', 280000, N'DTP215              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF211              ', N'DTF211              ', N'Suất ăn Nhà hàng đặc sản Ninh Bình', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF212              ', N'DTF212              ', N'Suất ăn Quán cơm quê Ninh Bình', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF213              ', N'DTF213              ', N'Suất ăn Hải sản / vườn Ninh Bình', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF214              ', N'DTF214              ', N'Suất ăn Lẩu nướng Ninh Bình', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF215              ', N'DTF215              ', N'Suất ăn Quán ăn gia đình Ninh Bình 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2111             ', N'DTH211              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2112             ', N'DTH211              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2113             ', N'DTH211              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2121             ', N'DTH212              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2122             ', N'DTH212              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2123             ', N'DTH212              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2131             ', N'DTH213              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2132             ', N'DTH213              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2133             ', N'DTH213              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2141             ', N'DTH214              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2142             ', N'DTH214              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2143             ', N'DTH214              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2151             ', N'DTH215              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2152             ', N'DTH215              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2153             ', N'DTH215              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV221              ', N'DTV22P              ', N'Vé Trung tâm thành phố Nam Định', N've', 0, N'DTV221              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV222              ', N'DTV22P              ', N'Vé Bảo tàng Nam Định', N've', 40000, N'DTV222              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV223              ', N'DTV22P              ', N'Vé Đền / chùa cổ Nam Định', N've', 60000, N'DTV223              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV224              ', N'DTV22P              ', N'Vé Công viên văn hóa Nam Định', N've', 80000, N'DTV224              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV225              ', N'DTV22P              ', N'Vé Chợ đêm Nam Định', N've', 100000, N'DTV225              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP221              ', N'DTP22P              ', N'Vé Công viên giải trí Nam Định', N've', 120000, N'DTP221              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP222              ', N'DTP22P              ', N'Vé Khu vui chơi gia đình Nam Định', N've', 160000, N'DTP222              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP223              ', N'DTP22P              ', N'Vé Công viên nước Nam Định', N've', 200000, N'DTP223              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP224              ', N'DTP22P              ', N'Vé Khu thể thao Nam Định', N've', 240000, N'DTP224              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP225              ', N'DTP22P              ', N'Vé Quảng trường lễ hội Nam Định', N've', 280000, N'DTP225              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF221              ', N'DTF221              ', N'Suất ăn Nhà hàng đặc sản Nam Định', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF222              ', N'DTF222              ', N'Suất ăn Quán cơm quê Nam Định', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF223              ', N'DTF223              ', N'Suất ăn Hải sản / vườn Nam Định', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF224              ', N'DTF224              ', N'Suất ăn Lẩu nướng Nam Định', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF225              ', N'DTF225              ', N'Suất ăn Quán ăn gia đình Nam Định 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2211             ', N'DTH221              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2212             ', N'DTH221              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2213             ', N'DTH221              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2221             ', N'DTH222              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2222             ', N'DTH222              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2223             ', N'DTH222              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2231             ', N'DTH223              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2232             ', N'DTH223              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2233             ', N'DTH223              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2241             ', N'DTH224              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2242             ', N'DTH224              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2243             ', N'DTH224              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV231              ', N'DTV23P              ', N'Vé Trung tâm thành phố Thái Bình', N've', 0, N'DTV231              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV232              ', N'DTV23P              ', N'Vé Bảo tàng Thái Bình', N've', 40000, N'DTV232              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV233              ', N'DTV23P              ', N'Vé Đền / chùa cổ Thái Bình', N've', 60000, N'DTV233              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV234              ', N'DTV23P              ', N'Vé Công viên văn hóa Thái Bình', N've', 80000, N'DTV234              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV235              ', N'DTV23P              ', N'Vé Chợ đêm Thái Bình', N've', 100000, N'DTV235              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP231              ', N'DTP23P              ', N'Vé Công viên giải trí Thái Bình', N've', 120000, N'DTP231              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP232              ', N'DTP23P              ', N'Vé Khu vui chơi gia đình Thái Bình', N've', 160000, N'DTP232              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP233              ', N'DTP23P              ', N'Vé Công viên nước Thái Bình', N've', 200000, N'DTP233              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP234              ', N'DTP23P              ', N'Vé Khu thể thao Thái Bình', N've', 240000, N'DTP234              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP235              ', N'DTP23P              ', N'Vé Quảng trường lễ hội Thái Bình', N've', 280000, N'DTP235              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF231              ', N'DTF231              ', N'Suất ăn Nhà hàng đặc sản Thái Bình', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF232              ', N'DTF232              ', N'Suất ăn Quán cơm quê Thái Bình', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF233              ', N'DTF233              ', N'Suất ăn Hải sản / vườn Thái Bình', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #34 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPF234              ', N'DTF234              ', N'Suất ăn Lẩu nướng Thái Bình', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF235              ', N'DTF235              ', N'Suất ăn Quán ăn gia đình Thái Bình 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2311             ', N'DTH231              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2312             ', N'DTH231              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2313             ', N'DTH231              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2321             ', N'DTH232              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2322             ', N'DTH232              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2323             ', N'DTH232              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2331             ', N'DTH233              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2332             ', N'DTH233              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2333             ', N'DTH233              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2341             ', N'DTH234              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2342             ', N'DTH234              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2343             ', N'DTH234              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2351             ', N'DTH235              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2352             ', N'DTH235              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2353             ', N'DTH235              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV241              ', N'DTV24P              ', N'Vé Trung tâm thành phố Hà Nam', N've', 0, N'DTV241              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV242              ', N'DTV24P              ', N'Vé Bảo tàng Hà Nam', N've', 40000, N'DTV242              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV243              ', N'DTV24P              ', N'Vé Đền / chùa cổ Hà Nam', N've', 60000, N'DTV243              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV244              ', N'DTV24P              ', N'Vé Công viên văn hóa Hà Nam', N've', 80000, N'DTV244              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV245              ', N'DTV24P              ', N'Vé Chợ đêm Hà Nam', N've', 100000, N'DTV245              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP241              ', N'DTP24P              ', N'Vé Công viên giải trí Hà Nam', N've', 120000, N'DTP241              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP242              ', N'DTP24P              ', N'Vé Khu vui chơi gia đình Hà Nam', N've', 160000, N'DTP242              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP243              ', N'DTP24P              ', N'Vé Công viên nước Hà Nam', N've', 200000, N'DTP243              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP244              ', N'DTP24P              ', N'Vé Khu thể thao Hà Nam', N've', 240000, N'DTP244              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP245              ', N'DTP24P              ', N'Vé Quảng trường lễ hội Hà Nam', N've', 280000, N'DTP245              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF241              ', N'DTF241              ', N'Suất ăn Nhà hàng đặc sản Hà Nam', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF242              ', N'DTF242              ', N'Suất ăn Quán cơm quê Hà Nam', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF243              ', N'DTF243              ', N'Suất ăn Hải sản / vườn Hà Nam', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF244              ', N'DTF244              ', N'Suất ăn Lẩu nướng Hà Nam', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF245              ', N'DTF245              ', N'Suất ăn Quán ăn gia đình Hà Nam 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2411             ', N'DTH241              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2412             ', N'DTH241              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2413             ', N'DTH241              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2421             ', N'DTH242              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2422             ', N'DTH242              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2423             ', N'DTH242              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2431             ', N'DTH243              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2432             ', N'DTH243              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2433             ', N'DTH243              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2441             ', N'DTH244              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2442             ', N'DTH244              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2443             ', N'DTH244              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV251              ', N'DTV25P              ', N'Vé Trung tâm thành phố Bắc Kạn', N've', 0, N'DTV251              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV252              ', N'DTV25P              ', N'Vé Bảo tàng Bắc Kạn', N've', 40000, N'DTV252              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV253              ', N'DTV25P              ', N'Vé Đền / chùa cổ Bắc Kạn', N've', 60000, N'DTV253              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV254              ', N'DTV25P              ', N'Vé Công viên văn hóa Bắc Kạn', N've', 80000, N'DTV254              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV255              ', N'DTV25P              ', N'Vé Chợ đêm Bắc Kạn', N've', 100000, N'DTV255              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP251              ', N'DTP25P              ', N'Vé Công viên giải trí Bắc Kạn', N've', 120000, N'DTP251              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP252              ', N'DTP25P              ', N'Vé Khu vui chơi gia đình Bắc Kạn', N've', 160000, N'DTP252              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP253              ', N'DTP25P              ', N'Vé Công viên nước Bắc Kạn', N've', 200000, N'DTP253              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP254              ', N'DTP25P              ', N'Vé Khu thể thao Bắc Kạn', N've', 240000, N'DTP254              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP255              ', N'DTP25P              ', N'Vé Quảng trường lễ hội Bắc Kạn', N've', 280000, N'DTP255              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF251              ', N'DTF251              ', N'Suất ăn Nhà hàng đặc sản Bắc Kạn', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF252              ', N'DTF252              ', N'Suất ăn Quán cơm quê Bắc Kạn', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF253              ', N'DTF253              ', N'Suất ăn Hải sản / vườn Bắc Kạn', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF254              ', N'DTF254              ', N'Suất ăn Lẩu nướng Bắc Kạn', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF255              ', N'DTF255              ', N'Suất ăn Quán ăn gia đình Bắc Kạn 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2511             ', N'DTH251              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2512             ', N'DTH251              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2513             ', N'DTH251              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2521             ', N'DTH252              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2522             ', N'DTH252              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2523             ', N'DTH252              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2531             ', N'DTH253              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2532             ', N'DTH253              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2533             ', N'DTH253              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2541             ', N'DTH254              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2542             ', N'DTH254              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2543             ', N'DTH254              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2551             ', N'DTH255              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2552             ', N'DTH255              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2553             ', N'DTH255              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV261              ', N'DTV26P              ', N'Vé Trung tâm thành phố Thanh Hóa', N've', 0, N'DTV261              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV262              ', N'DTV26P              ', N'Vé Bảo tàng Thanh Hóa', N've', 40000, N'DTV262              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV263              ', N'DTV26P              ', N'Vé Đền / chùa cổ Thanh Hóa', N've', 60000, N'DTV263              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV264              ', N'DTV26P              ', N'Vé Công viên văn hóa Thanh Hóa', N've', 80000, N'DTV264              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV265              ', N'DTV26P              ', N'Vé Chợ đêm Thanh Hóa', N've', 100000, N'DTV265              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP261              ', N'DTP26P              ', N'Vé Công viên giải trí Thanh Hóa', N've', 120000, N'DTP261              ', N'Vé khu vui chơi', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #35 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPP262              ', N'DTP26P              ', N'Vé Khu vui chơi gia đình Thanh Hóa', N've', 160000, N'DTP262              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP263              ', N'DTP26P              ', N'Vé Công viên nước Thanh Hóa', N've', 200000, N'DTP263              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP264              ', N'DTP26P              ', N'Vé Khu thể thao Thanh Hóa', N've', 240000, N'DTP264              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP265              ', N'DTP26P              ', N'Vé Quảng trường lễ hội Thanh Hóa', N've', 280000, N'DTP265              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF261              ', N'DTF261              ', N'Suất ăn Nhà hàng đặc sản Thanh Hóa', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF262              ', N'DTF262              ', N'Suất ăn Quán cơm quê Thanh Hóa', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF263              ', N'DTF263              ', N'Suất ăn Hải sản / vườn Thanh Hóa', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF264              ', N'DTF264              ', N'Suất ăn Lẩu nướng Thanh Hóa', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF265              ', N'DTF265              ', N'Suất ăn Quán ăn gia đình Thanh Hóa 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2611             ', N'DTH261              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2612             ', N'DTH261              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2613             ', N'DTH261              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2621             ', N'DTH262              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2622             ', N'DTH262              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2623             ', N'DTH262              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2631             ', N'DTH263              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2632             ', N'DTH263              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2633             ', N'DTH263              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2641             ', N'DTH264              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2642             ', N'DTH264              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2643             ', N'DTH264              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV271              ', N'DTV27P              ', N'Vé Trung tâm thành phố Nghệ An', N've', 0, N'DTV271              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV272              ', N'DTV27P              ', N'Vé Bảo tàng Nghệ An', N've', 40000, N'DTV272              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV273              ', N'DTV27P              ', N'Vé Đền / chùa cổ Nghệ An', N've', 60000, N'DTV273              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV274              ', N'DTV27P              ', N'Vé Công viên văn hóa Nghệ An', N've', 80000, N'DTV274              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV275              ', N'DTV27P              ', N'Vé Chợ đêm Nghệ An', N've', 100000, N'DTV275              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP271              ', N'DTP27P              ', N'Vé Công viên giải trí Nghệ An', N've', 120000, N'DTP271              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP272              ', N'DTP27P              ', N'Vé Khu vui chơi gia đình Nghệ An', N've', 160000, N'DTP272              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP273              ', N'DTP27P              ', N'Vé Công viên nước Nghệ An', N've', 200000, N'DTP273              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP274              ', N'DTP27P              ', N'Vé Khu thể thao Nghệ An', N've', 240000, N'DTP274              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP275              ', N'DTP27P              ', N'Vé Quảng trường lễ hội Nghệ An', N've', 280000, N'DTP275              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF271              ', N'DTF271              ', N'Suất ăn Nhà hàng đặc sản Nghệ An', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF272              ', N'DTF272              ', N'Suất ăn Quán cơm quê Nghệ An', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF273              ', N'DTF273              ', N'Suất ăn Hải sản / vườn Nghệ An', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF274              ', N'DTF274              ', N'Suất ăn Lẩu nướng Nghệ An', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF275              ', N'DTF275              ', N'Suất ăn Quán ăn gia đình Nghệ An 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2711             ', N'DTH271              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2712             ', N'DTH271              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2713             ', N'DTH271              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2721             ', N'DTH272              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2722             ', N'DTH272              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2723             ', N'DTH272              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2731             ', N'DTH273              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2732             ', N'DTH273              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2733             ', N'DTH273              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2741             ', N'DTH274              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2742             ', N'DTH274              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2743             ', N'DTH274              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2751             ', N'DTH275              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2752             ', N'DTH275              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2753             ', N'DTH275              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV281              ', N'DTV28P              ', N'Vé Trung tâm thành phố Hà Tĩnh', N've', 0, N'DTV281              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV282              ', N'DTV28P              ', N'Vé Bảo tàng Hà Tĩnh', N've', 40000, N'DTV282              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV283              ', N'DTV28P              ', N'Vé Đền / chùa cổ Hà Tĩnh', N've', 60000, N'DTV283              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV284              ', N'DTV28P              ', N'Vé Công viên văn hóa Hà Tĩnh', N've', 80000, N'DTV284              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV285              ', N'DTV28P              ', N'Vé Chợ đêm Hà Tĩnh', N've', 100000, N'DTV285              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP281              ', N'DTP28P              ', N'Vé Công viên giải trí Hà Tĩnh', N've', 120000, N'DTP281              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP282              ', N'DTP28P              ', N'Vé Khu vui chơi gia đình Hà Tĩnh', N've', 160000, N'DTP282              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP283              ', N'DTP28P              ', N'Vé Công viên nước Hà Tĩnh', N've', 200000, N'DTP283              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP284              ', N'DTP28P              ', N'Vé Khu thể thao Hà Tĩnh', N've', 240000, N'DTP284              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP285              ', N'DTP28P              ', N'Vé Quảng trường lễ hội Hà Tĩnh', N've', 280000, N'DTP285              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF281              ', N'DTF281              ', N'Suất ăn Nhà hàng đặc sản Hà Tĩnh', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF282              ', N'DTF282              ', N'Suất ăn Quán cơm quê Hà Tĩnh', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF283              ', N'DTF283              ', N'Suất ăn Hải sản / vườn Hà Tĩnh', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF284              ', N'DTF284              ', N'Suất ăn Lẩu nướng Hà Tĩnh', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF285              ', N'DTF285              ', N'Suất ăn Quán ăn gia đình Hà Tĩnh 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2811             ', N'DTH281              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2812             ', N'DTH281              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2813             ', N'DTH281              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2821             ', N'DTH282              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2822             ', N'DTH282              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2823             ', N'DTH282              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2831             ', N'DTH283              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2832             ', N'DTH283              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2833             ', N'DTH283              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2841             ', N'DTH284              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2842             ', N'DTH284              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2843             ', N'DTH284              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV291              ', N'DTV29P              ', N'Vé Trung tâm thành phố Quảng Bình', N've', 0, N'DTV291              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV292              ', N'DTV29P              ', N'Vé Bảo tàng Quảng Bình', N've', 40000, N'DTV292              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #36 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPV293              ', N'DTV29P              ', N'Vé Đền / chùa cổ Quảng Bình', N've', 60000, N'DTV293              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV294              ', N'DTV29P              ', N'Vé Công viên văn hóa Quảng Bình', N've', 80000, N'DTV294              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV295              ', N'DTV29P              ', N'Vé Chợ đêm Quảng Bình', N've', 100000, N'DTV295              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP291              ', N'DTP29P              ', N'Vé Công viên giải trí Quảng Bình', N've', 120000, N'DTP291              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP292              ', N'DTP29P              ', N'Vé Khu vui chơi gia đình Quảng Bình', N've', 160000, N'DTP292              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP293              ', N'DTP29P              ', N'Vé Công viên nước Quảng Bình', N've', 200000, N'DTP293              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP294              ', N'DTP29P              ', N'Vé Khu thể thao Quảng Bình', N've', 240000, N'DTP294              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP295              ', N'DTP29P              ', N'Vé Quảng trường lễ hội Quảng Bình', N've', 280000, N'DTP295              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF291              ', N'DTF291              ', N'Suất ăn Nhà hàng đặc sản Quảng Bình', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF292              ', N'DTF292              ', N'Suất ăn Quán cơm quê Quảng Bình', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF293              ', N'DTF293              ', N'Suất ăn Hải sản / vườn Quảng Bình', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF294              ', N'DTF294              ', N'Suất ăn Lẩu nướng Quảng Bình', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF295              ', N'DTF295              ', N'Suất ăn Quán ăn gia đình Quảng Bình 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR2911             ', N'DTH291              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2912             ', N'DTH291              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2913             ', N'DTH291              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2921             ', N'DTH292              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2922             ', N'DTH292              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2923             ', N'DTH292              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2931             ', N'DTH293              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2932             ', N'DTH293              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2933             ', N'DTH293              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2941             ', N'DTH294              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2942             ', N'DTH294              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2943             ', N'DTH294              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2951             ', N'DTH295              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2952             ', N'DTH295              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR2953             ', N'DTH295              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV301              ', N'DTV30P              ', N'Vé Trung tâm thành phố Quảng Trị', N've', 0, N'DTV301              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV302              ', N'DTV30P              ', N'Vé Bảo tàng Quảng Trị', N've', 40000, N'DTV302              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV303              ', N'DTV30P              ', N'Vé Đền / chùa cổ Quảng Trị', N've', 60000, N'DTV303              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV304              ', N'DTV30P              ', N'Vé Công viên văn hóa Quảng Trị', N've', 80000, N'DTV304              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV305              ', N'DTV30P              ', N'Vé Chợ đêm Quảng Trị', N've', 100000, N'DTV305              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP301              ', N'DTP30P              ', N'Vé Công viên giải trí Quảng Trị', N've', 120000, N'DTP301              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP302              ', N'DTP30P              ', N'Vé Khu vui chơi gia đình Quảng Trị', N've', 160000, N'DTP302              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP303              ', N'DTP30P              ', N'Vé Công viên nước Quảng Trị', N've', 200000, N'DTP303              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP304              ', N'DTP30P              ', N'Vé Khu thể thao Quảng Trị', N've', 240000, N'DTP304              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP305              ', N'DTP30P              ', N'Vé Quảng trường lễ hội Quảng Trị', N've', 280000, N'DTP305              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF301              ', N'DTF301              ', N'Suất ăn Nhà hàng đặc sản Quảng Trị', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF302              ', N'DTF302              ', N'Suất ăn Quán cơm quê Quảng Trị', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF303              ', N'DTF303              ', N'Suất ăn Hải sản / vườn Quảng Trị', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF304              ', N'DTF304              ', N'Suất ăn Lẩu nướng Quảng Trị', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF305              ', N'DTF305              ', N'Suất ăn Quán ăn gia đình Quảng Trị 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3011             ', N'DTH301              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3012             ', N'DTH301              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3013             ', N'DTH301              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3021             ', N'DTH302              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3022             ', N'DTH302              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3023             ', N'DTH302              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3031             ', N'DTH303              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3032             ', N'DTH303              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3033             ', N'DTH303              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3041             ', N'DTH304              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3042             ', N'DTH304              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3043             ', N'DTH304              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV311              ', N'DTV31P              ', N'Vé Đại Nội Huế', N've', 0, N'DTV311              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV312              ', N'DTV31P              ', N'Vé Chùa Thiên Mụ', N've', 40000, N'DTV312              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV313              ', N'DTV31P              ', N'Vé Lăng Tự Đức', N've', 60000, N'DTV313              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV314              ', N'DTV31P              ', N'Vé Cầu Tràng Tiền', N've', 80000, N'DTV314              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV315              ', N'DTV31P              ', N'Vé Đồi Vọng Cảnh', N've', 100000, N'DTV315              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP311              ', N'DTP31P              ', N'Vé Công viên giải trí Thừa Thiên Huế', N've', 120000, N'DTP311              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP312              ', N'DTP31P              ', N'Vé Khu vui chơi gia đình Thừa Thiên Huế', N've', 160000, N'DTP312              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP313              ', N'DTP31P              ', N'Vé Công viên nước Thừa Thiên Huế', N've', 200000, N'DTP313              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP314              ', N'DTP31P              ', N'Vé Khu thể thao Thừa Thiên Huế', N've', 240000, N'DTP314              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP315              ', N'DTP31P              ', N'Vé Quảng trường lễ hội Thừa Thiên Huế', N've', 280000, N'DTP315              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF311              ', N'DTF311              ', N'Suất ăn Nhà hàng đặc sản Thừa Thiên Huế', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF312              ', N'DTF312              ', N'Suất ăn Quán cơm quê Thừa Thiên Huế', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF313              ', N'DTF313              ', N'Suất ăn Hải sản / vườn Thừa Thiên Huế', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF314              ', N'DTF314              ', N'Suất ăn Lẩu nướng Thừa Thiên Huế', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF315              ', N'DTF315              ', N'Suất ăn Quán ăn gia đình Thừa Thiên Huế 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3111             ', N'DTH311              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3112             ', N'DTH311              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3113             ', N'DTH311              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3121             ', N'DTH312              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3122             ', N'DTH312              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3123             ', N'DTH312              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3131             ', N'DTH313              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3132             ', N'DTH313              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3133             ', N'DTH313              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3141             ', N'DTH314              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #37 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR3142             ', N'DTH314              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3143             ', N'DTH314              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3151             ', N'DTH315              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3152             ', N'DTH315              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3153             ', N'DTH315              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV321              ', N'DTV32P              ', N'Vé Bán đảo Sơn Trà', N've', 0, N'DTV321              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV322              ', N'DTV32P              ', N'Vé Bà Nà Hills', N've', 40000, N'DTV322              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV323              ', N'DTV32P              ', N'Vé Cầu Rồng', N've', 60000, N'DTV323              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV324              ', N'DTV32P              ', N'Vé Bãi biển Mỹ Khê', N've', 80000, N'DTV324              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV325              ', N'DTV32P              ', N'Vé Ngũ Hành Sơn', N've', 100000, N'DTV325              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP321              ', N'DTP32P              ', N'Vé Công viên Châu Á', N've', 120000, N'DTP321              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP322              ', N'DTP32P              ', N'Vé Suối khoáng Thần Tài', N've', 160000, N'DTP322              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP323              ', N'DTP32P              ', N'Vé Helio Center', N've', 200000, N'DTP323              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP324              ', N'DTP32P              ', N'Vé Bãi tắm Phạm Văn Đồng', N've', 240000, N'DTP324              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP325              ', N'DTP32P              ', N'Vé Sân golf Bà Nà', N've', 280000, N'DTP325              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF321              ', N'DTF321              ', N'Suất ăn Nhà hàng đặc sản Đà Nẵng', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF322              ', N'DTF322              ', N'Suất ăn Quán cơm quê Đà Nẵng', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF323              ', N'DTF323              ', N'Suất ăn Hải sản / vườn Đà Nẵng', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF324              ', N'DTF324              ', N'Suất ăn Lẩu nướng Đà Nẵng', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF325              ', N'DTF325              ', N'Suất ăn Quán ăn gia đình Đà Nẵng 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3211             ', N'DTH321              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3212             ', N'DTH321              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3213             ', N'DTH321              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3221             ', N'DTH322              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3222             ', N'DTH322              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3223             ', N'DTH322              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3231             ', N'DTH323              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3232             ', N'DTH323              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3233             ', N'DTH323              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3241             ', N'DTH324              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3242             ', N'DTH324              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3243             ', N'DTH324              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV331              ', N'DTV33P              ', N'Vé Phố cổ Hội An', N've', 0, N'DTV331              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV332              ', N'DTV33P              ', N'Vé Thánh địa Mỹ Sơn', N've', 40000, N'DTV332              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV333              ', N'DTV33P              ', N'Vé Cù Lao Chàm', N've', 60000, N'DTV333              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV334              ', N'DTV33P              ', N'Vé Chùa Cầu', N've', 80000, N'DTV334              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV335              ', N'DTV33P              ', N'Vé Rừng dừa Bảy Mẫu', N've', 100000, N'DTV335              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP331              ', N'DTP33P              ', N'Vé Công viên giải trí Quảng Nam', N've', 120000, N'DTP331              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP332              ', N'DTP33P              ', N'Vé Khu vui chơi gia đình Quảng Nam', N've', 160000, N'DTP332              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP333              ', N'DTP33P              ', N'Vé Công viên nước Quảng Nam', N've', 200000, N'DTP333              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP334              ', N'DTP33P              ', N'Vé Khu thể thao Quảng Nam', N've', 240000, N'DTP334              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP335              ', N'DTP33P              ', N'Vé Quảng trường lễ hội Quảng Nam', N've', 280000, N'DTP335              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF331              ', N'DTF331              ', N'Suất ăn Cao lầu bà Bé', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF332              ', N'DTF332              ', N'Suất ăn Cơm gà Hội An', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF333              ', N'DTF333              ', N'Suất ăn Nhà hàng Morning Glory', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF334              ', N'DTF334              ', N'Suất ăn Bánh bao Bánh vạc', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF335              ', N'DTF335              ', N'Suất ăn Mì Quảng Bà Mua', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3311             ', N'DTH331              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3312             ', N'DTH331              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3313             ', N'DTH331              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3321             ', N'DTH332              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3322             ', N'DTH332              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3323             ', N'DTH332              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3331             ', N'DTH333              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3332             ', N'DTH333              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3333             ', N'DTH333              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3341             ', N'DTH334              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3342             ', N'DTH334              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3343             ', N'DTH334              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3351             ', N'DTH335              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3352             ', N'DTH335              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3353             ', N'DTH335              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV341              ', N'DTV34P              ', N'Vé Trung tâm thành phố Quảng Ngãi', N've', 0, N'DTV341              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV342              ', N'DTV34P              ', N'Vé Bảo tàng Quảng Ngãi', N've', 40000, N'DTV342              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV343              ', N'DTV34P              ', N'Vé Đền / chùa cổ Quảng Ngãi', N've', 60000, N'DTV343              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV344              ', N'DTV34P              ', N'Vé Công viên văn hóa Quảng Ngãi', N've', 80000, N'DTV344              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV345              ', N'DTV34P              ', N'Vé Chợ đêm Quảng Ngãi', N've', 100000, N'DTV345              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP341              ', N'DTP34P              ', N'Vé Công viên giải trí Quảng Ngãi', N've', 120000, N'DTP341              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP342              ', N'DTP34P              ', N'Vé Khu vui chơi gia đình Quảng Ngãi', N've', 160000, N'DTP342              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP343              ', N'DTP34P              ', N'Vé Công viên nước Quảng Ngãi', N've', 200000, N'DTP343              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP344              ', N'DTP34P              ', N'Vé Khu thể thao Quảng Ngãi', N've', 240000, N'DTP344              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP345              ', N'DTP34P              ', N'Vé Quảng trường lễ hội Quảng Ngãi', N've', 280000, N'DTP345              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF341              ', N'DTF341              ', N'Suất ăn Nhà hàng đặc sản Quảng Ngãi', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF342              ', N'DTF342              ', N'Suất ăn Quán cơm quê Quảng Ngãi', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF343              ', N'DTF343              ', N'Suất ăn Hải sản / vườn Quảng Ngãi', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF344              ', N'DTF344              ', N'Suất ăn Lẩu nướng Quảng Ngãi', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF345              ', N'DTF345              ', N'Suất ăn Quán ăn gia đình Quảng Ngãi 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3411             ', N'DTH341              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3412             ', N'DTH341              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3413             ', N'DTH341              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #38 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR3421             ', N'DTH342              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3422             ', N'DTH342              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3423             ', N'DTH342              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3431             ', N'DTH343              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3432             ', N'DTH343              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3433             ', N'DTH343              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3441             ', N'DTH344              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3442             ', N'DTH344              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3443             ', N'DTH344              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV351              ', N'DTV35P              ', N'Vé Trung tâm thành phố Bình Định', N've', 0, N'DTV351              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV352              ', N'DTV35P              ', N'Vé Bảo tàng Bình Định', N've', 40000, N'DTV352              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV353              ', N'DTV35P              ', N'Vé Đền / chùa cổ Bình Định', N've', 60000, N'DTV353              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV354              ', N'DTV35P              ', N'Vé Công viên văn hóa Bình Định', N've', 80000, N'DTV354              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV355              ', N'DTV35P              ', N'Vé Chợ đêm Bình Định', N've', 100000, N'DTV355              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP351              ', N'DTP35P              ', N'Vé Công viên giải trí Bình Định', N've', 120000, N'DTP351              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP352              ', N'DTP35P              ', N'Vé Khu vui chơi gia đình Bình Định', N've', 160000, N'DTP352              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP353              ', N'DTP35P              ', N'Vé Công viên nước Bình Định', N've', 200000, N'DTP353              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP354              ', N'DTP35P              ', N'Vé Khu thể thao Bình Định', N've', 240000, N'DTP354              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP355              ', N'DTP35P              ', N'Vé Quảng trường lễ hội Bình Định', N've', 280000, N'DTP355              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF351              ', N'DTF351              ', N'Suất ăn Nhà hàng đặc sản Bình Định', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF352              ', N'DTF352              ', N'Suất ăn Quán cơm quê Bình Định', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF353              ', N'DTF353              ', N'Suất ăn Hải sản / vườn Bình Định', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF354              ', N'DTF354              ', N'Suất ăn Lẩu nướng Bình Định', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF355              ', N'DTF355              ', N'Suất ăn Quán ăn gia đình Bình Định 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3511             ', N'DTH351              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3512             ', N'DTH351              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3513             ', N'DTH351              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3521             ', N'DTH352              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3522             ', N'DTH352              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3523             ', N'DTH352              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3531             ', N'DTH353              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3532             ', N'DTH353              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3533             ', N'DTH353              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3541             ', N'DTH354              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3542             ', N'DTH354              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3543             ', N'DTH354              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3551             ', N'DTH355              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3552             ', N'DTH355              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3553             ', N'DTH355              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV361              ', N'DTV36P              ', N'Vé Trung tâm thành phố Phú Yên', N've', 0, N'DTV361              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV362              ', N'DTV36P              ', N'Vé Bảo tàng Phú Yên', N've', 40000, N'DTV362              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV363              ', N'DTV36P              ', N'Vé Đền / chùa cổ Phú Yên', N've', 60000, N'DTV363              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV364              ', N'DTV36P              ', N'Vé Công viên văn hóa Phú Yên', N've', 80000, N'DTV364              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV365              ', N'DTV36P              ', N'Vé Chợ đêm Phú Yên', N've', 100000, N'DTV365              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP361              ', N'DTP36P              ', N'Vé Công viên giải trí Phú Yên', N've', 120000, N'DTP361              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP362              ', N'DTP36P              ', N'Vé Khu vui chơi gia đình Phú Yên', N've', 160000, N'DTP362              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP363              ', N'DTP36P              ', N'Vé Công viên nước Phú Yên', N've', 200000, N'DTP363              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP364              ', N'DTP36P              ', N'Vé Khu thể thao Phú Yên', N've', 240000, N'DTP364              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP365              ', N'DTP36P              ', N'Vé Quảng trường lễ hội Phú Yên', N've', 280000, N'DTP365              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF361              ', N'DTF361              ', N'Suất ăn Nhà hàng đặc sản Phú Yên', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF362              ', N'DTF362              ', N'Suất ăn Quán cơm quê Phú Yên', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF363              ', N'DTF363              ', N'Suất ăn Hải sản / vườn Phú Yên', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF364              ', N'DTF364              ', N'Suất ăn Lẩu nướng Phú Yên', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF365              ', N'DTF365              ', N'Suất ăn Quán ăn gia đình Phú Yên 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3611             ', N'DTH361              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3612             ', N'DTH361              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3613             ', N'DTH361              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3621             ', N'DTH362              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3622             ', N'DTH362              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3623             ', N'DTH362              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3631             ', N'DTH363              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3632             ', N'DTH363              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3633             ', N'DTH363              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3641             ', N'DTH364              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3642             ', N'DTH364              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3643             ', N'DTH364              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV371              ', N'DTV37P              ', N'Vé Chùa Phước Long', N've', 0, N'DTV371              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV372              ', N'DTV37P              ', N'Vé Tháp Bà Ponagar', N've', 40000, N'DTV372              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV373              ', N'DTV37P              ', N'Vé Đảo Hòn Mun', N've', 60000, N'DTV373              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV374              ', N'DTV37P              ', N'Vé Bãi biển Trần Phú', N've', 80000, N'DTV374              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV375              ', N'DTV37P              ', N'Vé Nhà thờ Núi Nha Trang', N've', 100000, N'DTV375              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP371              ', N'DTP37P              ', N'Vé VinWonders Nha Trang', N've', 120000, N'DTP371              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP372              ', N'DTP37P              ', N'Vé Tháp Đôi giải trí', N've', 160000, N'DTP372              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP373              ', N'DTP37P              ', N'Vé Công viên nước Nha Trang', N've', 200000, N'DTP373              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP374              ', N'DTP37P              ', N'Vé Khu lặn Hòn Mun', N've', 240000, N'DTP374              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP375              ', N'DTP37P              ', N'Vé Cáp treo Nha Trang', N've', 280000, N'DTP375              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF371              ', N'DTF371              ', N'Suất ăn Vietnam AncientTown', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF372              ', N'DTF372              ', N'Suất ăn Nhà hàng Yến Sào', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF373              ', N'DTF373              ', N'Suất ăn Quán bún chả cá Nha Trang', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF374              ', N'DTF374              ', N'Suất ăn Hải sản Tháp Bà', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #39 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPF375              ', N'DTF375              ', N'Suất ăn Bánh căn Nhà Zô', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3711             ', N'DTH371              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3712             ', N'DTH371              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3713             ', N'DTH371              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3721             ', N'DTH372              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3722             ', N'DTH372              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3723             ', N'DTH372              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3731             ', N'DTH373              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3732             ', N'DTH373              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3733             ', N'DTH373              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3741             ', N'DTH374              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3742             ', N'DTH374              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3743             ', N'DTH374              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3751             ', N'DTH375              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3752             ', N'DTH375              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3753             ', N'DTH375              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV381              ', N'DTV38P              ', N'Vé Trung tâm thành phố Ninh Thuận', N've', 0, N'DTV381              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV382              ', N'DTV38P              ', N'Vé Bảo tàng Ninh Thuận', N've', 40000, N'DTV382              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV383              ', N'DTV38P              ', N'Vé Đền / chùa cổ Ninh Thuận', N've', 60000, N'DTV383              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV384              ', N'DTV38P              ', N'Vé Công viên văn hóa Ninh Thuận', N've', 80000, N'DTV384              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV385              ', N'DTV38P              ', N'Vé Chợ đêm Ninh Thuận', N've', 100000, N'DTV385              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP381              ', N'DTP38P              ', N'Vé Công viên giải trí Ninh Thuận', N've', 120000, N'DTP381              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP382              ', N'DTP38P              ', N'Vé Khu vui chơi gia đình Ninh Thuận', N've', 160000, N'DTP382              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP383              ', N'DTP38P              ', N'Vé Công viên nước Ninh Thuận', N've', 200000, N'DTP383              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP384              ', N'DTP38P              ', N'Vé Khu thể thao Ninh Thuận', N've', 240000, N'DTP384              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP385              ', N'DTP38P              ', N'Vé Quảng trường lễ hội Ninh Thuận', N've', 280000, N'DTP385              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF381              ', N'DTF381              ', N'Suất ăn Nhà hàng đặc sản Ninh Thuận', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF382              ', N'DTF382              ', N'Suất ăn Quán cơm quê Ninh Thuận', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF383              ', N'DTF383              ', N'Suất ăn Hải sản / vườn Ninh Thuận', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF384              ', N'DTF384              ', N'Suất ăn Lẩu nướng Ninh Thuận', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF385              ', N'DTF385              ', N'Suất ăn Quán ăn gia đình Ninh Thuận 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3811             ', N'DTH381              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3812             ', N'DTH381              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3813             ', N'DTH381              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3821             ', N'DTH382              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3822             ', N'DTH382              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3823             ', N'DTH382              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3831             ', N'DTH383              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3832             ', N'DTH383              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3833             ', N'DTH383              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3841             ', N'DTH384              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3842             ', N'DTH384              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3843             ', N'DTH384              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV391              ', N'DTV39P              ', N'Vé Trung tâm thành phố Bình Thuận', N've', 0, N'DTV391              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV392              ', N'DTV39P              ', N'Vé Bảo tàng Bình Thuận', N've', 40000, N'DTV392              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV393              ', N'DTV39P              ', N'Vé Đền / chùa cổ Bình Thuận', N've', 60000, N'DTV393              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV394              ', N'DTV39P              ', N'Vé Công viên văn hóa Bình Thuận', N've', 80000, N'DTV394              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV395              ', N'DTV39P              ', N'Vé Chợ đêm Bình Thuận', N've', 100000, N'DTV395              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP391              ', N'DTP39P              ', N'Vé Công viên giải trí Bình Thuận', N've', 120000, N'DTP391              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP392              ', N'DTP39P              ', N'Vé Khu vui chơi gia đình Bình Thuận', N've', 160000, N'DTP392              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP393              ', N'DTP39P              ', N'Vé Công viên nước Bình Thuận', N've', 200000, N'DTP393              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP394              ', N'DTP39P              ', N'Vé Khu thể thao Bình Thuận', N've', 240000, N'DTP394              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP395              ', N'DTP39P              ', N'Vé Quảng trường lễ hội Bình Thuận', N've', 280000, N'DTP395              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF391              ', N'DTF391              ', N'Suất ăn Nhà hàng đặc sản Bình Thuận', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF392              ', N'DTF392              ', N'Suất ăn Quán cơm quê Bình Thuận', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF393              ', N'DTF393              ', N'Suất ăn Hải sản / vườn Bình Thuận', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF394              ', N'DTF394              ', N'Suất ăn Lẩu nướng Bình Thuận', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF395              ', N'DTF395              ', N'Suất ăn Quán ăn gia đình Bình Thuận 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR3911             ', N'DTH391              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3912             ', N'DTH391              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3913             ', N'DTH391              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3921             ', N'DTH392              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3922             ', N'DTH392              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3923             ', N'DTH392              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3931             ', N'DTH393              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3932             ', N'DTH393              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3933             ', N'DTH393              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3941             ', N'DTH394              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3942             ', N'DTH394              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3943             ', N'DTH394              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3951             ', N'DTH395              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3952             ', N'DTH395              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR3953             ', N'DTH395              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV401              ', N'DTV40P              ', N'Vé Trung tâm thành phố Kon Tum', N've', 0, N'DTV401              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV402              ', N'DTV40P              ', N'Vé Bảo tàng Kon Tum', N've', 40000, N'DTV402              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV403              ', N'DTV40P              ', N'Vé Đền / chùa cổ Kon Tum', N've', 60000, N'DTV403              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV404              ', N'DTV40P              ', N'Vé Công viên văn hóa Kon Tum', N've', 80000, N'DTV404              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV405              ', N'DTV40P              ', N'Vé Chợ đêm Kon Tum', N've', 100000, N'DTV405              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP401              ', N'DTP40P              ', N'Vé Công viên giải trí Kon Tum', N've', 120000, N'DTP401              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP402              ', N'DTP40P              ', N'Vé Khu vui chơi gia đình Kon Tum', N've', 160000, N'DTP402              ', N'Vé khu vui chơi', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #40 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPP403              ', N'DTP40P              ', N'Vé Công viên nước Kon Tum', N've', 200000, N'DTP403              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP404              ', N'DTP40P              ', N'Vé Khu thể thao Kon Tum', N've', 240000, N'DTP404              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP405              ', N'DTP40P              ', N'Vé Quảng trường lễ hội Kon Tum', N've', 280000, N'DTP405              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF401              ', N'DTF401              ', N'Suất ăn Nhà hàng đặc sản Kon Tum', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF402              ', N'DTF402              ', N'Suất ăn Quán cơm quê Kon Tum', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF403              ', N'DTF403              ', N'Suất ăn Hải sản / vườn Kon Tum', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF404              ', N'DTF404              ', N'Suất ăn Lẩu nướng Kon Tum', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF405              ', N'DTF405              ', N'Suất ăn Quán ăn gia đình Kon Tum 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4011             ', N'DTH401              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4012             ', N'DTH401              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4013             ', N'DTH401              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4021             ', N'DTH402              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4022             ', N'DTH402              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4023             ', N'DTH402              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4031             ', N'DTH403              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4032             ', N'DTH403              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4033             ', N'DTH403              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4041             ', N'DTH404              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4042             ', N'DTH404              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4043             ', N'DTH404              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV411              ', N'DTV41P              ', N'Vé Trung tâm thành phố Gia Lai', N've', 0, N'DTV411              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV412              ', N'DTV41P              ', N'Vé Bảo tàng Gia Lai', N've', 40000, N'DTV412              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV413              ', N'DTV41P              ', N'Vé Đền / chùa cổ Gia Lai', N've', 60000, N'DTV413              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV414              ', N'DTV41P              ', N'Vé Công viên văn hóa Gia Lai', N've', 80000, N'DTV414              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV415              ', N'DTV41P              ', N'Vé Chợ đêm Gia Lai', N've', 100000, N'DTV415              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP411              ', N'DTP41P              ', N'Vé Công viên giải trí Gia Lai', N've', 120000, N'DTP411              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP412              ', N'DTP41P              ', N'Vé Khu vui chơi gia đình Gia Lai', N've', 160000, N'DTP412              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP413              ', N'DTP41P              ', N'Vé Công viên nước Gia Lai', N've', 200000, N'DTP413              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP414              ', N'DTP41P              ', N'Vé Khu thể thao Gia Lai', N've', 240000, N'DTP414              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP415              ', N'DTP41P              ', N'Vé Quảng trường lễ hội Gia Lai', N've', 280000, N'DTP415              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF411              ', N'DTF411              ', N'Suất ăn Nhà hàng đặc sản Gia Lai', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF412              ', N'DTF412              ', N'Suất ăn Quán cơm quê Gia Lai', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF413              ', N'DTF413              ', N'Suất ăn Hải sản / vườn Gia Lai', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF414              ', N'DTF414              ', N'Suất ăn Lẩu nướng Gia Lai', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF415              ', N'DTF415              ', N'Suất ăn Quán ăn gia đình Gia Lai 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4111             ', N'DTH411              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4112             ', N'DTH411              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4113             ', N'DTH411              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4121             ', N'DTH412              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4122             ', N'DTH412              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4123             ', N'DTH412              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4131             ', N'DTH413              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4132             ', N'DTH413              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4133             ', N'DTH413              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4141             ', N'DTH414              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4142             ', N'DTH414              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4143             ', N'DTH414              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4151             ', N'DTH415              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4152             ', N'DTH415              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4153             ', N'DTH415              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV421              ', N'DTV42P              ', N'Vé Trung tâm thành phố Đắk Lắk', N've', 0, N'DTV421              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV422              ', N'DTV42P              ', N'Vé Bảo tàng Đắk Lắk', N've', 40000, N'DTV422              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV423              ', N'DTV42P              ', N'Vé Đền / chùa cổ Đắk Lắk', N've', 60000, N'DTV423              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV424              ', N'DTV42P              ', N'Vé Công viên văn hóa Đắk Lắk', N've', 80000, N'DTV424              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV425              ', N'DTV42P              ', N'Vé Chợ đêm Đắk Lắk', N've', 100000, N'DTV425              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP421              ', N'DTP42P              ', N'Vé Công viên giải trí Đắk Lắk', N've', 120000, N'DTP421              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP422              ', N'DTP42P              ', N'Vé Khu vui chơi gia đình Đắk Lắk', N've', 160000, N'DTP422              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP423              ', N'DTP42P              ', N'Vé Công viên nước Đắk Lắk', N've', 200000, N'DTP423              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP424              ', N'DTP42P              ', N'Vé Khu thể thao Đắk Lắk', N've', 240000, N'DTP424              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP425              ', N'DTP42P              ', N'Vé Quảng trường lễ hội Đắk Lắk', N've', 280000, N'DTP425              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF421              ', N'DTF421              ', N'Suất ăn Nhà hàng đặc sản Đắk Lắk', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF422              ', N'DTF422              ', N'Suất ăn Quán cơm quê Đắk Lắk', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF423              ', N'DTF423              ', N'Suất ăn Hải sản / vườn Đắk Lắk', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF424              ', N'DTF424              ', N'Suất ăn Lẩu nướng Đắk Lắk', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF425              ', N'DTF425              ', N'Suất ăn Quán ăn gia đình Đắk Lắk 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4211             ', N'DTH421              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4212             ', N'DTH421              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4213             ', N'DTH421              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4221             ', N'DTH422              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4222             ', N'DTH422              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4223             ', N'DTH422              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4231             ', N'DTH423              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4232             ', N'DTH423              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4233             ', N'DTH423              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4241             ', N'DTH424              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4242             ', N'DTH424              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4243             ', N'DTH424              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV431              ', N'DTV43P              ', N'Vé Trung tâm thành phố Đắk Nông', N've', 0, N'DTV431              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV432              ', N'DTV43P              ', N'Vé Bảo tàng Đắk Nông', N've', 40000, N'DTV432              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV433              ', N'DTV43P              ', N'Vé Đền / chùa cổ Đắk Nông', N've', 60000, N'DTV433              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #41 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPV434              ', N'DTV43P              ', N'Vé Công viên văn hóa Đắk Nông', N've', 80000, N'DTV434              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV435              ', N'DTV43P              ', N'Vé Chợ đêm Đắk Nông', N've', 100000, N'DTV435              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP431              ', N'DTP43P              ', N'Vé Công viên giải trí Đắk Nông', N've', 120000, N'DTP431              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP432              ', N'DTP43P              ', N'Vé Khu vui chơi gia đình Đắk Nông', N've', 160000, N'DTP432              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP433              ', N'DTP43P              ', N'Vé Công viên nước Đắk Nông', N've', 200000, N'DTP433              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP434              ', N'DTP43P              ', N'Vé Khu thể thao Đắk Nông', N've', 240000, N'DTP434              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP435              ', N'DTP43P              ', N'Vé Quảng trường lễ hội Đắk Nông', N've', 280000, N'DTP435              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF431              ', N'DTF431              ', N'Suất ăn Nhà hàng đặc sản Đắk Nông', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF432              ', N'DTF432              ', N'Suất ăn Quán cơm quê Đắk Nông', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF433              ', N'DTF433              ', N'Suất ăn Hải sản / vườn Đắk Nông', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF434              ', N'DTF434              ', N'Suất ăn Lẩu nướng Đắk Nông', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF435              ', N'DTF435              ', N'Suất ăn Quán ăn gia đình Đắk Nông 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4311             ', N'DTH431              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4312             ', N'DTH431              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4313             ', N'DTH431              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4321             ', N'DTH432              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4322             ', N'DTH432              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4323             ', N'DTH432              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4331             ', N'DTH433              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4332             ', N'DTH433              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4333             ', N'DTH433              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4341             ', N'DTH434              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4342             ', N'DTH434              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4343             ', N'DTH434              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4351             ', N'DTH435              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4352             ', N'DTH435              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4353             ', N'DTH435              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV441              ', N'DTV44P              ', N'Vé Hồ Xuân Hương', N've', 0, N'DTV441              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV442              ', N'DTV44P              ', N'Vé Thác Datanla', N've', 40000, N'DTV442              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV443              ', N'DTV44P              ', N'Vé Đồi chè Cầu Đất', N've', 60000, N'DTV443              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV444              ', N'DTV44P              ', N'Vé Thiền viện Trúc Lâm', N've', 80000, N'DTV444              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV445              ', N'DTV44P              ', N'Vé Ga Đà Lạt', N've', 100000, N'DTV445              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP441              ', N'DTP44P              ', N'Vé Công viên giải trí Lâm Đồng', N've', 120000, N'DTP441              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP442              ', N'DTP44P              ', N'Vé Khu vui chơi gia đình Lâm Đồng', N've', 160000, N'DTP442              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP443              ', N'DTP44P              ', N'Vé Công viên nước Lâm Đồng', N've', 200000, N'DTP443              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP444              ', N'DTP44P              ', N'Vé Khu thể thao Lâm Đồng', N've', 240000, N'DTP444              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP445              ', N'DTP44P              ', N'Vé Quảng trường lễ hội Lâm Đồng', N've', 280000, N'DTP445              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF441              ', N'DTF441              ', N'Suất ăn Nhà hàng đặc sản Lâm Đồng', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF442              ', N'DTF442              ', N'Suất ăn Quán cơm quê Lâm Đồng', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF443              ', N'DTF443              ', N'Suất ăn Hải sản / vườn Lâm Đồng', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF444              ', N'DTF444              ', N'Suất ăn Lẩu nướng Lâm Đồng', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF445              ', N'DTF445              ', N'Suất ăn Quán ăn gia đình Lâm Đồng 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4411             ', N'DTH441              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4412             ', N'DTH441              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4413             ', N'DTH441              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4421             ', N'DTH442              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4422             ', N'DTH442              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4423             ', N'DTH442              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4431             ', N'DTH443              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4432             ', N'DTH443              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4433             ', N'DTH443              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4441             ', N'DTH444              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4442             ', N'DTH444              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4443             ', N'DTH444              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV451              ', N'DTV45P              ', N'Vé Chợ Bến Thành', N've', 0, N'DTV451              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV452              ', N'DTV45P              ', N'Vé Nhà thờ Đức Bà', N've', 40000, N'DTV452              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV453              ', N'DTV45P              ', N'Vé Dinh Độc Lập', N've', 60000, N'DTV453              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV454              ', N'DTV45P              ', N'Vé Phố đi bộ Nguyễn Huệ', N've', 80000, N'DTV454              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV455              ', N'DTV45P              ', N'Vé Bến Nhà Rồng', N've', 100000, N'DTV455              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP451              ', N'DTP45P              ', N'Vé Đầm Sen', N've', 120000, N'DTP451              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP452              ', N'DTP45P              ', N'Vé Suối Tiên', N've', 160000, N'DTP452              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP453              ', N'DTP45P              ', N'Vé VinWonders Thành phố', N've', 200000, N'DTP453              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP454              ', N'DTP45P              ', N'Vé Crescent Mall ice rink', N've', 240000, N'DTP454              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP455              ', N'DTP45P              ', N'Vé The Castle amusement', N've', 280000, N'DTP455              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF451              ', N'DTF451              ', N'Suất ăn Cơm tấm Cali', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF452              ', N'DTF452              ', N'Suất ăn Nhà hàng Việt Phố', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF453              ', N'DTF453              ', N'Suất ăn Bánh mì Huỳnh Hoa', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF454              ', N'DTF454              ', N'Suất ăn Lẩu dê Đồng Nai', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF455              ', N'DTF455              ', N'Suất ăn The Deck Saigon', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4511             ', N'DTH451              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4512             ', N'DTH451              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4513             ', N'DTH451              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4521             ', N'DTH452              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4522             ', N'DTH452              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4523             ', N'DTH452              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4531             ', N'DTH453              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4532             ', N'DTH453              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4533             ', N'DTH453              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4541             ', N'DTH454              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4542             ', N'DTH454              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #42 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR4543             ', N'DTH454              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4551             ', N'DTH455              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4552             ', N'DTH455              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4553             ', N'DTH455              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV461              ', N'DTV46P              ', N'Vé Trung tâm thành phố Đồng Nai', N've', 0, N'DTV461              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV462              ', N'DTV46P              ', N'Vé Bảo tàng Đồng Nai', N've', 40000, N'DTV462              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV463              ', N'DTV46P              ', N'Vé Đền / chùa cổ Đồng Nai', N've', 60000, N'DTV463              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV464              ', N'DTV46P              ', N'Vé Công viên văn hóa Đồng Nai', N've', 80000, N'DTV464              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV465              ', N'DTV46P              ', N'Vé Chợ đêm Đồng Nai', N've', 100000, N'DTV465              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP461              ', N'DTP46P              ', N'Vé Công viên giải trí Đồng Nai', N've', 120000, N'DTP461              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP462              ', N'DTP46P              ', N'Vé Khu vui chơi gia đình Đồng Nai', N've', 160000, N'DTP462              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP463              ', N'DTP46P              ', N'Vé Công viên nước Đồng Nai', N've', 200000, N'DTP463              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP464              ', N'DTP46P              ', N'Vé Khu thể thao Đồng Nai', N've', 240000, N'DTP464              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP465              ', N'DTP46P              ', N'Vé Quảng trường lễ hội Đồng Nai', N've', 280000, N'DTP465              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF461              ', N'DTF461              ', N'Suất ăn Nhà hàng đặc sản Đồng Nai', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF462              ', N'DTF462              ', N'Suất ăn Quán cơm quê Đồng Nai', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF463              ', N'DTF463              ', N'Suất ăn Hải sản / vườn Đồng Nai', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF464              ', N'DTF464              ', N'Suất ăn Lẩu nướng Đồng Nai', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF465              ', N'DTF465              ', N'Suất ăn Quán ăn gia đình Đồng Nai 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4611             ', N'DTH461              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4612             ', N'DTH461              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4613             ', N'DTH461              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4621             ', N'DTH462              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4622             ', N'DTH462              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4623             ', N'DTH462              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4631             ', N'DTH463              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4632             ', N'DTH463              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4633             ', N'DTH463              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4641             ', N'DTH464              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4642             ', N'DTH464              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4643             ', N'DTH464              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV471              ', N'DTV47P              ', N'Vé Trung tâm thành phố Bình Dương', N've', 0, N'DTV471              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV472              ', N'DTV47P              ', N'Vé Bảo tàng Bình Dương', N've', 40000, N'DTV472              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV473              ', N'DTV47P              ', N'Vé Đền / chùa cổ Bình Dương', N've', 60000, N'DTV473              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV474              ', N'DTV47P              ', N'Vé Công viên văn hóa Bình Dương', N've', 80000, N'DTV474              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV475              ', N'DTV47P              ', N'Vé Chợ đêm Bình Dương', N've', 100000, N'DTV475              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP471              ', N'DTP47P              ', N'Vé Công viên giải trí Bình Dương', N've', 120000, N'DTP471              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP472              ', N'DTP47P              ', N'Vé Khu vui chơi gia đình Bình Dương', N've', 160000, N'DTP472              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP473              ', N'DTP47P              ', N'Vé Công viên nước Bình Dương', N've', 200000, N'DTP473              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP474              ', N'DTP47P              ', N'Vé Khu thể thao Bình Dương', N've', 240000, N'DTP474              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP475              ', N'DTP47P              ', N'Vé Quảng trường lễ hội Bình Dương', N've', 280000, N'DTP475              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF471              ', N'DTF471              ', N'Suất ăn Nhà hàng đặc sản Bình Dương', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF472              ', N'DTF472              ', N'Suất ăn Quán cơm quê Bình Dương', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF473              ', N'DTF473              ', N'Suất ăn Hải sản / vườn Bình Dương', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF474              ', N'DTF474              ', N'Suất ăn Lẩu nướng Bình Dương', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF475              ', N'DTF475              ', N'Suất ăn Quán ăn gia đình Bình Dương 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4711             ', N'DTH471              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4712             ', N'DTH471              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4713             ', N'DTH471              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4721             ', N'DTH472              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4722             ', N'DTH472              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4723             ', N'DTH472              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4731             ', N'DTH473              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4732             ', N'DTH473              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4733             ', N'DTH473              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4741             ', N'DTH474              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4742             ', N'DTH474              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4743             ', N'DTH474              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4751             ', N'DTH475              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4752             ', N'DTH475              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4753             ', N'DTH475              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV481              ', N'DTV48P              ', N'Vé Trung tâm thành phố Bà Rịa - Vũng Tàu', N've', 0, N'DTV481              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV482              ', N'DTV48P              ', N'Vé Bảo tàng Bà Rịa - Vũng Tàu', N've', 40000, N'DTV482              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV483              ', N'DTV48P              ', N'Vé Đền / chùa cổ Bà Rịa - Vũng Tàu', N've', 60000, N'DTV483              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV484              ', N'DTV48P              ', N'Vé Công viên văn hóa Bà Rịa - Vũng Tàu', N've', 80000, N'DTV484              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV485              ', N'DTV48P              ', N'Vé Chợ đêm Bà Rịa - Vũng Tàu', N've', 100000, N'DTV485              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP481              ', N'DTP48P              ', N'Vé Công viên giải trí Bà Rịa - Vũng Tàu', N've', 120000, N'DTP481              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP482              ', N'DTP48P              ', N'Vé Khu vui chơi gia đình Bà Rịa - Vũng Tàu', N've', 160000, N'DTP482              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP483              ', N'DTP48P              ', N'Vé Công viên nước Bà Rịa - Vũng Tàu', N've', 200000, N'DTP483              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP484              ', N'DTP48P              ', N'Vé Khu thể thao Bà Rịa - Vũng Tàu', N've', 240000, N'DTP484              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP485              ', N'DTP48P              ', N'Vé Quảng trường lễ hội Bà Rịa - Vũng Tàu', N've', 280000, N'DTP485              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF481              ', N'DTF481              ', N'Suất ăn Nhà hàng đặc sản Bà Rịa - Vũng Tàu', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF482              ', N'DTF482              ', N'Suất ăn Quán cơm quê Bà Rịa - Vũng Tàu', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF483              ', N'DTF483              ', N'Suất ăn Hải sản / vườn Bà Rịa - Vũng Tàu', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF484              ', N'DTF484              ', N'Suất ăn Lẩu nướng Bà Rịa - Vũng Tàu', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF485              ', N'DTF485              ', N'Suất ăn Quán ăn gia đình Bà Rịa - Vũng Tàu 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4811             ', N'DTH481              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4812             ', N'DTH481              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4813             ', N'DTH481              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4821             ', N'DTH482              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #43 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR4822             ', N'DTH482              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4823             ', N'DTH482              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4831             ', N'DTH483              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4832             ', N'DTH483              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4833             ', N'DTH483              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4841             ', N'DTH484              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4842             ', N'DTH484              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4843             ', N'DTH484              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV491              ', N'DTV49P              ', N'Vé Trung tâm thành phố Tây Ninh', N've', 0, N'DTV491              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV492              ', N'DTV49P              ', N'Vé Bảo tàng Tây Ninh', N've', 40000, N'DTV492              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV493              ', N'DTV49P              ', N'Vé Đền / chùa cổ Tây Ninh', N've', 60000, N'DTV493              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV494              ', N'DTV49P              ', N'Vé Công viên văn hóa Tây Ninh', N've', 80000, N'DTV494              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV495              ', N'DTV49P              ', N'Vé Chợ đêm Tây Ninh', N've', 100000, N'DTV495              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP491              ', N'DTP49P              ', N'Vé Công viên giải trí Tây Ninh', N've', 120000, N'DTP491              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP492              ', N'DTP49P              ', N'Vé Khu vui chơi gia đình Tây Ninh', N've', 160000, N'DTP492              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP493              ', N'DTP49P              ', N'Vé Công viên nước Tây Ninh', N've', 200000, N'DTP493              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP494              ', N'DTP49P              ', N'Vé Khu thể thao Tây Ninh', N've', 240000, N'DTP494              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP495              ', N'DTP49P              ', N'Vé Quảng trường lễ hội Tây Ninh', N've', 280000, N'DTP495              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF491              ', N'DTF491              ', N'Suất ăn Nhà hàng đặc sản Tây Ninh', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF492              ', N'DTF492              ', N'Suất ăn Quán cơm quê Tây Ninh', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF493              ', N'DTF493              ', N'Suất ăn Hải sản / vườn Tây Ninh', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF494              ', N'DTF494              ', N'Suất ăn Lẩu nướng Tây Ninh', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF495              ', N'DTF495              ', N'Suất ăn Quán ăn gia đình Tây Ninh 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR4911             ', N'DTH491              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4912             ', N'DTH491              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4913             ', N'DTH491              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4921             ', N'DTH492              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4922             ', N'DTH492              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4923             ', N'DTH492              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4931             ', N'DTH493              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4932             ', N'DTH493              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4933             ', N'DTH493              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4941             ', N'DTH494              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4942             ', N'DTH494              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4943             ', N'DTH494              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4951             ', N'DTH495              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4952             ', N'DTH495              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR4953             ', N'DTH495              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV501              ', N'DTV50P              ', N'Vé Trung tâm thành phố Bình Phước', N've', 0, N'DTV501              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV502              ', N'DTV50P              ', N'Vé Bảo tàng Bình Phước', N've', 40000, N'DTV502              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV503              ', N'DTV50P              ', N'Vé Đền / chùa cổ Bình Phước', N've', 60000, N'DTV503              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV504              ', N'DTV50P              ', N'Vé Công viên văn hóa Bình Phước', N've', 80000, N'DTV504              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV505              ', N'DTV50P              ', N'Vé Chợ đêm Bình Phước', N've', 100000, N'DTV505              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP501              ', N'DTP50P              ', N'Vé Công viên giải trí Bình Phước', N've', 120000, N'DTP501              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP502              ', N'DTP50P              ', N'Vé Khu vui chơi gia đình Bình Phước', N've', 160000, N'DTP502              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP503              ', N'DTP50P              ', N'Vé Công viên nước Bình Phước', N've', 200000, N'DTP503              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP504              ', N'DTP50P              ', N'Vé Khu thể thao Bình Phước', N've', 240000, N'DTP504              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP505              ', N'DTP50P              ', N'Vé Quảng trường lễ hội Bình Phước', N've', 280000, N'DTP505              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF501              ', N'DTF501              ', N'Suất ăn Nhà hàng đặc sản Bình Phước', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF502              ', N'DTF502              ', N'Suất ăn Quán cơm quê Bình Phước', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF503              ', N'DTF503              ', N'Suất ăn Hải sản / vườn Bình Phước', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF504              ', N'DTF504              ', N'Suất ăn Lẩu nướng Bình Phước', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF505              ', N'DTF505              ', N'Suất ăn Quán ăn gia đình Bình Phước 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR5011             ', N'DTH501              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5012             ', N'DTH501              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5013             ', N'DTH501              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5021             ', N'DTH502              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5022             ', N'DTH502              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5023             ', N'DTH502              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5031             ', N'DTH503              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5032             ', N'DTH503              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5033             ', N'DTH503              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5041             ', N'DTH504              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5042             ', N'DTH504              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5043             ', N'DTH504              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV511              ', N'DTV51P              ', N'Vé Trung tâm thành phố Long An', N've', 0, N'DTV511              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV512              ', N'DTV51P              ', N'Vé Bảo tàng Long An', N've', 40000, N'DTV512              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV513              ', N'DTV51P              ', N'Vé Đền / chùa cổ Long An', N've', 60000, N'DTV513              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV514              ', N'DTV51P              ', N'Vé Công viên văn hóa Long An', N've', 80000, N'DTV514              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV515              ', N'DTV51P              ', N'Vé Chợ đêm Long An', N've', 100000, N'DTV515              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP511              ', N'DTP51P              ', N'Vé Công viên giải trí Long An', N've', 120000, N'DTP511              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP512              ', N'DTP51P              ', N'Vé Khu vui chơi gia đình Long An', N've', 160000, N'DTP512              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP513              ', N'DTP51P              ', N'Vé Công viên nước Long An', N've', 200000, N'DTP513              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP514              ', N'DTP51P              ', N'Vé Khu thể thao Long An', N've', 240000, N'DTP514              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP515              ', N'DTP51P              ', N'Vé Quảng trường lễ hội Long An', N've', 280000, N'DTP515              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF511              ', N'DTF511              ', N'Suất ăn Nhà hàng đặc sản Long An', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF512              ', N'DTF512              ', N'Suất ăn Quán cơm quê Long An', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF513              ', N'DTF513              ', N'Suất ăn Hải sản / vườn Long An', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF514              ', N'DTF514              ', N'Suất ăn Lẩu nướng Long An', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF515              ', N'DTF515              ', N'Suất ăn Quán ăn gia đình Long An 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #44 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR5111             ', N'DTH511              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5112             ', N'DTH511              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5113             ', N'DTH511              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5121             ', N'DTH512              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5122             ', N'DTH512              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5123             ', N'DTH512              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5131             ', N'DTH513              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5132             ', N'DTH513              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5133             ', N'DTH513              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5141             ', N'DTH514              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5142             ', N'DTH514              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5143             ', N'DTH514              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5151             ', N'DTH515              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5152             ', N'DTH515              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5153             ', N'DTH515              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV521              ', N'DTV52P              ', N'Vé Trung tâm thành phố Tiền Giang', N've', 0, N'DTV521              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV522              ', N'DTV52P              ', N'Vé Bảo tàng Tiền Giang', N've', 40000, N'DTV522              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV523              ', N'DTV52P              ', N'Vé Đền / chùa cổ Tiền Giang', N've', 60000, N'DTV523              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV524              ', N'DTV52P              ', N'Vé Công viên văn hóa Tiền Giang', N've', 80000, N'DTV524              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV525              ', N'DTV52P              ', N'Vé Chợ đêm Tiền Giang', N've', 100000, N'DTV525              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP521              ', N'DTP52P              ', N'Vé Công viên giải trí Tiền Giang', N've', 120000, N'DTP521              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP522              ', N'DTP52P              ', N'Vé Khu vui chơi gia đình Tiền Giang', N've', 160000, N'DTP522              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP523              ', N'DTP52P              ', N'Vé Công viên nước Tiền Giang', N've', 200000, N'DTP523              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP524              ', N'DTP52P              ', N'Vé Khu thể thao Tiền Giang', N've', 240000, N'DTP524              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP525              ', N'DTP52P              ', N'Vé Quảng trường lễ hội Tiền Giang', N've', 280000, N'DTP525              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF521              ', N'DTF521              ', N'Suất ăn Nhà hàng đặc sản Tiền Giang', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF522              ', N'DTF522              ', N'Suất ăn Quán cơm quê Tiền Giang', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF523              ', N'DTF523              ', N'Suất ăn Hải sản / vườn Tiền Giang', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF524              ', N'DTF524              ', N'Suất ăn Lẩu nướng Tiền Giang', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF525              ', N'DTF525              ', N'Suất ăn Quán ăn gia đình Tiền Giang 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR5211             ', N'DTH521              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5212             ', N'DTH521              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5213             ', N'DTH521              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5221             ', N'DTH522              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5222             ', N'DTH522              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5223             ', N'DTH522              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5231             ', N'DTH523              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5232             ', N'DTH523              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5233             ', N'DTH523              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5241             ', N'DTH524              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5242             ', N'DTH524              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5243             ', N'DTH524              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV531              ', N'DTV53P              ', N'Vé Trung tâm thành phố Bến Tre', N've', 0, N'DTV531              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV532              ', N'DTV53P              ', N'Vé Bảo tàng Bến Tre', N've', 40000, N'DTV532              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV533              ', N'DTV53P              ', N'Vé Đền / chùa cổ Bến Tre', N've', 60000, N'DTV533              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV534              ', N'DTV53P              ', N'Vé Công viên văn hóa Bến Tre', N've', 80000, N'DTV534              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV535              ', N'DTV53P              ', N'Vé Chợ đêm Bến Tre', N've', 100000, N'DTV535              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP531              ', N'DTP53P              ', N'Vé Công viên giải trí Bến Tre', N've', 120000, N'DTP531              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP532              ', N'DTP53P              ', N'Vé Khu vui chơi gia đình Bến Tre', N've', 160000, N'DTP532              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP533              ', N'DTP53P              ', N'Vé Công viên nước Bến Tre', N've', 200000, N'DTP533              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP534              ', N'DTP53P              ', N'Vé Khu thể thao Bến Tre', N've', 240000, N'DTP534              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP535              ', N'DTP53P              ', N'Vé Quảng trường lễ hội Bến Tre', N've', 280000, N'DTP535              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF531              ', N'DTF531              ', N'Suất ăn Nhà hàng đặc sản Bến Tre', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF532              ', N'DTF532              ', N'Suất ăn Quán cơm quê Bến Tre', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF533              ', N'DTF533              ', N'Suất ăn Hải sản / vườn Bến Tre', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF534              ', N'DTF534              ', N'Suất ăn Lẩu nướng Bến Tre', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF535              ', N'DTF535              ', N'Suất ăn Quán ăn gia đình Bến Tre 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR5311             ', N'DTH531              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5312             ', N'DTH531              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5313             ', N'DTH531              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5321             ', N'DTH532              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5322             ', N'DTH532              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5323             ', N'DTH532              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5331             ', N'DTH533              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5332             ', N'DTH533              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5333             ', N'DTH533              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5341             ', N'DTH534              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5342             ', N'DTH534              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5343             ', N'DTH534              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5351             ', N'DTH535              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5352             ', N'DTH535              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5353             ', N'DTH535              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV541              ', N'DTV54P              ', N'Vé Trung tâm thành phố Vĩnh Long', N've', 0, N'DTV541              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV542              ', N'DTV54P              ', N'Vé Bảo tàng Vĩnh Long', N've', 40000, N'DTV542              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV543              ', N'DTV54P              ', N'Vé Đền / chùa cổ Vĩnh Long', N've', 60000, N'DTV543              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV544              ', N'DTV54P              ', N'Vé Công viên văn hóa Vĩnh Long', N've', 80000, N'DTV544              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV545              ', N'DTV54P              ', N'Vé Chợ đêm Vĩnh Long', N've', 100000, N'DTV545              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP541              ', N'DTP54P              ', N'Vé Công viên giải trí Vĩnh Long', N've', 120000, N'DTP541              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP542              ', N'DTP54P              ', N'Vé Khu vui chơi gia đình Vĩnh Long', N've', 160000, N'DTP542              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP543              ', N'DTP54P              ', N'Vé Công viên nước Vĩnh Long', N've', 200000, N'DTP543              ', N'Vé khu vui chơi', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #45 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPP544              ', N'DTP54P              ', N'Vé Khu thể thao Vĩnh Long', N've', 240000, N'DTP544              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP545              ', N'DTP54P              ', N'Vé Quảng trường lễ hội Vĩnh Long', N've', 280000, N'DTP545              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF541              ', N'DTF541              ', N'Suất ăn Nhà hàng đặc sản Vĩnh Long', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF542              ', N'DTF542              ', N'Suất ăn Quán cơm quê Vĩnh Long', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF543              ', N'DTF543              ', N'Suất ăn Hải sản / vườn Vĩnh Long', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF544              ', N'DTF544              ', N'Suất ăn Lẩu nướng Vĩnh Long', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF545              ', N'DTF545              ', N'Suất ăn Quán ăn gia đình Vĩnh Long 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR5411             ', N'DTH541              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5412             ', N'DTH541              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5413             ', N'DTH541              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5421             ', N'DTH542              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5422             ', N'DTH542              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5423             ', N'DTH542              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5431             ', N'DTH543              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5432             ', N'DTH543              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5433             ', N'DTH543              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5441             ', N'DTH544              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5442             ', N'DTH544              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5443             ', N'DTH544              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV551              ', N'DTV55P              ', N'Vé Trung tâm thành phố Trà Vinh', N've', 0, N'DTV551              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV552              ', N'DTV55P              ', N'Vé Bảo tàng Trà Vinh', N've', 40000, N'DTV552              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV553              ', N'DTV55P              ', N'Vé Đền / chùa cổ Trà Vinh', N've', 60000, N'DTV553              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV554              ', N'DTV55P              ', N'Vé Công viên văn hóa Trà Vinh', N've', 80000, N'DTV554              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV555              ', N'DTV55P              ', N'Vé Chợ đêm Trà Vinh', N've', 100000, N'DTV555              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP551              ', N'DTP55P              ', N'Vé Công viên giải trí Trà Vinh', N've', 120000, N'DTP551              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP552              ', N'DTP55P              ', N'Vé Khu vui chơi gia đình Trà Vinh', N've', 160000, N'DTP552              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP553              ', N'DTP55P              ', N'Vé Công viên nước Trà Vinh', N've', 200000, N'DTP553              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP554              ', N'DTP55P              ', N'Vé Khu thể thao Trà Vinh', N've', 240000, N'DTP554              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP555              ', N'DTP55P              ', N'Vé Quảng trường lễ hội Trà Vinh', N've', 280000, N'DTP555              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF551              ', N'DTF551              ', N'Suất ăn Nhà hàng đặc sản Trà Vinh', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF552              ', N'DTF552              ', N'Suất ăn Quán cơm quê Trà Vinh', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF553              ', N'DTF553              ', N'Suất ăn Hải sản / vườn Trà Vinh', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF554              ', N'DTF554              ', N'Suất ăn Lẩu nướng Trà Vinh', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF555              ', N'DTF555              ', N'Suất ăn Quán ăn gia đình Trà Vinh 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR5511             ', N'DTH551              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5512             ', N'DTH551              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5513             ', N'DTH551              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5521             ', N'DTH552              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5522             ', N'DTH552              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5523             ', N'DTH552              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5531             ', N'DTH553              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5532             ', N'DTH553              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5533             ', N'DTH553              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5541             ', N'DTH554              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5542             ', N'DTH554              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5543             ', N'DTH554              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5551             ', N'DTH555              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5552             ', N'DTH555              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5553             ', N'DTH555              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV561              ', N'DTV56P              ', N'Vé Trung tâm thành phố Đồng Tháp', N've', 0, N'DTV561              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV562              ', N'DTV56P              ', N'Vé Bảo tàng Đồng Tháp', N've', 40000, N'DTV562              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV563              ', N'DTV56P              ', N'Vé Đền / chùa cổ Đồng Tháp', N've', 60000, N'DTV563              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV564              ', N'DTV56P              ', N'Vé Công viên văn hóa Đồng Tháp', N've', 80000, N'DTV564              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV565              ', N'DTV56P              ', N'Vé Chợ đêm Đồng Tháp', N've', 100000, N'DTV565              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP561              ', N'DTP56P              ', N'Vé Công viên giải trí Đồng Tháp', N've', 120000, N'DTP561              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP562              ', N'DTP56P              ', N'Vé Khu vui chơi gia đình Đồng Tháp', N've', 160000, N'DTP562              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP563              ', N'DTP56P              ', N'Vé Công viên nước Đồng Tháp', N've', 200000, N'DTP563              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP564              ', N'DTP56P              ', N'Vé Khu thể thao Đồng Tháp', N've', 240000, N'DTP564              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP565              ', N'DTP56P              ', N'Vé Quảng trường lễ hội Đồng Tháp', N've', 280000, N'DTP565              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF561              ', N'DTF561              ', N'Suất ăn Nhà hàng đặc sản Đồng Tháp', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF562              ', N'DTF562              ', N'Suất ăn Quán cơm quê Đồng Tháp', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF563              ', N'DTF563              ', N'Suất ăn Hải sản / vườn Đồng Tháp', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF564              ', N'DTF564              ', N'Suất ăn Lẩu nướng Đồng Tháp', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF565              ', N'DTF565              ', N'Suất ăn Quán ăn gia đình Đồng Tháp 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR5611             ', N'DTH561              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5612             ', N'DTH561              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5613             ', N'DTH561              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5621             ', N'DTH562              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5622             ', N'DTH562              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5623             ', N'DTH562              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5631             ', N'DTH563              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5632             ', N'DTH563              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5633             ', N'DTH563              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5641             ', N'DTH564              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5642             ', N'DTH564              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5643             ', N'DTH564              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV571              ', N'DTV57P              ', N'Vé Trung tâm thành phố An Giang', N've', 0, N'DTV571              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV572              ', N'DTV57P              ', N'Vé Bảo tàng An Giang', N've', 40000, N'DTV572              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV573              ', N'DTV57P              ', N'Vé Đền / chùa cổ An Giang', N've', 60000, N'DTV573              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV574              ', N'DTV57P              ', N'Vé Công viên văn hóa An Giang', N've', 80000, N'DTV574              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #46 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPV575              ', N'DTV57P              ', N'Vé Chợ đêm An Giang', N've', 100000, N'DTV575              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP571              ', N'DTP57P              ', N'Vé Công viên giải trí An Giang', N've', 120000, N'DTP571              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP572              ', N'DTP57P              ', N'Vé Khu vui chơi gia đình An Giang', N've', 160000, N'DTP572              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP573              ', N'DTP57P              ', N'Vé Công viên nước An Giang', N've', 200000, N'DTP573              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP574              ', N'DTP57P              ', N'Vé Khu thể thao An Giang', N've', 240000, N'DTP574              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP575              ', N'DTP57P              ', N'Vé Quảng trường lễ hội An Giang', N've', 280000, N'DTP575              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF571              ', N'DTF571              ', N'Suất ăn Nhà hàng đặc sản An Giang', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF572              ', N'DTF572              ', N'Suất ăn Quán cơm quê An Giang', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF573              ', N'DTF573              ', N'Suất ăn Hải sản / vườn An Giang', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF574              ', N'DTF574              ', N'Suất ăn Lẩu nướng An Giang', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF575              ', N'DTF575              ', N'Suất ăn Quán ăn gia đình An Giang 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR5711             ', N'DTH571              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5712             ', N'DTH571              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5713             ', N'DTH571              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5721             ', N'DTH572              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5722             ', N'DTH572              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5723             ', N'DTH572              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5731             ', N'DTH573              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5732             ', N'DTH573              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5733             ', N'DTH573              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5741             ', N'DTH574              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5742             ', N'DTH574              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5743             ', N'DTH574              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5751             ', N'DTH575              ', N'Phòng tiêu chuẩn', N'dem', 670000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5752             ', N'DTH575              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5753             ', N'DTH575              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV581              ', N'DTV58P              ', N'Vé Phú Quốc', N've', 0, N'DTV581              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV582              ', N'DTV58P              ', N'Vé Dinh Cậu', N've', 40000, N'DTV582              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV583              ', N'DTV58P              ', N'Vé Bãi Sao', N've', 60000, N'DTV583              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV584              ', N'DTV58P              ', N'Vé Hòn Thơm', N've', 80000, N'DTV584              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV585              ', N'DTV58P              ', N'Vé Chợ đêm Phú Quốc', N've', 100000, N'DTV585              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP581              ', N'DTP58P              ', N'Vé Công viên giải trí Kiên Giang', N've', 120000, N'DTP581              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP582              ', N'DTP58P              ', N'Vé Khu vui chơi gia đình Kiên Giang', N've', 160000, N'DTP582              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP583              ', N'DTP58P              ', N'Vé Công viên nước Kiên Giang', N've', 200000, N'DTP583              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP584              ', N'DTP58P              ', N'Vé Khu thể thao Kiên Giang', N've', 240000, N'DTP584              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP585              ', N'DTP58P              ', N'Vé Quảng trường lễ hội Kiên Giang', N've', 280000, N'DTP585              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF581              ', N'DTF581              ', N'Suất ăn Nhà hàng đặc sản Kiên Giang', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF582              ', N'DTF582              ', N'Suất ăn Quán cơm quê Kiên Giang', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF583              ', N'DTF583              ', N'Suất ăn Hải sản / vườn Kiên Giang', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF584              ', N'DTF584              ', N'Suất ăn Lẩu nướng Kiên Giang', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF585              ', N'DTF585              ', N'Suất ăn Quán ăn gia đình Kiên Giang 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR5811             ', N'DTH581              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5812             ', N'DTH581              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5813             ', N'DTH581              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5821             ', N'DTH582              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5822             ', N'DTH582              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5823             ', N'DTH582              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5831             ', N'DTH583              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5832             ', N'DTH583              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5833             ', N'DTH583              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5841             ', N'DTH584              ', N'Phòng tiêu chuẩn', N'dem', 690000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5842             ', N'DTH584              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5843             ', N'DTH584              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV591              ', N'DTV59P              ', N'Vé Chợ nổi Cái Răng', N've', 0, N'DTV591              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV592              ', N'DTV59P              ', N'Vé Bến Ninh Kiều', N've', 40000, N'DTV592              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV593              ', N'DTV59P              ', N'Vé Nhà cổ Bình Thủy', N've', 60000, N'DTV593              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV594              ', N'DTV59P              ', N'Vé Thiền viện Trúc Lâm Phương Nam', N've', 80000, N'DTV594              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV595              ', N'DTV59P              ', N'Vé Vườn cò Bằng Lăng', N've', 100000, N'DTV595              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP591              ', N'DTP59P              ', N'Vé Công viên giải trí Cần Thơ', N've', 120000, N'DTP591              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP592              ', N'DTP59P              ', N'Vé Khu vui chơi gia đình Cần Thơ', N've', 160000, N'DTP592              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP593              ', N'DTP59P              ', N'Vé Công viên nước Cần Thơ', N've', 200000, N'DTP593              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP594              ', N'DTP59P              ', N'Vé Khu thể thao Cần Thơ', N've', 240000, N'DTP594              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP595              ', N'DTP59P              ', N'Vé Quảng trường lễ hội Cần Thơ', N've', 280000, N'DTP595              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF591              ', N'DTF591              ', N'Suất ăn Nhà hàng đặc sản Cần Thơ', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF592              ', N'DTF592              ', N'Suất ăn Quán cơm quê Cần Thơ', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF593              ', N'DTF593              ', N'Suất ăn Hải sản / vườn Cần Thơ', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF594              ', N'DTF594              ', N'Suất ăn Lẩu nướng Cần Thơ', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF595              ', N'DTF595              ', N'Suất ăn Quán ăn gia đình Cần Thơ 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR5911             ', N'DTH591              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5912             ', N'DTH591              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5913             ', N'DTH591              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5921             ', N'DTH592              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5922             ', N'DTH592              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5923             ', N'DTH592              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5931             ', N'DTH593              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5932             ', N'DTH593              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5933             ', N'DTH593              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5941             ', N'DTH594              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5942             ', N'DTH594              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5943             ', N'DTH594              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #47 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR5951             ', N'DTH595              ', N'Phòng tiêu chuẩn', N'dem', 710000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5952             ', N'DTH595              ', N'Phòng Deluxe', N'dem', 1450000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR5953             ', N'DTH595              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV601              ', N'DTV60P              ', N'Vé Trung tâm thành phố Hậu Giang', N've', 0, N'DTV601              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV602              ', N'DTV60P              ', N'Vé Bảo tàng Hậu Giang', N've', 40000, N'DTV602              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV603              ', N'DTV60P              ', N'Vé Đền / chùa cổ Hậu Giang', N've', 60000, N'DTV603              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV604              ', N'DTV60P              ', N'Vé Công viên văn hóa Hậu Giang', N've', 80000, N'DTV604              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV605              ', N'DTV60P              ', N'Vé Chợ đêm Hậu Giang', N've', 100000, N'DTV605              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP601              ', N'DTP60P              ', N'Vé Công viên giải trí Hậu Giang', N've', 120000, N'DTP601              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP602              ', N'DTP60P              ', N'Vé Khu vui chơi gia đình Hậu Giang', N've', 160000, N'DTP602              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP603              ', N'DTP60P              ', N'Vé Công viên nước Hậu Giang', N've', 200000, N'DTP603              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP604              ', N'DTP60P              ', N'Vé Khu thể thao Hậu Giang', N've', 240000, N'DTP604              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP605              ', N'DTP60P              ', N'Vé Quảng trường lễ hội Hậu Giang', N've', 280000, N'DTP605              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF601              ', N'DTF601              ', N'Suất ăn Nhà hàng đặc sản Hậu Giang', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF602              ', N'DTF602              ', N'Suất ăn Quán cơm quê Hậu Giang', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF603              ', N'DTF603              ', N'Suất ăn Hải sản / vườn Hậu Giang', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF604              ', N'DTF604              ', N'Suất ăn Lẩu nướng Hậu Giang', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF605              ', N'DTF605              ', N'Suất ăn Quán ăn gia đình Hậu Giang 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR6011             ', N'DTH601              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6012             ', N'DTH601              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6013             ', N'DTH601              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6021             ', N'DTH602              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6022             ', N'DTH602              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6023             ', N'DTH602              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6031             ', N'DTH603              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6032             ', N'DTH603              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6033             ', N'DTH603              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6041             ', N'DTH604              ', N'Phòng tiêu chuẩn', N'dem', 730000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6042             ', N'DTH604              ', N'Phòng Deluxe', N'dem', 1250000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6043             ', N'DTH604              ', N'Phòng Suite', N'dem', 2100000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV611              ', N'DTV61P              ', N'Vé Trung tâm thành phố Sóc Trăng', N've', 0, N'DTV611              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV612              ', N'DTV61P              ', N'Vé Bảo tàng Sóc Trăng', N've', 40000, N'DTV612              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV613              ', N'DTV61P              ', N'Vé Đền / chùa cổ Sóc Trăng', N've', 60000, N'DTV613              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV614              ', N'DTV61P              ', N'Vé Công viên văn hóa Sóc Trăng', N've', 80000, N'DTV614              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV615              ', N'DTV61P              ', N'Vé Chợ đêm Sóc Trăng', N've', 100000, N'DTV615              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP611              ', N'DTP61P              ', N'Vé Công viên giải trí Sóc Trăng', N've', 120000, N'DTP611              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP612              ', N'DTP61P              ', N'Vé Khu vui chơi gia đình Sóc Trăng', N've', 160000, N'DTP612              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP613              ', N'DTP61P              ', N'Vé Công viên nước Sóc Trăng', N've', 200000, N'DTP613              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP614              ', N'DTP61P              ', N'Vé Khu thể thao Sóc Trăng', N've', 240000, N'DTP614              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP615              ', N'DTP61P              ', N'Vé Quảng trường lễ hội Sóc Trăng', N've', 280000, N'DTP615              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF611              ', N'DTF611              ', N'Suất ăn Nhà hàng đặc sản Sóc Trăng', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF612              ', N'DTF612              ', N'Suất ăn Quán cơm quê Sóc Trăng', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF613              ', N'DTF613              ', N'Suất ăn Hải sản / vườn Sóc Trăng', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF614              ', N'DTF614              ', N'Suất ăn Lẩu nướng Sóc Trăng', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF615              ', N'DTF615              ', N'Suất ăn Quán ăn gia đình Sóc Trăng 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR6111             ', N'DTH611              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6112             ', N'DTH611              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6113             ', N'DTH611              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6121             ', N'DTH612              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6122             ', N'DTH612              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6123             ', N'DTH612              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6131             ', N'DTH613              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6132             ', N'DTH613              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6133             ', N'DTH613              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6141             ', N'DTH614              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6142             ', N'DTH614              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6143             ', N'DTH614              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6151             ', N'DTH615              ', N'Phòng tiêu chuẩn', N'dem', 750000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6152             ', N'DTH615              ', N'Phòng Deluxe', N'dem', 1300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6153             ', N'DTH615              ', N'Phòng Suite', N'dem', 2200000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV621              ', N'DTV62P              ', N'Vé Trung tâm thành phố Bạc Liêu', N've', 0, N'DTV621              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV622              ', N'DTV62P              ', N'Vé Bảo tàng Bạc Liêu', N've', 40000, N'DTV622              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV623              ', N'DTV62P              ', N'Vé Đền / chùa cổ Bạc Liêu', N've', 60000, N'DTV623              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV624              ', N'DTV62P              ', N'Vé Công viên văn hóa Bạc Liêu', N've', 80000, N'DTV624              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV625              ', N'DTV62P              ', N'Vé Chợ đêm Bạc Liêu', N've', 100000, N'DTV625              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP621              ', N'DTP62P              ', N'Vé Công viên giải trí Bạc Liêu', N've', 120000, N'DTP621              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP622              ', N'DTP62P              ', N'Vé Khu vui chơi gia đình Bạc Liêu', N've', 160000, N'DTP622              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP623              ', N'DTP62P              ', N'Vé Công viên nước Bạc Liêu', N've', 200000, N'DTP623              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP624              ', N'DTP62P              ', N'Vé Khu thể thao Bạc Liêu', N've', 240000, N'DTP624              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP625              ', N'DTP62P              ', N'Vé Quảng trường lễ hội Bạc Liêu', N've', 280000, N'DTP625              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF621              ', N'DTF621              ', N'Suất ăn Nhà hàng đặc sản Bạc Liêu', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF622              ', N'DTF622              ', N'Suất ăn Quán cơm quê Bạc Liêu', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF623              ', N'DTF623              ', N'Suất ăn Hải sản / vườn Bạc Liêu', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF624              ', N'DTF624              ', N'Suất ăn Lẩu nướng Bạc Liêu', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF625              ', N'DTF625              ', N'Suất ăn Quán ăn gia đình Bạc Liêu 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR6211             ', N'DTH621              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6212             ', N'DTH621              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6213             ', N'DTH621              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6221             ', N'DTH622              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6222             ', N'DTH622              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #48 ===== */
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT * FROM (VALUES
+    (N'SPR6223             ', N'DTH622              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6231             ', N'DTH623              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6232             ', N'DTH623              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6233             ', N'DTH623              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6241             ', N'DTH624              ', N'Phòng tiêu chuẩn', N'dem', 770000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6242             ', N'DTH624              ', N'Phòng Deluxe', N'dem', 1350000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6243             ', N'DTH624              ', N'Phòng Suite', N'dem', 2300000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPV631              ', N'DTV63P              ', N'Vé Trung tâm thành phố Cà Mau', N've', 0, N'DTV631              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV632              ', N'DTV63P              ', N'Vé Bảo tàng Cà Mau', N've', 40000, N'DTV632              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV633              ', N'DTV63P              ', N'Vé Đền / chùa cổ Cà Mau', N've', 60000, N'DTV633              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV634              ', N'DTV63P              ', N'Vé Công viên văn hóa Cà Mau', N've', 80000, N'DTV634              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPV635              ', N'DTV63P              ', N'Vé Chợ đêm Cà Mau', N've', 100000, N'DTV635              ', N'Vé tham quan (có thể 0đ)', N'HoatDong            '),
+    (N'SPP631              ', N'DTP63P              ', N'Vé Công viên giải trí Cà Mau', N've', 120000, N'DTP631              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP632              ', N'DTP63P              ', N'Vé Khu vui chơi gia đình Cà Mau', N've', 160000, N'DTP632              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP633              ', N'DTP63P              ', N'Vé Công viên nước Cà Mau', N've', 200000, N'DTP633              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP634              ', N'DTP63P              ', N'Vé Khu thể thao Cà Mau', N've', 240000, N'DTP634              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPP635              ', N'DTP63P              ', N'Vé Quảng trường lễ hội Cà Mau', N've', 280000, N'DTP635              ', N'Vé khu vui chơi', N'HoatDong            '),
+    (N'SPF631              ', N'DTF631              ', N'Suất ăn Nhà hàng đặc sản Cà Mau', N'suat', 120000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF632              ', N'DTF632              ', N'Suất ăn Quán cơm quê Cà Mau', N'suat', 150000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF633              ', N'DTF633              ', N'Suất ăn Hải sản / vườn Cà Mau', N'suat', 180000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF634              ', N'DTF634              ', N'Suất ăn Lẩu nướng Cà Mau', N'suat', 210000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPF635              ', N'DTF635              ', N'Suất ăn Quán ăn gia đình Cà Mau 2', N'suat', 240000, NULL, N'Bữa ăn đặc sản', N'HoatDong            '),
+    (N'SPR6311             ', N'DTH631              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6312             ', N'DTH631              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6313             ', N'DTH631              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6321             ', N'DTH632              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6322             ', N'DTH632              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6323             ', N'DTH632              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6331             ', N'DTH633              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6332             ', N'DTH633              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6333             ', N'DTH633              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6341             ', N'DTH634              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6342             ', N'DTH634              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6343             ', N'DTH634              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6351             ', N'DTH635              ', N'Phòng tiêu chuẩn', N'dem', 650000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6352             ', N'DTH635              ', N'Phòng Deluxe', N'dem', 1400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            '),
+    (N'SPR6353             ', N'DTH635              ', N'Phòng Suite', N'dem', 2400000, NULL, N'Giá 1 đêm, gồm ăn sáng', N'HoatDong            ')
+) v(MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.SanPhamDoiTac x WHERE x.MaSanPham = v.MaSanPham);
+GO
+
+/* ===== 018_TinhThanh_SampleCatalog.sql #49 ===== */
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN01' WHERE MaDThamQuan IN (N'DT001', N'DT002') AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN15' WHERE TenDiaDanh LIKE N'%Sa Pa%' AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN21' WHERE TenDiaDanh IN (N'Tràng An', N'Tam Cốc') AND MaTinh IS NULL;
+UPDATE dbo.DoiTac SET MaTinh = N'TN01' WHERE MaDoiTac = N'DTAC001' AND MaTinh IS NULL;
+GO
+
+/* ===== 020_QuyenTaiKhoan.sql #3 ===== */
+DECLARE @Modules TABLE (ChucNang nvarchar(40) NOT NULL PRIMARY KEY);
+INSERT INTO @Modules (ChucNang)
+VALUES (N'TongQuan'), (N'Tour'), (N'Booking'), (N'UuDai'),
+       (N'DiemThamQuan'), (N'DoiTac'), (N'ThietKe'), (N'TaiKhoan');
+
+/* Admin sẵn có: toàn quyền mọi chức năng. */
+INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
+SELECT
+    CONVERT(nchar(20), LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 20)),
+    u.MaUser,
+    m.ChucNang,
+    1, 1, 1, 1
+FROM dbo.NguoiSuDung u
+INNER JOIN dbo.VaiTro v ON v.MaVaiTro = u.MaVaiTro
+CROSS JOIN @Modules m
+WHERE RTRIM(v.TenVaiTro) = N'Admin'
+  AND NOT EXISTS (
+        SELECT 1 FROM dbo.QuyenNhanVien q
+        WHERE q.MaUser = u.MaUser AND q.ChucNang = m.ChucNang);
+
+/* Sale sẵn có: toàn quyền nghiệp vụ, không quản lý tài khoản. */
+INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
+SELECT
+    CONVERT(nchar(20), LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 20)),
+    u.MaUser,
+    m.ChucNang,
+    CASE WHEN m.ChucNang = N'TaiKhoan' THEN 0 ELSE 1 END,
+    CASE WHEN m.ChucNang = N'TaiKhoan' THEN 0 ELSE 1 END,
+    CASE WHEN m.ChucNang = N'TaiKhoan' THEN 0 ELSE 1 END,
+    CASE WHEN m.ChucNang = N'TaiKhoan' THEN 0 ELSE 1 END
+FROM dbo.NguoiSuDung u
+INNER JOIN dbo.VaiTro v ON v.MaVaiTro = u.MaVaiTro
+CROSS JOIN @Modules m
+WHERE RTRIM(v.TenVaiTro) = N'Sale'
+  AND NOT EXISTS (
+        SELECT 1 FROM dbo.QuyenNhanVien q
+        WHERE q.MaUser = u.MaUser AND q.ChucNang = m.ChucNang);
+GO
+
+/* ===== 022_SeedCatalogMoRong.sql #1 ===== */
+/* Bổ sung tour đang bán, lịch khởi hành (có sức chứa), ưu đãi.
+   Không đụng mật khẩu seed. Ảnh tour để trống — upload sau trên trang admin.
+   Chạy sau 021. Idempotent: mỗi dòng tự bỏ qua nếu đã có.
+   Tương thích KM_Tour.STT identity (Azure) và không identity (script 001). */
+
+SET NOCOUNT ON;
+
+/* Sức chứa các lịch đã có (016 thêm cột SoCho). */
+UPDATE dbo.LichKhoiHanh SET SoCho = 30 WHERE MaKhoiHanh = N'KH001' AND SoCho IS NULL;
+UPDATE dbo.LichKhoiHanh SET SoCho = 25 WHERE MaKhoiHanh = N'KH002' AND SoCho IS NULL;
+UPDATE dbo.LichKhoiHanh SET SoCho = 28 WHERE MaKhoiHanh IN (N'KH003', N'KH004') AND SoCho IS NULL;
+UPDATE dbo.LichKhoiHanh SET SoCho = 22 WHERE MaKhoiHanh IN (N'KH005', N'KH006') AND SoCho IS NULL;
+UPDATE dbo.LichKhoiHanh SET SoCho = 26 WHERE MaKhoiHanh IN (N'KH007', N'KH008') AND SoCho IS NULL;
+UPDATE dbo.LichKhoiHanh SET SoCho = 24 WHERE MaKhoiHanh = N'KH009' AND SoCho IS NULL;
+UPDATE dbo.LichKhoiHanh SET SoCho = 30 WHERE MaKhoiHanh = N'KH010' AND SoCho IS NULL;
+UPDATE dbo.LichKhoiHanh SET SoCho = 20 WHERE MaKhoiHanh IN (N'KH011', N'KH012') AND SoCho IS NULL;
+UPDATE dbo.LichKhoiHanh SET SoCho = 26 WHERE MaKhoiHanh = N'KH013' AND SoCho IS NULL;
+UPDATE dbo.LichKhoiHanh SET SoCho = 28 WHERE MaKhoiHanh IN (N'KH014', N'KH015') AND SoCho IS NULL;
+
+INSERT INTO dbo.Tour (MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai)
+SELECT v.MaTour, v.TenTour, v.Mota, v.ThoiGian, v.DieuKhoan, v.GiaTour, v.SLKhach, v.SLHuongDanVien, v.LoaiTour, v.TrangThai
+FROM (VALUES
+    (N'TOUR010', N'Hà Giang mùa vàng', N'Bốn ngày cao nguyên đá: đèo Mã Pí Lèng, sông Nho Quế, nhà trình tường. Phù hợp nhóm bạn thích phượt nhẹ.', 4, N'Gồm khách sạn/homestay, xe, bữa chính, vé thắng cảnh. Không gồm vé máy bay và thuê xe máy tự túc.', 5800000, 18, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR011', N'Mai Châu - Pù Luông', N'Ba ngày thung lũng Hòa Bình: nhà sàn, ruộng bậc thang, suối. Nhịp chậm, nhiều khoảng xanh.', 3, N'Gồm homestay, xe, bữa chính, trải nghiệm bản. Không gồm vé máy bay.', 3200000, 22, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR012', N'Đà Nẵng - Bà Nà - Sơn Trà', N'Ba ngày Đà Nẵng: Bà Nà Hills, bán đảo Sơn Trà, biển Mỹ Khê. Gia đình và cặp đôi.', 3, N'Gồm khách sạn, xe, vé Bà Nà, bữa chính. Không gồm vé máy bay.', 4900000, 28, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR013', N'Quy Nhơn - Kỳ Co', N'Ba ngày biển Bình Định: Kỳ Co, Eo Gió, tháp Chăm. Nước trong, ít đông hơn Nha Trang.', 3, N'Gồm khách sạn, xe, cano Kỳ Co, bữa chính. Không gồm vé máy bay.', 3600000, 24, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR014', N'Phan Thiết - Mũi Né', N'Ba ngày đồi cát và biển: Mũi Né, bàu Sen, hải sản đêm. Nắng, gió, phù hợp gia đình.', 3, N'Gồm khách sạn, xe, điểm check-in, bữa chính. Không gồm vé máy bay.', 3400000, 26, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR015', N'Vũng Tàu cuối tuần', N'Hai ngày biển gần Sài Gòn: Bãi Sau, tượng Chúa, hải sản. Đi nhanh, về kịp thứ Hai.', 2, N'Gồm khách sạn, xe khứ hồi, bữa chính. Không gồm vé cáp treo.', 2200000, 32, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR016', N'Tây Ninh - Núi Bà Đen', N'Hai ngày hành hương: cáp treo Núi Bà, Tòa Thánh Tây Ninh, bánh tráng phơi sương.', 2, N'Gồm khách sạn, xe, vé cáp treo, bữa chính.', 1900000, 30, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR017', N'Sài Gòn - Củ Chi', N'Hai ngày đô thị: Dinh Độc Lập, chợ Bến Thành, địa đạo Củ Chi. Phù hợp khách lần đầu.', 2, N'Gồm khách sạn trung tâm, xe, vé điểm đến, bữa chính.', 2500000, 28, 1, N'Chuan', N'HoatDong'),
+    (N'TOUR018', N'Mộc Châu cao nguyên sữa', N'Ba ngày Sơn La: đồi chè, hoa mận, thác Dải Yếm. Se lạnh, nhiều ảnh.', 3, N'Gồm khách sạn, xe giường nằm, bữa chính, điểm check-in. Nên mang áo ấm.', 3900000, 22, 1, N'Chuan', N'HoatDong')
+) v(MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour);
+
+INSERT INTO dbo.LichTrinh (MaLichTrinh, MaTour, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThoiGianDuKien, Mota)
+SELECT v.MaLichTrinh, v.MaTour, v.NgayThu, v.ThuTuTrongNgay, v.MaDThamQuan, v.MaSanPham, v.SoLuong, v.DonGia, v.ThoiGianDuKien, v.Mota
+FROM (VALUES
+    (N'LT031', N'TOUR010', 1, 1, N'DTV131', CAST(NULL AS nchar(20)), 1, 0, DATEADD(HOUR, 8, GETUTCDATE()), N'Tới Hà Giang, dạo phố cổ và chợ đêm'),
+    (N'LT032', N'TOUR010', 2, 1, N'DTV132', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Đèo Mã Pí Lèng, sông Nho Quế'),
+    (N'LT033', N'TOUR010', 3, 1, N'DTV133', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Nhà trình tường, cao nguyên đá'),
+    (N'LT034', N'TOUR010', 4, 1, N'DTV135', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 3, GETUTCDATE()), N'Trả phòng, về Hà Nội'),
+    (N'LT035', N'TOUR011', 1, 1, N'DTV201', CAST(NULL AS nchar(20)), 1, 0, DATEADD(HOUR, 9, GETUTCDATE()), N'Về Mai Châu, nhà sàn tối lửa'),
+    (N'LT036', N'TOUR011', 2, 1, N'DTV202', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Pù Luông, ruộng bậc thang'),
+    (N'LT037', N'TOUR011', 3, 1, N'DTV203', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Suối, về Hà Nội'),
+    (N'LT038', N'TOUR012', 1, 1, N'DTV324', CAST(NULL AS nchar(20)), 1, 0, DATEADD(HOUR, 14, GETUTCDATE()), N'Nhận phòng, tắm biển Mỹ Khê'),
+    (N'LT039', N'TOUR012', 2, 1, N'DTV322', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Cả ngày Bà Nà Hills'),
+    (N'LT040', N'TOUR012', 3, 1, N'DTV321', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Sơn Trà, chùa Linh Ứng, tiễn sân bay'),
+    (N'LT041', N'TOUR013', 1, 1, N'DTV351', CAST(NULL AS nchar(20)), 1, 0, DATEADD(HOUR, 14, GETUTCDATE()), N'Quy Nhơn, dạo biển Hoàng Hậu'),
+    (N'LT042', N'TOUR013', 2, 1, N'DTV352', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Cano Kỳ Co - Eo Gió'),
+    (N'LT043', N'TOUR013', 3, 1, N'DTV353', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Tháp Đôi, tiễn'),
+    (N'LT044', N'TOUR014', 1, 1, N'DTV391', CAST(NULL AS nchar(20)), 1, 0, DATEADD(HOUR, 14, GETUTCDATE()), N'Nhận phòng Mũi Né, biển chiều'),
+    (N'LT045', N'TOUR014', 2, 1, N'DTV392', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Đồi cát bay, suối Tiên'),
+    (N'LT046', N'TOUR014', 3, 1, N'DTV395', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Hải sản, về'),
+    (N'LT047', N'TOUR015', 1, 1, N'DTV481', CAST(NULL AS nchar(20)), 1, 0, DATEADD(HOUR, 8, GETUTCDATE()), N'Xe Sài Gòn - Vũng Tàu, Bãi Sau'),
+    (N'LT048', N'TOUR015', 2, 1, N'DTV482', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Tượng Chúa, hải sản, về Sài Gòn'),
+    (N'LT049', N'TOUR016', 1, 1, N'DTV491', CAST(NULL AS nchar(20)), 1, 0, DATEADD(HOUR, 7, GETUTCDATE()), N'Cáp treo Núi Bà Đen'),
+    (N'LT050', N'TOUR016', 2, 1, N'DTV493', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Tòa Thánh, bánh tráng, về'),
+    (N'LT051', N'TOUR017', 1, 1, N'DTV453', CAST(NULL AS nchar(20)), 1, 0, DATEADD(HOUR, 9, GETUTCDATE()), N'Dinh Độc Lập, Nhà thờ Đức Bà, Bến Thành'),
+    (N'LT052', N'TOUR017', 2, 1, N'DTV451', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Địa đạo Củ Chi, phố đi bộ'),
+    (N'LT053', N'TOUR018', 1, 1, N'DTV191', CAST(NULL AS nchar(20)), 1, 0, DATEADD(HOUR, 8, GETUTCDATE()), N'Lên Mộc Châu, đồi chè chiều'),
+    (N'LT054', N'TOUR018', 2, 1, N'DTV192', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 1, GETUTCDATE()), N'Thác Dải Yếm, rừng thông'),
+    (N'LT055', N'TOUR018', 3, 1, N'DTV195', CAST(NULL AS nchar(20)), 1, 0, DATEADD(DAY, 2, GETUTCDATE()), N'Chợ phiên, xuống núi')
+) v(MaLichTrinh, MaTour, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThoiGianDuKien, Mota)
+WHERE EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+  AND EXISTS (SELECT 1 FROM dbo.DiemThamQuan d WHERE d.MaDThamQuan = v.MaDThamQuan)
+  AND NOT EXISTS (SELECT 1 FROM dbo.LichTrinh x WHERE x.MaLichTrinh = v.MaLichTrinh);
+
+INSERT INTO dbo.LichKhoiHanh (MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, DiaDiem, SoCho)
+SELECT v.MaKhoiHanh, v.MaTour, v.NgayKhoiHanh, v.NgayKetThuc, v.DiaDiem, v.SoCho
+FROM (VALUES
+    (N'KH016', N'TOUR010', DATEADD(DAY, 21, GETUTCDATE()), DATEADD(DAY, 24, GETUTCDATE()), N'Hà Nội', 18),
+    (N'KH017', N'TOUR010', DATEADD(DAY, 49, GETUTCDATE()), DATEADD(DAY, 52, GETUTCDATE()), N'Hà Nội', 18),
+    (N'KH018', N'TOUR011', DATEADD(DAY, 14, GETUTCDATE()), DATEADD(DAY, 16, GETUTCDATE()), N'Hà Nội', 22),
+    (N'KH019', N'TOUR011', DATEADD(DAY, 36, GETUTCDATE()), DATEADD(DAY, 38, GETUTCDATE()), N'Hà Nội', 22),
+    (N'KH020', N'TOUR012', DATEADD(DAY, 11, GETUTCDATE()), DATEADD(DAY, 13, GETUTCDATE()), N'Đà Nẵng', 28),
+    (N'KH021', N'TOUR012', DATEADD(DAY, 33, GETUTCDATE()), DATEADD(DAY, 35, GETUTCDATE()), N'Đà Nẵng', 28),
+    (N'KH022', N'TOUR013', DATEADD(DAY, 17, GETUTCDATE()), DATEADD(DAY, 19, GETUTCDATE()), N'Quy Nhơn', 24),
+    (N'KH023', N'TOUR013', DATEADD(DAY, 41, GETUTCDATE()), DATEADD(DAY, 43, GETUTCDATE()), N'Quy Nhơn', 24),
+    (N'KH024', N'TOUR014', DATEADD(DAY, 13, GETUTCDATE()), DATEADD(DAY, 15, GETUTCDATE()), N'Phan Thiết', 26),
+    (N'KH025', N'TOUR014', DATEADD(DAY, 40, GETUTCDATE()), DATEADD(DAY, 42, GETUTCDATE()), N'Phan Thiết', 26),
+    (N'KH026', N'TOUR015', DATEADD(DAY, 8, GETUTCDATE()), DATEADD(DAY, 9, GETUTCDATE()), N'TP. Hồ Chí Minh', 32),
+    (N'KH027', N'TOUR015', DATEADD(DAY, 22, GETUTCDATE()), DATEADD(DAY, 23, GETUTCDATE()), N'TP. Hồ Chí Minh', 32),
+    (N'KH028', N'TOUR016', DATEADD(DAY, 9, GETUTCDATE()), DATEADD(DAY, 10, GETUTCDATE()), N'TP. Hồ Chí Minh', 30),
+    (N'KH029', N'TOUR016', DATEADD(DAY, 30, GETUTCDATE()), DATEADD(DAY, 31, GETUTCDATE()), N'TP. Hồ Chí Minh', 30),
+    (N'KH030', N'TOUR017', DATEADD(DAY, 7, GETUTCDATE()), DATEADD(DAY, 8, GETUTCDATE()), N'TP. Hồ Chí Minh', 28),
+    (N'KH031', N'TOUR017', DATEADD(DAY, 28, GETUTCDATE()), DATEADD(DAY, 29, GETUTCDATE()), N'TP. Hồ Chí Minh', 28),
+    (N'KH032', N'TOUR018', DATEADD(DAY, 19, GETUTCDATE()), DATEADD(DAY, 21, GETUTCDATE()), N'Hà Nội', 22),
+    (N'KH033', N'TOUR018', DATEADD(DAY, 47, GETUTCDATE()), DATEADD(DAY, 49, GETUTCDATE()), N'Hà Nội', 22),
+    (N'KH034', N'TOUR001', DATEADD(DAY, 70, GETUTCDATE()), DATEADD(DAY, 72, GETUTCDATE()), N'Hà Nội', 30),
+    (N'KH035', N'TOUR002', DATEADD(DAY, 60, GETUTCDATE()), DATEADD(DAY, 62, GETUTCDATE()), N'Đà Nẵng', 25),
+    (N'KH036', N'TOUR006', DATEADD(DAY, 55, GETUTCDATE()), DATEADD(DAY, 58, GETUTCDATE()), N'Nha Trang', 30),
+    (N'KH037', N'TOUR009', DATEADD(DAY, 26, GETUTCDATE()), DATEADD(DAY, 28, GETUTCDATE()), N'Đà Lạt', 28)
+) v(MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, DiaDiem, SoCho)
+WHERE EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+  AND NOT EXISTS (SELECT 1 FROM dbo.LichKhoiHanh x WHERE x.MaKhoiHanh = v.MaKhoiHanh);
+
+IF NOT EXISTS (SELECT 1 FROM dbo.NhomKhuyenMai WHERE MaNhomKM = N'NKM002')
+    INSERT INTO dbo.NhomKhuyenMai (MaNhomKM, TenNhomKM) VALUES (N'NKM002', N'Ưu đãi theo mùa');
+
+INSERT INTO dbo.KhuyenMai (MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi, GiamGia, CoCongDon, TrangThai)
+SELECT v.MaKM, v.MaNhomKM, v.TenKM, v.MaCode, v.NgayBD, v.NgayKT, v.DonVi, v.GiamGia, v.CoCongDon, v.TrangThai
+FROM (VALUES
+    (N'KM004', N'NKM001', N'Chào khách mới', N'WELCOME15', DATEADD(DAY, -3, GETUTCDATE()), DATEADD(DAY, 90, GETUTCDATE()), N'%', 15, 0, N'HoatDong'),
+    (N'KM005', N'NKM002', N'Gia đình cuối tuần', N'FAMILY08', DATEADD(DAY, -1, GETUTCDATE()), DATEADD(DAY, 60, GETUTCDATE()), N'%', 8, 0, N'HoatDong'),
+    (N'KM006', N'NKM002', N'Đặt sớm giảm tiền mặt', N'EARLY500', DATEADD(DAY, -5, GETUTCDATE()), DATEADD(DAY, 75, GETUTCDATE()), N'VND', 500000, 0, N'HoatDong'),
+    (N'KM007', N'NKM002', N'Cao nguyên se lạnh mở rộng', N'HIGHLAND', DATEADD(DAY, -2, GETUTCDATE()), DATEADD(DAY, 50, GETUTCDATE()), N'%', 10, 0, N'HoatDong')
+) v(MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi, GiamGia, CoCongDon, TrangThai)
+WHERE EXISTS (SELECT 1 FROM dbo.NhomKhuyenMai n WHERE n.MaNhomKM = v.MaNhomKM)
+  AND NOT EXISTS (SELECT 1 FROM dbo.KhuyenMai x WHERE x.MaKM = v.MaKM);
+
+INSERT INTO dbo.DieuKienKM (MaDK, MaKhuyenMai, DonToiThieu, LanDatDau, SoLuong)
+SELECT v.MaDK, v.MaKhuyenMai, v.DonToiThieu, v.LanDatDau, v.SoLuong
+FROM (VALUES
+    (N'DK002', N'KM004', 2000000, CAST(1 AS bit), 200),
+    (N'DK003', N'KM005', 4000000, CAST(0 AS bit), 80),
+    (N'DK004', N'KM006', 5000000, CAST(0 AS bit), 50),
+    (N'DK005', N'KM007', 3000000, CAST(0 AS bit), 100)
+) v(MaDK, MaKhuyenMai, DonToiThieu, LanDatDau, SoLuong)
+WHERE EXISTS (SELECT 1 FROM dbo.KhuyenMai k WHERE k.MaKM = v.MaKhuyenMai)
+  AND NOT EXISTS (SELECT 1 FROM dbo.DieuKienKM x WHERE x.MaDK = v.MaDK);
+
+IF COLUMNPROPERTY(OBJECT_ID(N'dbo.KM_Tour'), N'STT', 'IsIdentity') = 1
+    INSERT INTO dbo.KM_Tour (MaKhuyenMai, MaTour)
+    SELECT v.MaKhuyenMai, v.MaTour
+    FROM (VALUES
+        (N'KM002', N'TOUR007'),
+        (N'KM003', N'TOUR009'),
+        (N'KM004', N'TOUR001'),
+        (N'KM004', N'TOUR002'),
+        (N'KM005', N'TOUR006'),
+        (N'KM005', N'TOUR012'),
+        (N'KM005', N'TOUR015'),
+        (N'KM006', N'TOUR010'),
+        (N'KM006', N'TOUR007'),
+        (N'KM007', N'TOUR003'),
+        (N'KM007', N'TOUR018'),
+        (N'KM007', N'TOUR011'),
+        (N'KM001', N'TOUR004'),
+        (N'KM001', N'TOUR005')
+    ) v(MaKhuyenMai, MaTour)
+    WHERE EXISTS (SELECT 1 FROM dbo.KhuyenMai k WHERE k.MaKM = v.MaKhuyenMai)
+      AND EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+      AND NOT EXISTS (
+          SELECT 1 FROM dbo.KM_Tour x
+          WHERE x.MaKhuyenMai = v.MaKhuyenMai AND x.MaTour = v.MaTour);
+ELSE
+    INSERT INTO dbo.KM_Tour (STT, MaKhuyenMai, MaTour)
+    SELECT ISNULL((SELECT MAX(STT) FROM dbo.KM_Tour), 0)
+           + ROW_NUMBER() OVER (ORDER BY v.MaKhuyenMai, v.MaTour),
+           v.MaKhuyenMai, v.MaTour
+    FROM (VALUES
+        (N'KM002', N'TOUR007'),
+        (N'KM003', N'TOUR009'),
+        (N'KM004', N'TOUR001'),
+        (N'KM004', N'TOUR002'),
+        (N'KM005', N'TOUR006'),
+        (N'KM005', N'TOUR012'),
+        (N'KM005', N'TOUR015'),
+        (N'KM006', N'TOUR010'),
+        (N'KM006', N'TOUR007'),
+        (N'KM007', N'TOUR003'),
+        (N'KM007', N'TOUR018'),
+        (N'KM007', N'TOUR011'),
+        (N'KM001', N'TOUR004'),
+        (N'KM001', N'TOUR005')
+    ) v(MaKhuyenMai, MaTour)
+    WHERE EXISTS (SELECT 1 FROM dbo.KhuyenMai k WHERE k.MaKM = v.MaKhuyenMai)
+      AND EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+      AND NOT EXISTS (
+          SELECT 1 FROM dbo.KM_Tour x
+          WHERE x.MaKhuyenMai = v.MaKhuyenMai AND x.MaTour = v.MaTour);
+
+INSERT INTO dbo.DanhGiaTour (MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia, NhanXet)
+SELECT v.MaDanhGiaTour, v.MaUser, v.MaTour, v.ThoiGian, v.SaoDanhGia, v.NhanXet
+FROM (VALUES
+    (N'DG007', N'USRKH000001', N'TOUR006', DATEADD(DAY, -18, GETUTCDATE()), 5, N'Biển Nha Trang đẹp, khách sạn gần bãi. VinWonders đông nhưng vui.'),
+    (N'DG008', N'USRKH000002', N'TOUR009', DATEADD(DAY, -10, GETUTCDATE()), 4, N'Đà Lạt se lạnh đúng hẹn. Đồi chè Cầu Đất nên đi sớm.'),
+    (N'DG009', N'USRKH000001', N'TOUR005', DATEADD(DAY, -25, GETUTCDATE()), 5, N'Huế chậm và đáng. Thuyền sông Hương lúc hoàng hôn rất yên.'),
+    (N'DG010', N'USRKH000002', N'TOUR008', DATEADD(DAY, -7, GETUTCDATE()), 5, N'Chợ nổi Cái Răng phải đi lúc sáng. Ăn hủ tiếu trên ghe đáng nhớ.')
+) v(MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia, NhanXet)
+WHERE EXISTS (SELECT 1 FROM dbo.NguoiSuDung u WHERE u.MaUser = v.MaUser)
+  AND EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour)
+  AND NOT EXISTS (SELECT 1 FROM dbo.DanhGiaTour x WHERE x.MaDanhGiaTour = v.MaDanhGiaTour);
+GO
+
+/* ===== 023_TuThietKeChatPlanner.sql #8 ===== */
+-- Alias thành phố / tên hay gõ (không phân biệt hoa thường khi resolve ở C#)
+MERGE dbo.TinhThanhAlias AS t
+USING (VALUES
+    (N'TN01                ', N'Hà Nội'),
+    (N'TN01                ', N'Ha Noi'),
+    (N'TN01                ', N'Hanoi'),
+    (N'TN01                ', N'Thủ đô'),
+    (N'TN03                ', N'Hạ Long'),
+    (N'TN03                ', N'Ha Long'),
+    (N'TN03                ', N'Vịnh Hạ Long'),
+    (N'TN15                ', N'Sa Pa'),
+    (N'TN15                ', N'Sapa'),
+    (N'TN32                ', N'Đà Nẵng'),
+    (N'TN32                ', N'Da Nang'),
+    (N'TN33                ', N'Hội An'),
+    (N'TN33                ', N'Hoi An'),
+    (N'TN31                ', N'Huế'),
+    (N'TN31                ', N'Hue'),
+    (N'TN31                ', N'Thừa Thiên Huế'),
+    (N'TN37                ', N'Nha Trang'),
+    (N'TN37                ', N'Nhatrang'),
+    (N'TN37                ', N'Khánh Hòa'),
+    (N'TN45                ', N'Sài Gòn'),
+    (N'TN45                ', N'Sai Gon'),
+    (N'TN45                ', N'TP.HCM'),
+    (N'TN45                ', N'TPHCM'),
+    (N'TN45                ', N'Hồ Chí Minh'),
+    (N'TN45                ', N'Ho Chi Minh'),
+    (N'TN44                ', N'Đà Lạt'),
+    (N'TN44                ', N'Da Lat'),
+    (N'TN44                ', N'Dalat'),
+    (N'TN58                ', N'Phú Quốc'),
+    (N'TN58                ', N'Phu Quoc'),
+    (N'TN48                ', N'Vũng Tàu'),
+    (N'TN48                ', N'Vung Tau')
+) AS s(MaTinh, TenAlias)
+ON t.TenAlias = s.TenAlias
+WHEN NOT MATCHED THEN INSERT (MaTinh, TenAlias) VALUES (s.MaTinh, s.TenAlias);
+GO
+
+/* ===== 023_TuThietKeChatPlanner.sql #9 ===== */
+-- Backfill MaTinh cho điểm/đối tác seed cũ (014) — đây là gốc lỗi Nha Trang → Hà Nội
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN37                '
+ WHERE (TenDiaDanh LIKE N'%Nha Trang%' OR TenDiaDanh LIKE N'%VinWonders Nha Trang%')
+   AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN03                '
+ WHERE (TenDiaDanh LIKE N'%Hạ Long%' OR TenDiaDanh LIKE N'%Ha Long%')
+   AND (MaTinh IS NULL OR MaTinh = N'TN01                ');
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN15                '
+ WHERE TenDiaDanh LIKE N'%Sa Pa%' AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN33                '
+ WHERE TenDiaDanh LIKE N'%Hội An%' AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN58                '
+ WHERE TenDiaDanh LIKE N'%Phú Quốc%' AND MaTinh IS NULL;
+GO
+
+/* ===== 023_TuThietKeChatPlanner.sql #10 ===== */
+-- Ma trận phút cho các cặp hay demo. Cặp khác: C# ước theo miền.
+-- PhuongTien padded by C# PadTo20; store trimmed then pad here.
+DECLARE @pairs TABLE (Di nchar(20), Den nchar(20), Bay int, Tau int, Xe int, May int, GiaBay int, GiaXe int);
+INSERT INTO @pairs VALUES
+ (N'TN01                ', N'TN37                ', 210, 720, 720, 840, 1800000, 450000), -- HN ↔ Nha Trang
+ (N'TN01                ', N'TN32                ', 195, 960, 960, 1080, 1600000, 500000), -- HN ↔ Đà Nẵng
+ (N'TN01                ', N'TN45                ', 240, 1800, 2100, 2400, 2200000, 800000), -- HN ↔ HCM
+ (N'TN01                ', N'TN03                ',  90, 240, 240, 270,  0, 180000), -- HN ↔ Hạ Long
+ (N'TN01                ', N'TN15                ', 210, 480, 420, 480,  0, 350000), -- HN ↔ Sapa
+ (N'TN01                ', N'TN31                ', 195, 780, 780, 900, 1500000, 480000), -- HN ↔ Huế
+ (N'TN32                ', N'TN37                ',  75, 300, 300, 360,  900000, 220000), -- ĐN ↔ Nha Trang
+ (N'TN32                ', N'TN33                ',  50,  60,  50,  70,  0, 80000), -- ĐN ↔ Hội An
+ (N'TN32                ', N'TN45                ', 120, 1200, 1080, 1260, 1400000, 550000),
+ (N'TN45                ', N'TN37                ',  75, 480, 480, 540, 1200000, 280000), -- HCM ↔ Nha Trang
+ (N'TN45                ', N'TN58                ',  75, 0, 0, 0, 1500000, 0), -- HCM ↔ Phú Quốc (máy bay)
+ (N'TN45                ', N'TN44                ',  60, 420, 420, 480,  900000, 250000); -- HCM ↔ Đà Lạt
+
+INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiUocTinh)
+SELECT p.Di, p.Den, LEFT(N'MayBay'+REPLICATE(N' ',20),20), p.Bay, p.GiaBay FROM @pairs p
+WHERE p.Bay > 0 AND NOT EXISTS (SELECT 1 FROM dbo.MatranDiChuyen m WHERE m.MaTinhDi=p.Di AND m.MaTinhDen=p.Den AND m.PhuongTien LIKE N'MayBay%')
+UNION ALL
+SELECT p.Den, p.Di, LEFT(N'MayBay'+REPLICATE(N' ',20),20), p.Bay, p.GiaBay FROM @pairs p
+WHERE p.Bay > 0 AND p.Di <> p.Den AND NOT EXISTS (SELECT 1 FROM dbo.MatranDiChuyen m WHERE m.MaTinhDi=p.Den AND m.MaTinhDen=p.Di AND m.PhuongTien LIKE N'MayBay%')
+UNION ALL
+SELECT p.Di, p.Den, LEFT(N'Tau'+REPLICATE(N' ',20),20), p.Tau, NULL FROM @pairs p
+WHERE p.Tau > 0 AND NOT EXISTS (SELECT 1 FROM dbo.MatranDiChuyen m WHERE m.MaTinhDi=p.Di AND m.MaTinhDen=p.Den AND m.PhuongTien LIKE N'Tau%')
+UNION ALL
+SELECT p.Den, p.Di, LEFT(N'Tau'+REPLICATE(N' ',20),20), p.Tau, NULL FROM @pairs p
+WHERE p.Tau > 0 AND p.Di <> p.Den AND NOT EXISTS (SELECT 1 FROM dbo.MatranDiChuyen m WHERE m.MaTinhDi=p.Den AND m.MaTinhDen=p.Di AND m.PhuongTien LIKE N'Tau%')
+UNION ALL
+SELECT p.Di, p.Den, LEFT(N'XeKhach'+REPLICATE(N' ',20),20), p.Xe, p.GiaXe FROM @pairs p
+WHERE p.Xe > 0 AND NOT EXISTS (SELECT 1 FROM dbo.MatranDiChuyen m WHERE m.MaTinhDi=p.Di AND m.MaTinhDen=p.Den AND m.PhuongTien LIKE N'XeKhach%')
+UNION ALL
+SELECT p.Den, p.Di, LEFT(N'XeKhach'+REPLICATE(N' ',20),20), p.Xe, p.GiaXe FROM @pairs p
+WHERE p.Xe > 0 AND p.Di <> p.Den AND NOT EXISTS (SELECT 1 FROM dbo.MatranDiChuyen m WHERE m.MaTinhDi=p.Den AND m.MaTinhDen=p.Di AND m.PhuongTien LIKE N'XeKhach%')
+UNION ALL
+SELECT p.Di, p.Den, LEFT(N'XeMay'+REPLICATE(N' ',20),20), p.May, NULL FROM @pairs p
+WHERE p.May > 0 AND NOT EXISTS (SELECT 1 FROM dbo.MatranDiChuyen m WHERE m.MaTinhDi=p.Di AND m.MaTinhDen=p.Den AND m.PhuongTien LIKE N'XeMay%')
+UNION ALL
+SELECT p.Den, p.Di, LEFT(N'XeMay'+REPLICATE(N' ',20),20), p.May, NULL FROM @pairs p
+WHERE p.May > 0 AND p.Di <> p.Den AND NOT EXISTS (SELECT 1 FROM dbo.MatranDiChuyen m WHERE m.MaTinhDi=p.Den AND m.MaTinhDen=p.Di AND m.PhuongTien LIKE N'XeMay%');
+GO
+
+/* ===== 024_MatchToanBoOffline.sql #4 ===== */
+MERGE dbo.TinhThanhAlias AS t
+USING (VALUES
+    (N'TN01                ', N'Hà Nội'),
+    (N'TN01                ', N'Ha Noi'),
+    (N'TN01                ', N'Hanoi'),
+    (N'TN01                ', N'Thủ đô'),
+    (N'TN01                ', N'Thu do'),
+    (N'TN02                ', N'Hải Phòng'),
+    (N'TN02                ', N'Hai Phong'),
+    (N'TN02                ', N'Haiphong'),
+    (N'TN02                ', N'Cát Bà'),
+    (N'TN02                ', N'Cat Ba'),
+    (N'TN02                ', N'Đồ Sơn'),
+    (N'TN02                ', N'Do Son'),
+    (N'TN03                ', N'Quảng Ninh'),
+    (N'TN03                ', N'Quang Ninh'),
+    (N'TN03                ', N'Hạ Long'),
+    (N'TN03                ', N'Ha Long'),
+    (N'TN03                ', N'Vịnh Hạ Long'),
+    (N'TN03                ', N'Bai Chay'),
+    (N'TN03                ', N'Bãi Cháy'),
+    (N'TN03                ', N'Yên Tử'),
+    (N'TN03                ', N'Yen Tu'),
+    (N'TN04                ', N'Bắc Ninh'),
+    (N'TN04                ', N'Bac Ninh'),
+    (N'TN05                ', N'Hải Dương'),
+    (N'TN05                ', N'Hai Duong'),
+    (N'TN06                ', N'Hưng Yên'),
+    (N'TN06                ', N'Hung Yen'),
+    (N'TN07                ', N'Vĩnh Phúc'),
+    (N'TN07                ', N'Vinh Phuc'),
+    (N'TN07                ', N'Vĩnh Yên'),
+    (N'TN07                ', N'Vinh Yen'),
+    (N'TN08                ', N'Thái Nguyên'),
+    (N'TN08                ', N'Thai Nguyen'),
+    (N'TN09                ', N'Phú Thọ'),
+    (N'TN09                ', N'Phu Tho'),
+    (N'TN09                ', N'Việt Trì'),
+    (N'TN09                ', N'Viet Tri'),
+    (N'TN10                ', N'Bắc Giang'),
+    (N'TN10                ', N'Bac Giang'),
+    (N'TN11                ', N'Lạng Sơn'),
+    (N'TN11                ', N'Lang Son'),
+    (N'TN12                ', N'Cao Bằng'),
+    (N'TN12                ', N'Cao Bang'),
+    (N'TN13                ', N'Hà Giang'),
+    (N'TN13                ', N'Ha Giang'),
+    (N'TN13                ', N'Đồng Văn'),
+    (N'TN13                ', N'Dong Van'),
+    (N'TN14                ', N'Tuyên Quang'),
+    (N'TN14                ', N'Tuyen Quang'),
+    (N'TN15                ', N'Lào Cai'),
+    (N'TN15                ', N'Lao Cai'),
+    (N'TN15                ', N'Sa Pa'),
+    (N'TN15                ', N'Sapa'),
+    (N'TN15                ', N'Fansipan'),
+    (N'TN16                ', N'Yên Bái'),
+    (N'TN16                ', N'Yen Bai'),
+    (N'TN17                ', N'Điện Biên'),
+    (N'TN17                ', N'Dien Bien'),
+    (N'TN17                ', N'Điện Biên Phủ'),
+    (N'TN17                ', N'Dien Bien Phu'),
+    (N'TN18                ', N'Lai Châu'),
+    (N'TN18                ', N'Lai Chau'),
+    (N'TN19                ', N'Sơn La'),
+    (N'TN19                ', N'Son La'),
+    (N'TN20                ', N'Hòa Bình'),
+    (N'TN20                ', N'Hoa Binh'),
+    (N'TN20                ', N'Mai Châu'),
+    (N'TN20                ', N'Mai Chau'),
+    (N'TN21                ', N'Ninh Bình'),
+    (N'TN21                ', N'Ninh Binh'),
+    (N'TN21                ', N'Tràng An'),
+    (N'TN21                ', N'Trang An'),
+    (N'TN21                ', N'Tam Cốc'),
+    (N'TN21                ', N'Tam Coc'),
+    (N'TN21                ', N'Bái Đính'),
+    (N'TN21                ', N'Bai Dinh'),
+    (N'TN21                ', N'Hoa Lư'),
+    (N'TN21                ', N'Hoa Lu'),
+    (N'TN22                ', N'Nam Định'),
+    (N'TN22                ', N'Nam Dinh'),
+    (N'TN23                ', N'Thái Bình'),
+    (N'TN23                ', N'Thai Binh'),
+    (N'TN24                ', N'Hà Nam'),
+    (N'TN24                ', N'Ha Nam'),
+    (N'TN24                ', N'Phủ Lý'),
+    (N'TN24                ', N'Phu Ly'),
+    (N'TN25                ', N'Bắc Kạn'),
+    (N'TN25                ', N'Bac Kan'),
+    (N'TN25                ', N'Bac Can'),
+    (N'TN26                ', N'Thanh Hóa'),
+    (N'TN26                ', N'Thanh Hoa'),
+    (N'TN26                ', N'Sầm Sơn'),
+    (N'TN26                ', N'Sam Son'),
+    (N'TN27                ', N'Nghệ An'),
+    (N'TN27                ', N'Nghe An'),
+    (N'TN27                ', N'Vinh'),
+    (N'TN27                ', N'Cửa Lò'),
+    (N'TN27                ', N'Cua Lo'),
+    (N'TN28                ', N'Hà Tĩnh'),
+    (N'TN28                ', N'Ha Tinh'),
+    (N'TN29                ', N'Quảng Bình'),
+    (N'TN29                ', N'Quang Binh'),
+    (N'TN29                ', N'Đồng Hới'),
+    (N'TN29                ', N'Dong Hoi'),
+    (N'TN29                ', N'Phong Nha'),
+    (N'TN30                ', N'Quảng Trị'),
+    (N'TN30                ', N'Quang Tri'),
+    (N'TN30                ', N'Đông Hà'),
+    (N'TN30                ', N'Dong Ha'),
+    (N'TN31                ', N'Thừa Thiên Huế'),
+    (N'TN31                ', N'Thua Thien Hue'),
+    (N'TN31                ', N'Huế'),
+    (N'TN31                ', N'Hue'),
+    (N'TN31                ', N'Đại Nội'),
+    (N'TN31                ', N'Dai Noi'),
+    (N'TN32                ', N'Đà Nẵng'),
+    (N'TN32                ', N'Da Nang'),
+    (N'TN32                ', N'Danang'),
+    (N'TN32                ', N'Sơn Trà'),
+    (N'TN32                ', N'Son Tra'),
+    (N'TN32                ', N'Bà Nà'),
+    (N'TN32                ', N'Ba Na'),
+    (N'TN32                ', N'Mỹ Khê'),
+    (N'TN32                ', N'My Khe'),
+    (N'TN33                ', N'Quảng Nam'),
+    (N'TN33                ', N'Quang Nam'),
+    (N'TN33                ', N'Hội An'),
+    (N'TN33                ', N'Hoi An'),
+    (N'TN33                ', N'Mỹ Sơn'),
+    (N'TN33                ', N'My Son'),
+    (N'TN33                ', N'Tam Kỳ'),
+    (N'TN33                ', N'Tam Ky'),
+    (N'TN34                ', N'Quảng Ngãi'),
+    (N'TN34                ', N'Quang Ngai'),
+    (N'TN34                ', N'Lý Sơn'),
+    (N'TN34                ', N'Ly Son'),
+    (N'TN35                ', N'Bình Định'),
+    (N'TN35                ', N'Binh Dinh'),
+    (N'TN35                ', N'Quy Nhơn'),
+    (N'TN35                ', N'Quy Nhon'),
+    (N'TN36                ', N'Phú Yên'),
+    (N'TN36                ', N'Phu Yen'),
+    (N'TN36                ', N'Tuy Hòa'),
+    (N'TN36                ', N'Tuy Hoa'),
+    (N'TN37                ', N'Khánh Hòa'),
+    (N'TN37                ', N'Khanh Hoa'),
+    (N'TN37                ', N'Nha Trang'),
+    (N'TN37                ', N'Nhatrang'),
+    (N'TN37                ', N'VinWonders Nha Trang'),
+    (N'TN37                ', N'Hòn Mun'),
+    (N'TN37                ', N'Hon Mun'),
+    (N'TN38                ', N'Ninh Thuận'),
+    (N'TN38                ', N'Ninh Thuan'),
+    (N'TN38                ', N'Phan Rang'),
+    (N'TN39                ', N'Bình Thuận'),
+    (N'TN39                ', N'Binh Thuan'),
+    (N'TN39                ', N'Phan Thiết'),
+    (N'TN39                ', N'Phan Thiet'),
+    (N'TN39                ', N'Mũi Né'),
+    (N'TN39                ', N'Mui Ne'),
+    (N'TN40                ', N'Kon Tum'),
+    (N'TN40                ', N'Kontum'),
+    (N'TN41                ', N'Gia Lai'),
+    (N'TN41                ', N'Pleiku'),
+    (N'TN42                ', N'Đắk Lắk'),
+    (N'TN42                ', N'Dak Lak'),
+    (N'TN42                ', N'Dac Lac'),
+    (N'TN42                ', N'Buôn Ma Thuột'),
+    (N'TN42                ', N'Buon Ma Thuot'),
+    (N'TN42                ', N'Ban Me Thuot'),
+    (N'TN43                ', N'Đắk Nông'),
+    (N'TN43                ', N'Dak Nong'),
+    (N'TN43                ', N'Gia Nghĩa'),
+    (N'TN43                ', N'Gia Nghia'),
+    (N'TN44                ', N'Lâm Đồng'),
+    (N'TN44                ', N'Lam Dong'),
+    (N'TN44                ', N'Đà Lạt'),
+    (N'TN44                ', N'Da Lat'),
+    (N'TN44                ', N'Dalat'),
+    (N'TN44                ', N'Hồ Xuân Hương'),
+    (N'TN45                ', N'TP. Hồ Chí Minh'),
+    (N'TN45                ', N'TP.HCM'),
+    (N'TN45                ', N'TPHCM'),
+    (N'TN45                ', N'Hồ Chí Minh'),
+    (N'TN45                ', N'Ho Chi Minh'),
+    (N'TN45                ', N'Sài Gòn'),
+    (N'TN45                ', N'Sai Gon'),
+    (N'TN45                ', N'Saigon'),
+    (N'TN45                ', N'Bến Thành'),
+    (N'TN45                ', N'Ben Thanh'),
+    (N'TN46                ', N'Đồng Nai'),
+    (N'TN46                ', N'Dong Nai'),
+    (N'TN46                ', N'Biên Hòa'),
+    (N'TN46                ', N'Bien Hoa'),
+    (N'TN47                ', N'Bình Dương'),
+    (N'TN47                ', N'Binh Duong'),
+    (N'TN47                ', N'Thủ Dầu Một'),
+    (N'TN47                ', N'Thu Dau Mot'),
+    (N'TN48                ', N'Bà Rịa - Vũng Tàu'),
+    (N'TN48                ', N'Ba Ria Vung Tau'),
+    (N'TN48                ', N'Vũng Tàu'),
+    (N'TN48                ', N'Vung Tau'),
+    (N'TN48                ', N'Bà Rịa'),
+    (N'TN48                ', N'Ba Ria'),
+    (N'TN49                ', N'Tây Ninh'),
+    (N'TN49                ', N'Tay Ninh'),
+    (N'TN49                ', N'Núi Bà Đen'),
+    (N'TN49                ', N'Nui Ba Den'),
+    (N'TN50                ', N'Bình Phước'),
+    (N'TN50                ', N'Binh Phuoc'),
+    (N'TN50                ', N'Đồng Xoài'),
+    (N'TN50                ', N'Dong Xoai'),
+    (N'TN51                ', N'Long An'),
+    (N'TN51                ', N'Tan An'),
+    (N'TN51                ', N'Tân An'),
+    (N'TN52                ', N'Tiền Giang'),
+    (N'TN52                ', N'Tien Giang'),
+    (N'TN52                ', N'Mỹ Tho'),
+    (N'TN52                ', N'My Tho'),
+    (N'TN53                ', N'Bến Tre'),
+    (N'TN53                ', N'Ben Tre'),
+    (N'TN54                ', N'Vĩnh Long'),
+    (N'TN54                ', N'Vinh Long'),
+    (N'TN55                ', N'Trà Vinh'),
+    (N'TN55                ', N'Tra Vinh'),
+    (N'TN56                ', N'Đồng Tháp'),
+    (N'TN56                ', N'Dong Thap'),
+    (N'TN56                ', N'Cao Lãnh'),
+    (N'TN56                ', N'Cao Lanh'),
+    (N'TN56                ', N'Sa Đéc'),
+    (N'TN56                ', N'Sa Dec'),
+    (N'TN57                ', N'An Giang'),
+    (N'TN57                ', N'Long Xuyên'),
+    (N'TN57                ', N'Long Xuyen'),
+    (N'TN57                ', N'Châu Đốc'),
+    (N'TN57                ', N'Chau Doc'),
+    (N'TN58                ', N'Kiên Giang'),
+    (N'TN58                ', N'Kien Giang'),
+    (N'TN58                ', N'Phú Quốc'),
+    (N'TN58                ', N'Phu Quoc'),
+    (N'TN58                ', N'Rạch Giá'),
+    (N'TN58                ', N'Rach Gia'),
+    (N'TN58                ', N'Bãi Sao'),
+    (N'TN58                ', N'Bai Sao'),
+    (N'TN58                ', N'Hà Tiên'),
+    (N'TN58                ', N'Ha Tien'),
+    (N'TN59                ', N'Cần Thơ'),
+    (N'TN59                ', N'Can Tho'),
+    (N'TN59                ', N'Cái Răng'),
+    (N'TN59                ', N'Cai Rang'),
+    (N'TN59                ', N'Ninh Kiều'),
+    (N'TN59                ', N'Ninh Kieu'),
+    (N'TN60                ', N'Hậu Giang'),
+    (N'TN60                ', N'Hau Giang'),
+    (N'TN60                ', N'Vị Thanh'),
+    (N'TN60                ', N'Vi Thanh'),
+    (N'TN61                ', N'Sóc Trăng'),
+    (N'TN61                ', N'Soc Trang'),
+    (N'TN62                ', N'Bạc Liêu'),
+    (N'TN62                ', N'Bac Lieu'),
+    (N'TN63                ', N'Cà Mau'),
+    (N'TN63                ', N'Ca Mau')
+) AS s(MaTinh, TenAlias)
+ON t.TenAlias = s.TenAlias
+WHEN NOT MATCHED THEN INSERT (MaTinh, TenAlias) VALUES (s.MaTinh, s.TenAlias);
+GO
+
+/* ===== 024_MatchToanBoOffline.sql #5 ===== */
+-- Điểm/đối tác seed cũ (014/017) còn thiếu MaTinh
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN32                ' WHERE MaDThamQuan LIKE N'DT004%' AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN15                ' WHERE (TenDiaDanh LIKE N'%Fansipan%' OR TenDiaDanh LIKE N'%Sa Pa%' OR TenDiaDanh LIKE N'%Sapa%') AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN21                ' WHERE (TenDiaDanh LIKE N'%Tràng An%' OR TenDiaDanh LIKE N'%Trang An%' OR TenDiaDanh LIKE N'%Tam Cốc%' OR TenDiaDanh LIKE N'%Tam Coc%') AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN31                ' WHERE (TenDiaDanh LIKE N'%Đại Nội%' OR TenDiaDanh LIKE N'%Sông Hương%' OR TenDiaDanh LIKE N'%Huế%') AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN58                ' WHERE (TenDiaDanh LIKE N'%Bãi Sao%' OR TenDiaDanh LIKE N'%Phú Quốc%' OR TenDiaDanh LIKE N'%Hòn Thơm%') AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN59                ' WHERE (TenDiaDanh LIKE N'%Cần Thơ%' OR TenDiaDanh LIKE N'%Cái Răng%' OR TenDiaDanh LIKE N'%Ninh Kiều%') AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN44                ' WHERE (TenDiaDanh LIKE N'%Đà Lạt%' OR TenDiaDanh LIKE N'%Xuân Hương%' OR DiaChi LIKE N'%Đà Lạt%') AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN32                ' WHERE (TenDiaDanh LIKE N'%Chăm%' OR DiaChi LIKE N'%Đà Nẵng%') AND MaTinh IS NULL;
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN03                ' WHERE (TenDiaDanh LIKE N'%Hạ Long%' OR TenDiaDanh LIKE N'%Ha Long%') AND (MaTinh IS NULL OR MaTinh = N'TN01                ');
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN37                ' WHERE (TenDiaDanh LIKE N'%Nha Trang%' OR DiaChi LIKE N'%Nha Trang%') AND (MaTinh IS NULL OR MaTinh = N'TN01                ');
+UPDATE dbo.DiemThamQuan SET MaTinh = N'TN33                ' WHERE (TenDiaDanh LIKE N'%Hội An%' OR DiaChi LIKE N'%Hội An%') AND MaTinh IS NULL;
+UPDATE dbo.DoiTac SET MaTinh = N'TN33                ' WHERE TenDoiTac LIKE N'%Hội An%' AND MaTinh IS NULL;
+UPDATE dbo.DoiTac SET MaTinh = N'TN45                ' WHERE (TenDoiTac LIKE N'%Bến Thành%' OR TenDoiTac LIKE N'%Sài Gòn%') AND MaTinh IS NULL;
+UPDATE dbo.DoiTac SET MaTinh = N'TN37                ' WHERE TenDoiTac LIKE N'%Nha Trang%' AND MaTinh IS NULL;
+UPDATE dbo.DoiTac SET MaTinh = N'TN01                ' WHERE MaDoiTac = N'DTAC001               ' AND MaTinh IS NULL;
+
+-- Khớp còn lại theo tên tỉnh / alias
+UPDATE d SET d.MaTinh = t.MaTinh
+FROM dbo.DiemThamQuan d
+JOIN dbo.TinhThanh t ON d.MaTinh IS NULL AND (
+    d.DiaChi LIKE N'%' + RTRIM(t.TenTinh) + N'%' OR
+    d.TenDiaDanh LIKE N'%' + RTRIM(t.TenTinh) + N'%');
+
+UPDATE d SET d.MaTinh = a.MaTinh
+FROM dbo.DiemThamQuan d
+JOIN dbo.TinhThanhAlias a ON d.MaTinh IS NULL AND LEN(RTRIM(a.TenAlias)) >= 4 AND (
+    d.DiaChi LIKE N'%' + RTRIM(a.TenAlias) + N'%' OR
+    d.TenDiaDanh LIKE N'%' + RTRIM(a.TenAlias) + N'%');
+
+UPDATE p SET p.MaTinh = t.MaTinh
+FROM dbo.DoiTac p
+JOIN dbo.TinhThanh t ON p.MaTinh IS NULL AND p.TenDoiTac LIKE N'%' + RTRIM(t.TenTinh) + N'%';
+
+UPDATE p SET p.MaTinh = a.MaTinh
+FROM dbo.DoiTac p
+JOIN dbo.TinhThanhAlias a ON p.MaTinh IS NULL AND LEN(RTRIM(a.TenAlias)) >= 4 AND p.TenDoiTac LIKE N'%' + RTRIM(a.TenAlias) + N'%';
+GO
+
+/* ===== 025_DropUnusedAndWipeExceptAnhTour.sql #4 ===== */
+BEGIN TRANSACTION;
+DELETE FROM dbo.LichTrinhDeXuatChiTiet;
+DELETE FROM dbo.LichTrinhDeXuat;
+DELETE FROM dbo.YeuCauThietKe;
+
+DELETE FROM dbo.MediaDanhGiaTour;
+DELETE FROM dbo.DanhGiaTour;
+
+DELETE FROM dbo.DatDichVu_KhuyenMai;
+DELETE FROM dbo.ThanhToan;
+DELETE FROM dbo.HopDong;
+DELETE FROM dbo.DatDichVu;
+
+DELETE FROM dbo.RefreshToken;
+DELETE FROM dbo.QuyenNhanVien;
+DELETE FROM dbo.HanhViKhachHang;
+DELETE FROM dbo.DanhSachYeuThich;
+DELETE FROM dbo.AIGoiY;
+DELETE FROM dbo.LichTrinh;
+DELETE FROM dbo.LichKhoiHanh;
+
+DELETE FROM dbo.KM_Tour;
+DELETE FROM dbo.DieuKienKM;
+DELETE FROM dbo.KhuyenMai;
+DELETE FROM dbo.GiayTo;
+DELETE FROM dbo.KhachHang;
+DELETE FROM dbo.NguoiSuDung;
+
+DELETE FROM dbo.SanPhamDoiTac;
+DELETE FROM dbo.DoiTac;
+DELETE FROM dbo.DiemThamQuan;
+DELETE FROM dbo.MatranDiChuyen;
+DELETE FROM dbo.TinhThanhAlias;
+DELETE FROM dbo.TinhThanh;
+DELETE FROM dbo.NhomKhuyenMai;
+
+/* Tour: xóa tour KHÔNG bị AnhTour giữ. Ảnh Cloudinary giữ nguyên. */
+DELETE FROM dbo.Tour
+WHERE NOT EXISTS (SELECT 1 FROM dbo.AnhTour a WHERE a.MaTour = dbo.Tour.MaTour);
+
+COMMIT;
+GO
+
+/* ===== 025_DropUnusedAndWipeExceptAnhTour.sql #5 ===== */
+/* KhuVuc / VaiTro: không xóa (FK + 3 miền / 3 vai trò trong code). */
+UPDATE dbo.KhuVuc SET
+    TenKhuVuc = CASE RTRIM(MaKhuVuc)
+        WHEN N'KV001' THEN N'Miền Bắc'
+        WHEN N'KV002' THEN N'Miền Trung'
+        ELSE N'Miền Nam' END,
+    QuocGia = N'Việt Nam',
+    ViDo = CASE RTRIM(MaKhuVuc)
+        WHEN N'KV001' THEN CAST(21.028511 AS decimal(9,6))
+        WHEN N'KV002' THEN CAST(16.054407 AS decimal(9,6))
+        ELSE CAST(10.823099 AS decimal(9,6)) END,
+    KinhDo = CASE RTRIM(MaKhuVuc)
+        WHEN N'KV001' THEN CAST(105.804817 AS decimal(9,6))
+        WHEN N'KV002' THEN CAST(108.202164 AS decimal(9,6))
+        ELSE CAST(106.629662 AS decimal(9,6)) END,
+    MuiGio = N'UTC+07:00',
+    TrangThai = N'HoatDong';
+
+UPDATE dbo.VaiTro SET Mota = N'Quản trị toàn hệ thống' WHERE MaVaiTro = 1 AND (Mota IS NULL OR Mota = N'');
+UPDATE dbo.VaiTro SET Mota = N'Nhân viên kinh doanh' WHERE MaVaiTro = 2 AND (Mota IS NULL OR Mota = N'');
+UPDATE dbo.VaiTro SET Mota = N'Khách hàng' WHERE MaVaiTro = 3 AND (Mota IS NULL OR Mota = N'');
+GO
+
+/* ===== 026_SeedMauDayDu.sql #2 ===== */
 INSERT INTO dbo.TinhThanh (MaTinh, TenTinh, MaKhuVuc) VALUES
   (CAST(N'TN01' AS nchar(20)), N'Hà Nội', CAST(N'KV001' AS nchar(20))),
   (CAST(N'TN02' AS nchar(20)), N'Hải Phòng', CAST(N'KV001' AS nchar(20))),
@@ -70,6 +4620,8 @@ INSERT INTO dbo.TinhThanh (MaTinh, TenTinh, MaKhuVuc) VALUES
   (CAST(N'TN62' AS nchar(20)), N'Bạc Liêu', CAST(N'KV003' AS nchar(20))),
   (CAST(N'TN63' AS nchar(20)), N'Cà Mau', CAST(N'KV003' AS nchar(20)));
 GO
+
+/* ===== 026_SeedMauDayDu.sql #3 ===== */
 INSERT INTO dbo.TinhThanhAlias (MaTinh, TenAlias) VALUES
   (CAST(N'TN01' AS nchar(20)), N'Hà Nội'),
   (CAST(N'TN01' AS nchar(20)), N'Ha Noi'),
@@ -188,6 +4740,8 @@ INSERT INTO dbo.TinhThanhAlias (MaTinh, TenAlias) VALUES
   (CAST(N'TN62' AS nchar(20)), N'Bạc Liêu'),
   (CAST(N'TN63' AS nchar(20)), N'Cà Mau');
 GO
+
+/* ===== 026_SeedMauDayDu.sql #4 ===== */
 INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota) VALUES
   (CAST(N'DTV0101' AS nchar(20)), N'Hồ Hoàn Kiếm', CAST(N'19 Nguyễn Huệ, Phường 1, Hà Nội, Hà Nội' AS nchar(100)), CAST(N'KV001' AS nchar(20)), CAST(N'TN01' AS nchar(20)), CAST(105.8222 AS decimal(9,6)), CAST(20.9965 AS decimal(9,6)), N'Hồ Hoàn Kiếm. 19 Nguyễn Huệ, Phường 1, Hà Nội, Hà Nội'),
   (CAST(N'DTV0102' AS nchar(20)), N'Văn Miếu Quốc Tử Giám', CAST(N'28 Lê Lợi, Phường 2, Hà Nội, Hà Nội' AS nchar(100)), CAST(N'KV001' AS nchar(20)), CAST(N'TN01' AS nchar(20)), CAST(105.8302 AS decimal(9,6)), CAST(21.0045 AS decimal(9,6)), N'Văn Miếu Quốc Tử Giám. 28 Lê Lợi, Phường 2, Hà Nội, Hà Nội'),
@@ -591,6 +5145,7 @@ INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh,
   (CAST(N'DTV4010' AS nchar(20)), N'Nhà hát / quảng trường Kon Tum', CAST(N'100 Lý Thường Kiệt, Xã Bình An, Kon Tum, Kon Tum' AS nchar(100)), CAST(N'KV002' AS nchar(20)), CAST(N'TN40' AS nchar(20)), CAST(108.04 AS decimal(9,6)), CAST(14.3897 AS decimal(9,6)), N'Nhà hát / quảng trường Kon Tum. 100 Lý Thường Kiệt, Xã Bình An, Kon Tum, Kon Tum');
 GO
 
+/* ===== 026_SeedMauDayDu.sql #5 ===== */
 INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh, KinhDo, ViDo, Mota) VALUES
   (CAST(N'DTV4101' AS nchar(20)), N'Trung tâm Pleiku', CAST(N'19 Nguyễn Huệ, Phường 1, Pleiku, Gia Lai' AS nchar(100)), CAST(N'KV002' AS nchar(20)), CAST(N'TN41' AS nchar(20)), CAST(107.968 AS decimal(9,6)), CAST(13.9513 AS decimal(9,6)), N'Trung tâm Pleiku. 19 Nguyễn Huệ, Phường 1, Pleiku, Gia Lai'),
   (CAST(N'DTV4102' AS nchar(20)), N'Bảo tàng Gia Lai', CAST(N'28 Lê Lợi, Phường 2, Pleiku, Gia Lai' AS nchar(100)), CAST(N'KV002' AS nchar(20)), CAST(N'TN41' AS nchar(20)), CAST(107.976 AS decimal(9,6)), CAST(13.9593 AS decimal(9,6)), N'Bảo tàng Gia Lai. 28 Lê Lợi, Phường 2, Pleiku, Gia Lai'),
@@ -823,6 +5378,8 @@ INSERT INTO dbo.DiemThamQuan (MaDThamQuan, TenDiaDanh, DiaChi, MaKhuVuc, MaTinh,
   (CAST(N'DTV6309' AS nchar(20)), N'Phố đi bộ Cà Mau', CAST(N'91 Trần Hưng Đạo, Phường Long Hải, Cà Mau, Cà Mau' AS nchar(100)), CAST(N'KV003' AS nchar(20)), CAST(N'TN63' AS nchar(20)), CAST(105.1844 AS decimal(9,6)), CAST(9.2089 AS decimal(9,6)), N'Phố đi bộ Cà Mau. 91 Trần Hưng Đạo, Phường Long Hải, Cà Mau, Cà Mau'),
   (CAST(N'DTV6310' AS nchar(20)), N'Nhà hát / quảng trường Cà Mau', CAST(N'100 Lý Thường Kiệt, Xã Bình An, Cà Mau, Cà Mau' AS nchar(100)), CAST(N'KV003' AS nchar(20)), CAST(N'TN63' AS nchar(20)), CAST(105.1924 AS decimal(9,6)), CAST(9.2169 AS decimal(9,6)), N'Nhà hát / quảng trường Cà Mau. 100 Lý Thường Kiệt, Xã Bình An, Cà Mau, Cà Mau');
 GO
+
+/* ===== 026_SeedMauDayDu.sql #6 ===== */
 INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh) VALUES
   (CAST(N'DTT01' AS nchar(20)), N'Vé thắng cảnh Hà Nội', CAST(N'HoatDong' AS nchar(20)), N'Nguyễn Vé', CAST(N'0911010001' AS nchar(20)), N've01@tourdulich.vn', CAST(N'KV001' AS nchar(20)), CAST(10.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN01' AS nchar(20))),
   (CAST(N'DTH0101' AS nchar(20)), N'Khách sạn Centre Hà Nội — 31 Nguyễn Huệ, Phường 1, Hà Nội, Hà Nội', CAST(N'LuuTru' AS nchar(20)), N'Lễ tân Hà Nội', CAST(N'0902010101' AS nchar(20)), N'ks0101@tourdulich.vn', CAST(N'KV001' AS nchar(20)), CAST(12.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN01' AS nchar(20))),
@@ -1226,6 +5783,7 @@ INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoa
   (CAST(N'DTP1010' AS nchar(20)), N'Khu vui chơi Bắc Giang 10 — 100 Lý Thường Kiệt, Xã Bình An, Bắc Giang, Bắc Giang', CAST(N'HoatDong' AS nchar(20)), N'Quản lý Bắc Giang', CAST(N'0904101001' AS nchar(20)), N'vc1010@tourdulich.vn', CAST(N'KV001' AS nchar(20)), CAST(11.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN10' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #7 ===== */
 INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh) VALUES
   (CAST(N'DTC1001' AS nchar(20)), N'Vận tải Bắc Giang 1 — 55 Nguyễn Huệ, Phường 1, Bắc Giang, Bắc Giang', CAST(N'VanChuyen' AS nchar(20)), N'Tài xế Bắc Giang', CAST(N'0905100101' AS nchar(20)), N'xe1001@tourdulich.vn', CAST(N'KV001' AS nchar(20)), CAST(7.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN10' AS nchar(20))),
   (CAST(N'DTC1002' AS nchar(20)), N'Vận tải Bắc Giang 2 — 60 Lê Lợi, Phường 2, Bắc Giang, Bắc Giang', CAST(N'VanChuyen' AS nchar(20)), N'Tài xế Bắc Giang', CAST(N'0905100201' AS nchar(20)), N'xe1002@tourdulich.vn', CAST(N'KV001' AS nchar(20)), CAST(7.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN10' AS nchar(20))),
@@ -1629,6 +6187,7 @@ INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoa
   (CAST(N'DTF2010' AS nchar(20)), N'Nhà hàng Hòa Bình 10 — 110 Lý Thường Kiệt, Xã Bình An, Hòa Bình, Hòa Bình', CAST(N'AnUong' AS nchar(20)), N'Bếp trưởng Hòa Bình', CAST(N'0903201001' AS nchar(20)), N'an2010@tourdulich.vn', CAST(N'KV001' AS nchar(20)), CAST(8.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN20' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #8 ===== */
 INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh) VALUES
   (CAST(N'DTP2001' AS nchar(20)), N'Khu vui chơi Hòa Bình 1 — 46 Nguyễn Huệ, Phường 1, Hòa Bình, Hòa Bình', CAST(N'HoatDong' AS nchar(20)), N'Quản lý Hòa Bình', CAST(N'0904200101' AS nchar(20)), N'vc2001@tourdulich.vn', CAST(N'KV001' AS nchar(20)), CAST(11.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN20' AS nchar(20))),
   (CAST(N'DTP2002' AS nchar(20)), N'Khu vui chơi Hòa Bình 2 — 52 Lê Lợi, Phường 2, Hòa Bình, Hòa Bình', CAST(N'HoatDong' AS nchar(20)), N'Quản lý Hòa Bình', CAST(N'0904200201' AS nchar(20)), N'vc2002@tourdulich.vn', CAST(N'KV001' AS nchar(20)), CAST(11.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN20' AS nchar(20))),
@@ -2032,6 +6591,7 @@ INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoa
   (CAST(N'DTH3010' AS nchar(20)), N'Lakeview Hotel Đông Hà — 130 Lý Thường Kiệt, Xã Bình An, Đông Hà, Quảng Trị', CAST(N'LuuTru' AS nchar(20)), N'Lễ tân Đông Hà', CAST(N'0902301001' AS nchar(20)), N'ks3010@tourdulich.vn', CAST(N'KV002' AS nchar(20)), CAST(12.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN30' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #9 ===== */
 INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh) VALUES
   (CAST(N'DTF3001' AS nchar(20)), N'Nhà hàng Đông Hà 1 — 38 Nguyễn Huệ, Phường 1, Đông Hà, Quảng Trị', CAST(N'AnUong' AS nchar(20)), N'Bếp trưởng Đông Hà', CAST(N'0903300101' AS nchar(20)), N'an3001@tourdulich.vn', CAST(N'KV002' AS nchar(20)), CAST(8.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN30' AS nchar(20))),
   (CAST(N'DTF3002' AS nchar(20)), N'Nhà hàng Đông Hà 2 — 46 Lê Lợi, Phường 2, Đông Hà, Quảng Trị', CAST(N'AnUong' AS nchar(20)), N'Bếp trưởng Đông Hà', CAST(N'0903300201' AS nchar(20)), N'an3002@tourdulich.vn', CAST(N'KV002' AS nchar(20)), CAST(8.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN30' AS nchar(20))),
@@ -2435,6 +6995,7 @@ INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoa
   (CAST(N'DTT40' AS nchar(20)), N'Vé thắng cảnh Kon Tum', CAST(N'HoatDong' AS nchar(20)), N'Nguyễn Vé', CAST(N'0911400001' AS nchar(20)), N've40@tourdulich.vn', CAST(N'KV002' AS nchar(20)), CAST(10.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN40' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #10 ===== */
 INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh) VALUES
   (CAST(N'DTH4001' AS nchar(20)), N'Khách sạn Centre Kon Tum — 31 Nguyễn Huệ, Phường 1, Kon Tum, Kon Tum', CAST(N'LuuTru' AS nchar(20)), N'Lễ tân Kon Tum', CAST(N'0902400101' AS nchar(20)), N'ks4001@tourdulich.vn', CAST(N'KV002' AS nchar(20)), CAST(12.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN40' AS nchar(20))),
   (CAST(N'DTH4002' AS nchar(20)), N'Grand Hotel Kon Tum — 42 Lê Lợi, Phường 2, Kon Tum, Kon Tum', CAST(N'LuuTru' AS nchar(20)), N'Lễ tân Kon Tum', CAST(N'0902400201' AS nchar(20)), N'ks4002@tourdulich.vn', CAST(N'KV002' AS nchar(20)), CAST(12.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN40' AS nchar(20))),
@@ -2838,6 +7399,7 @@ INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoa
   (CAST(N'DTC4901' AS nchar(20)), N'Vận tải Tây Ninh 1 — 55 Nguyễn Huệ, Phường 1, Tây Ninh, Tây Ninh', CAST(N'VanChuyen' AS nchar(20)), N'Tài xế Tây Ninh', CAST(N'0905490101' AS nchar(20)), N'xe4901@tourdulich.vn', CAST(N'KV003' AS nchar(20)), CAST(7.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN49' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #11 ===== */
 INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh) VALUES
   (CAST(N'DTC4902' AS nchar(20)), N'Vận tải Tây Ninh 2 — 60 Lê Lợi, Phường 2, Tây Ninh, Tây Ninh', CAST(N'VanChuyen' AS nchar(20)), N'Tài xế Tây Ninh', CAST(N'0905490201' AS nchar(20)), N'xe4902@tourdulich.vn', CAST(N'KV003' AS nchar(20)), CAST(7.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN49' AS nchar(20))),
   (CAST(N'DTC4903' AS nchar(20)), N'Vận tải Tây Ninh 3 — 65 Trần Phú, Phường Hòa Bình, Tây Ninh, Tây Ninh', CAST(N'VanChuyen' AS nchar(20)), N'Tài xế Tây Ninh', CAST(N'0905490301' AS nchar(20)), N'xe4903@tourdulich.vn', CAST(N'KV003' AS nchar(20)), CAST(7.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN49' AS nchar(20))),
@@ -3241,6 +7803,7 @@ INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoa
   (CAST(N'DTP5901' AS nchar(20)), N'Khu vui chơi Cần Thơ 1 — 46 Nguyễn Huệ, Phường 1, Cần Thơ, Cần Thơ', CAST(N'HoatDong' AS nchar(20)), N'Quản lý Cần Thơ', CAST(N'0904590101' AS nchar(20)), N'vc5901@tourdulich.vn', CAST(N'KV003' AS nchar(20)), CAST(11.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN59' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #12 ===== */
 INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, MaKhuVuc, PhanTramHoaHong, TrangThai, MaTinh) VALUES
   (CAST(N'DTP5902' AS nchar(20)), N'Khu vui chơi Cần Thơ 2 — 52 Lê Lợi, Phường 2, Cần Thơ, Cần Thơ', CAST(N'HoatDong' AS nchar(20)), N'Quản lý Cần Thơ', CAST(N'0904590201' AS nchar(20)), N'vc5902@tourdulich.vn', CAST(N'KV003' AS nchar(20)), CAST(11.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN59' AS nchar(20))),
   (CAST(N'DTP5903' AS nchar(20)), N'Khu vui chơi Cần Thơ 3 — 58 Trần Phú, Phường Hòa Bình, Cần Thơ, Cần Thơ', CAST(N'HoatDong' AS nchar(20)), N'Quản lý Cần Thơ', CAST(N'0904590301' AS nchar(20)), N'vc5903@tourdulich.vn', CAST(N'KV003' AS nchar(20)), CAST(11.00 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN59' AS nchar(20))),
@@ -3426,6 +7989,8 @@ INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoa
   (CAST(N'DTC6309' AS nchar(20)), N'Vận tải Cà Mau 9 — 95 Trần Hưng Đạo, Phường Long Hải, Cà Mau, Cà Mau', CAST(N'VanChuyen' AS nchar(20)), N'Tài xế Cà Mau', CAST(N'0905630901' AS nchar(20)), N'xe6309@tourdulich.vn', CAST(N'KV003' AS nchar(20)), CAST(7.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN63' AS nchar(20))),
   (CAST(N'DTC6310' AS nchar(20)), N'Vận tải Cà Mau 10 — 100 Lý Thường Kiệt, Xã Bình An, Cà Mau, Cà Mau', CAST(N'VanChuyen' AS nchar(20)), N'Tài xế Cà Mau', CAST(N'0905631001' AS nchar(20)), N'xe6310@tourdulich.vn', CAST(N'KV003' AS nchar(20)), CAST(7.50 AS decimal(5,2)), CAST(N'HoatDong' AS nchar(20)), CAST(N'TN63' AS nchar(20)));
 GO
+
+/* ===== 026_SeedMauDayDu.sql #13 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPV0101' AS nchar(20)), CAST(N'DTT01' AS nchar(20)), N'Vé Hồ Hoàn Kiếm', N've', 75000, CAST(N'DTV0101' AS nchar(20)), N'Vé vào cửa — 19 Nguyễn Huệ, Phường 1, Hà Nội, Hà Nội', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPV0102' AS nchar(20)), CAST(N'DTT01' AS nchar(20)), N'Vé Văn Miếu Quốc Tử Giám', N've', 100000, CAST(N'DTV0102' AS nchar(20)), N'Vé vào cửa — 28 Lê Lợi, Phường 2, Hà Nội, Hà Nội', CAST(N'HoatDong' AS nchar(20))),
@@ -3829,6 +8394,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC02065' AS nchar(20)), CAST(N'DTC0206' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 240000, CAST(N'DTV0206' AS nchar(20)), N'Thuê xe máy 24 giờ. 80 Lê Duẩn, Phường Phú Thọ, Hải Phòng, Hải Phòng', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #14 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPC02071' AS nchar(20)), CAST(N'DTC0207' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay', N'chuyen', 420000, CAST(N'DTV0207' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay. 85 Nguyễn Trãi, Phường An Phú, Hải Phòng, Hải Phòng', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC02072' AS nchar(20)), CAST(N'DTC0207' AS nchar(20)), N'Xe 7 chỗ tham quan ngày', N'chuyen', 920000, CAST(N'DTV0207' AS nchar(20)), N'Xe 7 chỗ tham quan ngày. 85 Nguyễn Trãi, Phường An Phú, Hải Phòng, Hải Phòng', CAST(N'HoatDong' AS nchar(20))),
@@ -4232,6 +8798,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC04025' AS nchar(20)), CAST(N'DTC0402' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 200000, CAST(N'DTV0402' AS nchar(20)), N'Thuê xe máy 24 giờ. 60 Lê Lợi, Phường 2, Bắc Ninh, Bắc Ninh', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #15 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPC04031' AS nchar(20)), CAST(N'DTC0403' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay', N'chuyen', 380000, CAST(N'DTV0403' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay. 65 Trần Phú, Phường Hòa Bình, Bắc Ninh, Bắc Ninh', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC04032' AS nchar(20)), CAST(N'DTC0403' AS nchar(20)), N'Xe 7 chỗ tham quan ngày', N'chuyen', 880000, CAST(N'DTV0403' AS nchar(20)), N'Xe 7 chỗ tham quan ngày. 65 Trần Phú, Phường Hòa Bình, Bắc Ninh, Bắc Ninh', CAST(N'HoatDong' AS nchar(20))),
@@ -4635,6 +9202,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPP06085' AS nchar(20)), CAST(N'DTP0608' AS nchar(20)), N'Gói trải nghiệm cả ngày', N've', 584000, CAST(N'DTV0608' AS nchar(20)), N'Gói trải nghiệm cả ngày. 88 Phan Chu Trinh, Phường Bình Minh, Hưng Yên, Hưng Yên', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #16 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPP06091' AS nchar(20)), CAST(N'DTP0609' AS nchar(20)), N'Vé khu vui chơi trong nhà', N've', 252000, CAST(N'DTV0609' AS nchar(20)), N'Vé khu vui chơi trong nhà. 94 Trần Hưng Đạo, Phường Long Hải, Hưng Yên, Hưng Yên', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPP06092' AS nchar(20)), CAST(N'DTP0609' AS nchar(20)), N'Vé công viên nước / trò chơi', N've', 317000, CAST(N'DTV0609' AS nchar(20)), N'Vé công viên nước / trò chơi. 94 Trần Hưng Đạo, Phường Long Hải, Hưng Yên, Hưng Yên', CAST(N'HoatDong' AS nchar(20))),
@@ -5038,6 +9606,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPP08045' AS nchar(20)), CAST(N'DTP0804' AS nchar(20)), N'Gói trải nghiệm cả ngày', N've', 552000, CAST(N'DTV0804' AS nchar(20)), N'Gói trải nghiệm cả ngày. 64 Hùng Vương, Phường Tân Thành, Thái Nguyên, Thái Nguyên', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #17 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPP08051' AS nchar(20)), CAST(N'DTP0805' AS nchar(20)), N'Vé khu vui chơi trong nhà', N've', 220000, CAST(N'DTV0805' AS nchar(20)), N'Vé khu vui chơi trong nhà. 70 Hai Bà Trưng, Phường Trung Tâm, Thái Nguyên, Thái Nguyên', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPP08052' AS nchar(20)), CAST(N'DTP0805' AS nchar(20)), N'Vé công viên nước / trò chơi', N've', 285000, CAST(N'DTV0805' AS nchar(20)), N'Vé công viên nước / trò chơi. 70 Hai Bà Trưng, Phường Trung Tâm, Thái Nguyên, Thái Nguyên', CAST(N'HoatDong' AS nchar(20))),
@@ -5441,6 +10010,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPF10105' AS nchar(20)), CAST(N'DTF1010' AS nchar(20)), N'Set menu 4 món', N'suat', 460000, CAST(N'DTV1010' AS nchar(20)), N'Set menu 4 món. 110 Lý Thường Kiệt, Xã Bình An, Bắc Giang, Bắc Giang', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #18 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPP10011' AS nchar(20)), CAST(N'DTP1001' AS nchar(20)), N'Vé khu vui chơi trong nhà', N've', 188000, CAST(N'DTV1001' AS nchar(20)), N'Vé khu vui chơi trong nhà. 46 Nguyễn Huệ, Phường 1, Bắc Giang, Bắc Giang', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPP10012' AS nchar(20)), CAST(N'DTP1001' AS nchar(20)), N'Vé công viên nước / trò chơi', N've', 253000, CAST(N'DTV1001' AS nchar(20)), N'Vé công viên nước / trò chơi. 46 Nguyễn Huệ, Phường 1, Bắc Giang, Bắc Giang', CAST(N'HoatDong' AS nchar(20))),
@@ -5844,6 +10414,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPF12065' AS nchar(20)), CAST(N'DTF1206' AS nchar(20)), N'Set menu 4 món', N'suat', 440000, CAST(N'DTV1206' AS nchar(20)), N'Set menu 4 món. 78 Lê Duẩn, Phường Phú Thọ, Cao Bằng, Cao Bằng', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #19 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPF12071' AS nchar(20)), CAST(N'DTF1207' AS nchar(20)), N'Suất đặc sản địa phương', N'suat', 180000, CAST(N'DTV1207' AS nchar(20)), N'Suất đặc sản địa phương. 86 Nguyễn Trãi, Phường An Phú, Cao Bằng, Cao Bằng', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPF12072' AS nchar(20)), CAST(N'DTF1207' AS nchar(20)), N'Cơm niêu gia đình', N'suat', 133000, CAST(N'DTV1207' AS nchar(20)), N'Cơm niêu gia đình. 86 Nguyễn Trãi, Phường An Phú, Cao Bằng, Cao Bằng', CAST(N'HoatDong' AS nchar(20))),
@@ -6247,6 +10818,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPF14025' AS nchar(20)), CAST(N'DTF1402' AS nchar(20)), N'Set menu 4 món', N'suat', 420000, CAST(N'DTV1402' AS nchar(20)), N'Set menu 4 món. 46 Lê Lợi, Phường 2, Tuyên Quang, Tuyên Quang', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #20 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPF14031' AS nchar(20)), CAST(N'DTF1403' AS nchar(20)), N'Suất đặc sản địa phương', N'suat', 160000, CAST(N'DTV1403' AS nchar(20)), N'Suất đặc sản địa phương. 54 Trần Phú, Phường Hòa Bình, Tuyên Quang, Tuyên Quang', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPF14032' AS nchar(20)), CAST(N'DTF1403' AS nchar(20)), N'Cơm niêu gia đình', N'suat', 113000, CAST(N'DTV1403' AS nchar(20)), N'Cơm niêu gia đình. 54 Trần Phú, Phường Hòa Bình, Tuyên Quang, Tuyên Quang', CAST(N'HoatDong' AS nchar(20))),
@@ -6650,6 +11222,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPR16085' AS nchar(20)), CAST(N'DTH1608' AS nchar(20)), N'Phòng Executive', N'dem', 2830000, CAST(N'DTV1608' AS nchar(20)), N'Phòng Executive, 1 đêm gồm ăn sáng. Địa chỉ: 108 Phan Chu Trinh, Phường Bình Minh, Yên Bái, Yên Bái', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #21 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPR16091' AS nchar(20)), CAST(N'DTH1609' AS nchar(20)), N'Phòng tiêu chuẩn', N'dem', 970000, CAST(N'DTV1609' AS nchar(20)), N'Phòng tiêu chuẩn, 1 đêm gồm ăn sáng. Địa chỉ: 119 Trần Hưng Đạo, Phường Long Hải, Yên Bái, Yên Bái', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPR16092' AS nchar(20)), CAST(N'DTH1609' AS nchar(20)), N'Phòng Deluxe', N'dem', 1300000, CAST(N'DTV1609' AS nchar(20)), N'Phòng Deluxe, 1 đêm gồm ăn sáng. Địa chỉ: 119 Trần Hưng Đạo, Phường Long Hải, Yên Bái, Yên Bái', CAST(N'HoatDong' AS nchar(20))),
@@ -7053,6 +11626,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPR18045' AS nchar(20)), CAST(N'DTH1804' AS nchar(20)), N'Phòng Executive', N'dem', 2670000, CAST(N'DTV1804' AS nchar(20)), N'Phòng Executive, 1 đêm gồm ăn sáng. Địa chỉ: 64 Hùng Vương, Phường Tân Thành, Lai Châu, Lai Châu', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #22 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPR18051' AS nchar(20)), CAST(N'DTH1805' AS nchar(20)), N'Phòng tiêu chuẩn', N'dem', 810000, CAST(N'DTV1805' AS nchar(20)), N'Phòng tiêu chuẩn, 1 đêm gồm ăn sáng. Địa chỉ: 75 Hai Bà Trưng, Phường Trung Tâm, Lai Châu, Lai Châu', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPR18052' AS nchar(20)), CAST(N'DTH1805' AS nchar(20)), N'Phòng Deluxe', N'dem', 1140000, CAST(N'DTV1805' AS nchar(20)), N'Phòng Deluxe, 1 đêm gồm ăn sáng. Địa chỉ: 75 Hai Bà Trưng, Phường Trung Tâm, Lai Châu, Lai Châu', CAST(N'HoatDong' AS nchar(20))),
@@ -7456,6 +12030,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPV2010' AS nchar(20)), CAST(N'DTT20' AS nchar(20)), N'Vé Nhà hát / quảng trường Hòa Bình', N've', 300000, CAST(N'DTV2010' AS nchar(20)), N'Vé vào cửa — 100 Lý Thường Kiệt, Xã Bình An, Hòa Bình, Hòa Bình', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #23 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPR20011' AS nchar(20)), CAST(N'DTH2001' AS nchar(20)), N'Phòng tiêu chuẩn', N'dem', 650000, CAST(N'DTV2001' AS nchar(20)), N'Phòng tiêu chuẩn, 1 đêm gồm ăn sáng. Địa chỉ: 31 Nguyễn Huệ, Phường 1, Hòa Bình, Hòa Bình', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPR20012' AS nchar(20)), CAST(N'DTH2001' AS nchar(20)), N'Phòng Deluxe', N'dem', 980000, CAST(N'DTV2001' AS nchar(20)), N'Phòng Deluxe, 1 đêm gồm ăn sáng. Địa chỉ: 31 Nguyễn Huệ, Phường 1, Hòa Bình, Hòa Bình', CAST(N'HoatDong' AS nchar(20))),
@@ -7859,6 +12434,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC21085' AS nchar(20)), CAST(N'DTC2108' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 260000, CAST(N'DTV2108' AS nchar(20)), N'Thuê xe máy 24 giờ. 90 Phan Chu Trinh, Phường Bình Minh, Ninh Bình, Ninh Bình', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #24 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPC21091' AS nchar(20)), CAST(N'DTC2109' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay', N'chuyen', 440000, CAST(N'DTV2109' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay. 95 Trần Hưng Đạo, Phường Long Hải, Ninh Bình, Ninh Bình', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC21092' AS nchar(20)), CAST(N'DTC2109' AS nchar(20)), N'Xe 7 chỗ tham quan ngày', N'chuyen', 940000, CAST(N'DTV2109' AS nchar(20)), N'Xe 7 chỗ tham quan ngày. 95 Trần Hưng Đạo, Phường Long Hải, Ninh Bình, Ninh Bình', CAST(N'HoatDong' AS nchar(20))),
@@ -8262,6 +12838,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC23045' AS nchar(20)), CAST(N'DTC2304' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 220000, CAST(N'DTV2304' AS nchar(20)), N'Thuê xe máy 24 giờ. 70 Hùng Vương, Phường Tân Thành, Thái Bình, Thái Bình', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #25 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPC23051' AS nchar(20)), CAST(N'DTC2305' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay', N'chuyen', 400000, CAST(N'DTV2305' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay. 75 Hai Bà Trưng, Phường Trung Tâm, Thái Bình, Thái Bình', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC23052' AS nchar(20)), CAST(N'DTC2305' AS nchar(20)), N'Xe 7 chỗ tham quan ngày', N'chuyen', 900000, CAST(N'DTV2305' AS nchar(20)), N'Xe 7 chỗ tham quan ngày. 75 Hai Bà Trưng, Phường Trung Tâm, Thái Bình, Thái Bình', CAST(N'HoatDong' AS nchar(20))),
@@ -8665,6 +13242,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPP25105' AS nchar(20)), CAST(N'DTP2510' AS nchar(20)), N'Gói trải nghiệm cả ngày', N've', 600000, CAST(N'DTV2510' AS nchar(20)), N'Gói trải nghiệm cả ngày. 100 Lý Thường Kiệt, Xã Bình An, Bắc Kạn, Bắc Kạn', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #26 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPC25011' AS nchar(20)), CAST(N'DTC2501' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay', N'chuyen', 360000, CAST(N'DTV2501' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay. 55 Nguyễn Huệ, Phường 1, Bắc Kạn, Bắc Kạn', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC25012' AS nchar(20)), CAST(N'DTC2501' AS nchar(20)), N'Xe 7 chỗ tham quan ngày', N'chuyen', 860000, CAST(N'DTV2501' AS nchar(20)), N'Xe 7 chỗ tham quan ngày. 55 Nguyễn Huệ, Phường 1, Bắc Kạn, Bắc Kạn', CAST(N'HoatDong' AS nchar(20))),
@@ -9068,6 +13646,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPP27065' AS nchar(20)), CAST(N'DTP2706' AS nchar(20)), N'Gói trải nghiệm cả ngày', N've', 568000, CAST(N'DTV2706' AS nchar(20)), N'Gói trải nghiệm cả ngày. 76 Lê Duẩn, Phường Phú Thọ, Vinh, Nghệ An', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #27 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPP27071' AS nchar(20)), CAST(N'DTP2707' AS nchar(20)), N'Vé khu vui chơi trong nhà', N've', 236000, CAST(N'DTV2707' AS nchar(20)), N'Vé khu vui chơi trong nhà. 82 Nguyễn Trãi, Phường An Phú, Vinh, Nghệ An', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPP27072' AS nchar(20)), CAST(N'DTP2707' AS nchar(20)), N'Vé công viên nước / trò chơi', N've', 301000, CAST(N'DTV2707' AS nchar(20)), N'Vé công viên nước / trò chơi. 82 Nguyễn Trãi, Phường An Phú, Vinh, Nghệ An', CAST(N'HoatDong' AS nchar(20))),
@@ -9471,6 +14050,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPP29025' AS nchar(20)), CAST(N'DTP2902' AS nchar(20)), N'Gói trải nghiệm cả ngày', N've', 536000, CAST(N'DTV2902' AS nchar(20)), N'Gói trải nghiệm cả ngày. 52 Lê Lợi, Phường 2, Đồng Hới, Quảng Bình', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #28 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPP29031' AS nchar(20)), CAST(N'DTP2903' AS nchar(20)), N'Vé khu vui chơi trong nhà', N've', 204000, CAST(N'DTV2903' AS nchar(20)), N'Vé khu vui chơi trong nhà. 58 Trần Phú, Phường Hòa Bình, Đồng Hới, Quảng Bình', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPP29032' AS nchar(20)), CAST(N'DTP2903' AS nchar(20)), N'Vé công viên nước / trò chơi', N've', 269000, CAST(N'DTV2903' AS nchar(20)), N'Vé công viên nước / trò chơi. 58 Trần Phú, Phường Hòa Bình, Đồng Hới, Quảng Bình', CAST(N'HoatDong' AS nchar(20))),
@@ -9874,6 +14454,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPF31085' AS nchar(20)), CAST(N'DTF3108' AS nchar(20)), N'Set menu 4 món', N'suat', 450000, CAST(N'DTV3108' AS nchar(20)), N'Set menu 4 món. 94 Phan Chu Trinh, Phường Bình Minh, Huế, Thừa Thiên Huế', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #29 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPF31091' AS nchar(20)), CAST(N'DTF3109' AS nchar(20)), N'Suất đặc sản địa phương', N'suat', 190000, CAST(N'DTV3109' AS nchar(20)), N'Suất đặc sản địa phương. 102 Trần Hưng Đạo, Phường Long Hải, Huế, Thừa Thiên Huế', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPF31092' AS nchar(20)), CAST(N'DTF3109' AS nchar(20)), N'Cơm niêu gia đình', N'suat', 143000, CAST(N'DTV3109' AS nchar(20)), N'Cơm niêu gia đình. 102 Trần Hưng Đạo, Phường Long Hải, Huế, Thừa Thiên Huế', CAST(N'HoatDong' AS nchar(20))),
@@ -10277,6 +14858,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPF33045' AS nchar(20)), CAST(N'DTF3304' AS nchar(20)), N'Set menu 4 món', N'suat', 430000, CAST(N'DTV3304' AS nchar(20)), N'Set menu 4 món. 62 Hùng Vương, Phường Tân Thành, Hội An, Quảng Nam', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #30 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPF33051' AS nchar(20)), CAST(N'DTF3305' AS nchar(20)), N'Suất đặc sản địa phương', N'suat', 170000, CAST(N'DTV3305' AS nchar(20)), N'Suất đặc sản địa phương. 70 Hai Bà Trưng, Phường Trung Tâm, Hội An, Quảng Nam', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPF33052' AS nchar(20)), CAST(N'DTF3305' AS nchar(20)), N'Cơm niêu gia đình', N'suat', 123000, CAST(N'DTV3305' AS nchar(20)), N'Cơm niêu gia đình. 70 Hai Bà Trưng, Phường Trung Tâm, Hội An, Quảng Nam', CAST(N'HoatDong' AS nchar(20))),
@@ -10680,6 +15262,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPR35105' AS nchar(20)), CAST(N'DTH3510' AS nchar(20)), N'Phòng Executive', N'dem', 2910000, CAST(N'DTV3510' AS nchar(20)), N'Phòng Executive, 1 đêm gồm ăn sáng. Địa chỉ: 130 Lý Thường Kiệt, Xã Bình An, Quy Nhơn, Bình Định', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #31 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPF35011' AS nchar(20)), CAST(N'DTF3501' AS nchar(20)), N'Suất đặc sản địa phương', N'suat', 150000, CAST(N'DTV3501' AS nchar(20)), N'Suất đặc sản địa phương. 38 Nguyễn Huệ, Phường 1, Quy Nhơn, Bình Định', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPF35012' AS nchar(20)), CAST(N'DTF3501' AS nchar(20)), N'Cơm niêu gia đình', N'suat', 103000, CAST(N'DTV3501' AS nchar(20)), N'Cơm niêu gia đình. 38 Nguyễn Huệ, Phường 1, Quy Nhơn, Bình Định', CAST(N'HoatDong' AS nchar(20))),
@@ -11083,6 +15666,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPR37065' AS nchar(20)), CAST(N'DTH3706' AS nchar(20)), N'Phòng Executive', N'dem', 2750000, CAST(N'DTV3706' AS nchar(20)), N'Phòng Executive, 1 đêm gồm ăn sáng. Địa chỉ: 86 Lê Duẩn, Phường Phú Thọ, Nha Trang, Khánh Hòa', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #32 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPR37071' AS nchar(20)), CAST(N'DTH3707' AS nchar(20)), N'Phòng tiêu chuẩn', N'dem', 890000, CAST(N'DTV3707' AS nchar(20)), N'Phòng tiêu chuẩn, 1 đêm gồm ăn sáng. Địa chỉ: 97 Nguyễn Trãi, Phường An Phú, Nha Trang, Khánh Hòa', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPR37072' AS nchar(20)), CAST(N'DTH3707' AS nchar(20)), N'Phòng Deluxe', N'dem', 1220000, CAST(N'DTV3707' AS nchar(20)), N'Phòng Deluxe, 1 đêm gồm ăn sáng. Địa chỉ: 97 Nguyễn Trãi, Phường An Phú, Nha Trang, Khánh Hòa', CAST(N'HoatDong' AS nchar(20))),
@@ -11486,6 +16070,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPR39025' AS nchar(20)), CAST(N'DTH3902' AS nchar(20)), N'Phòng Executive', N'dem', 2590000, CAST(N'DTV3902' AS nchar(20)), N'Phòng Executive, 1 đêm gồm ăn sáng. Địa chỉ: 42 Lê Lợi, Phường 2, Phan Thiết, Bình Thuận', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #33 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPR39031' AS nchar(20)), CAST(N'DTH3903' AS nchar(20)), N'Phòng tiêu chuẩn', N'dem', 730000, CAST(N'DTV3903' AS nchar(20)), N'Phòng tiêu chuẩn, 1 đêm gồm ăn sáng. Địa chỉ: 53 Trần Phú, Phường Hòa Bình, Phan Thiết, Bình Thuận', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPR39032' AS nchar(20)), CAST(N'DTH3903' AS nchar(20)), N'Phòng Deluxe', N'dem', 1060000, CAST(N'DTV3903' AS nchar(20)), N'Phòng Deluxe, 1 đêm gồm ăn sáng. Địa chỉ: 53 Trần Phú, Phường Hòa Bình, Phan Thiết, Bình Thuận', CAST(N'HoatDong' AS nchar(20))),
@@ -11889,6 +16474,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC40105' AS nchar(20)), CAST(N'DTC4010' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 280000, CAST(N'DTV4010' AS nchar(20)), N'Thuê xe máy 24 giờ. 100 Lý Thường Kiệt, Xã Bình An, Kon Tum, Kon Tum', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #34 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPV4101' AS nchar(20)), CAST(N'DTT41' AS nchar(20)), N'Vé Trung tâm Pleiku', N've', 75000, CAST(N'DTV4101' AS nchar(20)), N'Vé vào cửa — 19 Nguyễn Huệ, Phường 1, Pleiku, Gia Lai', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPV4102' AS nchar(20)), CAST(N'DTT41' AS nchar(20)), N'Vé Bảo tàng Gia Lai', N've', 100000, CAST(N'DTV4102' AS nchar(20)), N'Vé vào cửa — 28 Lê Lợi, Phường 2, Pleiku, Gia Lai', CAST(N'HoatDong' AS nchar(20))),
@@ -12292,6 +16878,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC42065' AS nchar(20)), CAST(N'DTC4206' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 240000, CAST(N'DTV4206' AS nchar(20)), N'Thuê xe máy 24 giờ. 80 Lê Duẩn, Phường Phú Thọ, Buôn Ma Thuột, Đắk Lắk', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #35 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPC42071' AS nchar(20)), CAST(N'DTC4207' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay', N'chuyen', 420000, CAST(N'DTV4207' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay. 85 Nguyễn Trãi, Phường An Phú, Buôn Ma Thuột, Đắk Lắk', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC42072' AS nchar(20)), CAST(N'DTC4207' AS nchar(20)), N'Xe 7 chỗ tham quan ngày', N'chuyen', 920000, CAST(N'DTV4207' AS nchar(20)), N'Xe 7 chỗ tham quan ngày. 85 Nguyễn Trãi, Phường An Phú, Buôn Ma Thuột, Đắk Lắk', CAST(N'HoatDong' AS nchar(20))),
@@ -12695,6 +17282,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC44025' AS nchar(20)), CAST(N'DTC4402' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 200000, CAST(N'DTV4402' AS nchar(20)), N'Thuê xe máy 24 giờ. 60 Lê Lợi, Phường 2, Đà Lạt, Lâm Đồng', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #36 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPC44031' AS nchar(20)), CAST(N'DTC4403' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay', N'chuyen', 380000, CAST(N'DTV4403' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay. 65 Trần Phú, Phường Hòa Bình, Đà Lạt, Lâm Đồng', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC44032' AS nchar(20)), CAST(N'DTC4403' AS nchar(20)), N'Xe 7 chỗ tham quan ngày', N'chuyen', 880000, CAST(N'DTV4403' AS nchar(20)), N'Xe 7 chỗ tham quan ngày. 65 Trần Phú, Phường Hòa Bình, Đà Lạt, Lâm Đồng', CAST(N'HoatDong' AS nchar(20))),
@@ -13098,6 +17686,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPP46085' AS nchar(20)), CAST(N'DTP4608' AS nchar(20)), N'Gói trải nghiệm cả ngày', N've', 584000, CAST(N'DTV4608' AS nchar(20)), N'Gói trải nghiệm cả ngày. 88 Phan Chu Trinh, Phường Bình Minh, Biên Hòa, Đồng Nai', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #37 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPP46091' AS nchar(20)), CAST(N'DTP4609' AS nchar(20)), N'Vé khu vui chơi trong nhà', N've', 252000, CAST(N'DTV4609' AS nchar(20)), N'Vé khu vui chơi trong nhà. 94 Trần Hưng Đạo, Phường Long Hải, Biên Hòa, Đồng Nai', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPP46092' AS nchar(20)), CAST(N'DTP4609' AS nchar(20)), N'Vé công viên nước / trò chơi', N've', 317000, CAST(N'DTV4609' AS nchar(20)), N'Vé công viên nước / trò chơi. 94 Trần Hưng Đạo, Phường Long Hải, Biên Hòa, Đồng Nai', CAST(N'HoatDong' AS nchar(20))),
@@ -13501,6 +18090,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPP48045' AS nchar(20)), CAST(N'DTP4804' AS nchar(20)), N'Gói trải nghiệm cả ngày', N've', 552000, CAST(N'DTV4804' AS nchar(20)), N'Gói trải nghiệm cả ngày. 64 Hùng Vương, Phường Tân Thành, Vũng Tàu, Bà Rịa - Vũng Tàu', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #38 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPP48051' AS nchar(20)), CAST(N'DTP4805' AS nchar(20)), N'Vé khu vui chơi trong nhà', N've', 220000, CAST(N'DTV4805' AS nchar(20)), N'Vé khu vui chơi trong nhà. 70 Hai Bà Trưng, Phường Trung Tâm, Vũng Tàu, Bà Rịa - Vũng Tàu', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPP48052' AS nchar(20)), CAST(N'DTP4805' AS nchar(20)), N'Vé công viên nước / trò chơi', N've', 285000, CAST(N'DTV4805' AS nchar(20)), N'Vé công viên nước / trò chơi. 70 Hai Bà Trưng, Phường Trung Tâm, Vũng Tàu, Bà Rịa - Vũng Tàu', CAST(N'HoatDong' AS nchar(20))),
@@ -13904,6 +18494,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPF50105' AS nchar(20)), CAST(N'DTF5010' AS nchar(20)), N'Set menu 4 món', N'suat', 460000, CAST(N'DTV5010' AS nchar(20)), N'Set menu 4 món. 110 Lý Thường Kiệt, Xã Bình An, Đồng Xoài, Bình Phước', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #39 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPP50011' AS nchar(20)), CAST(N'DTP5001' AS nchar(20)), N'Vé khu vui chơi trong nhà', N've', 188000, CAST(N'DTV5001' AS nchar(20)), N'Vé khu vui chơi trong nhà. 46 Nguyễn Huệ, Phường 1, Đồng Xoài, Bình Phước', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPP50012' AS nchar(20)), CAST(N'DTP5001' AS nchar(20)), N'Vé công viên nước / trò chơi', N've', 253000, CAST(N'DTV5001' AS nchar(20)), N'Vé công viên nước / trò chơi. 46 Nguyễn Huệ, Phường 1, Đồng Xoài, Bình Phước', CAST(N'HoatDong' AS nchar(20))),
@@ -14307,6 +18898,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPF52065' AS nchar(20)), CAST(N'DTF5206' AS nchar(20)), N'Set menu 4 món', N'suat', 440000, CAST(N'DTV5206' AS nchar(20)), N'Set menu 4 món. 78 Lê Duẩn, Phường Phú Thọ, Mỹ Tho, Tiền Giang', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #40 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPF52071' AS nchar(20)), CAST(N'DTF5207' AS nchar(20)), N'Suất đặc sản địa phương', N'suat', 180000, CAST(N'DTV5207' AS nchar(20)), N'Suất đặc sản địa phương. 86 Nguyễn Trãi, Phường An Phú, Mỹ Tho, Tiền Giang', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPF52072' AS nchar(20)), CAST(N'DTF5207' AS nchar(20)), N'Cơm niêu gia đình', N'suat', 133000, CAST(N'DTV5207' AS nchar(20)), N'Cơm niêu gia đình. 86 Nguyễn Trãi, Phường An Phú, Mỹ Tho, Tiền Giang', CAST(N'HoatDong' AS nchar(20))),
@@ -14710,6 +19302,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPF54025' AS nchar(20)), CAST(N'DTF5402' AS nchar(20)), N'Set menu 4 món', N'suat', 420000, CAST(N'DTV5402' AS nchar(20)), N'Set menu 4 món. 46 Lê Lợi, Phường 2, Vĩnh Long, Vĩnh Long', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #41 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPF54031' AS nchar(20)), CAST(N'DTF5403' AS nchar(20)), N'Suất đặc sản địa phương', N'suat', 160000, CAST(N'DTV5403' AS nchar(20)), N'Suất đặc sản địa phương. 54 Trần Phú, Phường Hòa Bình, Vĩnh Long, Vĩnh Long', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPF54032' AS nchar(20)), CAST(N'DTF5403' AS nchar(20)), N'Cơm niêu gia đình', N'suat', 113000, CAST(N'DTV5403' AS nchar(20)), N'Cơm niêu gia đình. 54 Trần Phú, Phường Hòa Bình, Vĩnh Long, Vĩnh Long', CAST(N'HoatDong' AS nchar(20))),
@@ -15113,6 +19706,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPR56085' AS nchar(20)), CAST(N'DTH5608' AS nchar(20)), N'Phòng Executive', N'dem', 2830000, CAST(N'DTV5608' AS nchar(20)), N'Phòng Executive, 1 đêm gồm ăn sáng. Địa chỉ: 108 Phan Chu Trinh, Phường Bình Minh, Cao Lãnh, Đồng Tháp', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #42 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPR56091' AS nchar(20)), CAST(N'DTH5609' AS nchar(20)), N'Phòng tiêu chuẩn', N'dem', 970000, CAST(N'DTV5609' AS nchar(20)), N'Phòng tiêu chuẩn, 1 đêm gồm ăn sáng. Địa chỉ: 119 Trần Hưng Đạo, Phường Long Hải, Cao Lãnh, Đồng Tháp', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPR56092' AS nchar(20)), CAST(N'DTH5609' AS nchar(20)), N'Phòng Deluxe', N'dem', 1300000, CAST(N'DTV5609' AS nchar(20)), N'Phòng Deluxe, 1 đêm gồm ăn sáng. Địa chỉ: 119 Trần Hưng Đạo, Phường Long Hải, Cao Lãnh, Đồng Tháp', CAST(N'HoatDong' AS nchar(20))),
@@ -15516,6 +20110,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPR58045' AS nchar(20)), CAST(N'DTH5804' AS nchar(20)), N'Phòng Executive', N'dem', 2670000, CAST(N'DTV5804' AS nchar(20)), N'Phòng Executive, 1 đêm gồm ăn sáng. Địa chỉ: 64 Hùng Vương, Phường Tân Thành, Rạch Giá, Kiên Giang', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #43 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPR58051' AS nchar(20)), CAST(N'DTH5805' AS nchar(20)), N'Phòng tiêu chuẩn', N'dem', 810000, CAST(N'DTV5805' AS nchar(20)), N'Phòng tiêu chuẩn, 1 đêm gồm ăn sáng. Địa chỉ: 75 Hai Bà Trưng, Phường Trung Tâm, Rạch Giá, Kiên Giang', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPR58052' AS nchar(20)), CAST(N'DTH5805' AS nchar(20)), N'Phòng Deluxe', N'dem', 1140000, CAST(N'DTV5805' AS nchar(20)), N'Phòng Deluxe, 1 đêm gồm ăn sáng. Địa chỉ: 75 Hai Bà Trưng, Phường Trung Tâm, Rạch Giá, Kiên Giang', CAST(N'HoatDong' AS nchar(20))),
@@ -15919,6 +20514,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPV6010' AS nchar(20)), CAST(N'DTT60' AS nchar(20)), N'Vé Nhà hát / quảng trường Vị Thanh', N've', 300000, CAST(N'DTV6010' AS nchar(20)), N'Vé vào cửa — 100 Lý Thường Kiệt, Xã Bình An, Vị Thanh, Hậu Giang', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #44 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPR60011' AS nchar(20)), CAST(N'DTH6001' AS nchar(20)), N'Phòng tiêu chuẩn', N'dem', 650000, CAST(N'DTV6001' AS nchar(20)), N'Phòng tiêu chuẩn, 1 đêm gồm ăn sáng. Địa chỉ: 31 Nguyễn Huệ, Phường 1, Vị Thanh, Hậu Giang', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPR60012' AS nchar(20)), CAST(N'DTH6001' AS nchar(20)), N'Phòng Deluxe', N'dem', 980000, CAST(N'DTV6001' AS nchar(20)), N'Phòng Deluxe, 1 đêm gồm ăn sáng. Địa chỉ: 31 Nguyễn Huệ, Phường 1, Vị Thanh, Hậu Giang', CAST(N'HoatDong' AS nchar(20))),
@@ -16322,6 +20918,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC61085' AS nchar(20)), CAST(N'DTC6108' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 260000, CAST(N'DTV6108' AS nchar(20)), N'Thuê xe máy 24 giờ. 90 Phan Chu Trinh, Phường Bình Minh, Sóc Trăng, Sóc Trăng', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #45 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPC61091' AS nchar(20)), CAST(N'DTC6109' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay', N'chuyen', 440000, CAST(N'DTV6109' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay. 95 Trần Hưng Đạo, Phường Long Hải, Sóc Trăng, Sóc Trăng', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC61092' AS nchar(20)), CAST(N'DTC6109' AS nchar(20)), N'Xe 7 chỗ tham quan ngày', N'chuyen', 940000, CAST(N'DTV6109' AS nchar(20)), N'Xe 7 chỗ tham quan ngày. 95 Trần Hưng Đạo, Phường Long Hải, Sóc Trăng, Sóc Trăng', CAST(N'HoatDong' AS nchar(20))),
@@ -16725,6 +21322,7 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC63045' AS nchar(20)), CAST(N'DTC6304' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 220000, CAST(N'DTV6304' AS nchar(20)), N'Thuê xe máy 24 giờ. 70 Hùng Vương, Phường Tân Thành, Cà Mau, Cà Mau', CAST(N'HoatDong' AS nchar(20)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #46 ===== */
 INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai) VALUES
   (CAST(N'SPC63051' AS nchar(20)), CAST(N'DTC6305' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay', N'chuyen', 400000, CAST(N'DTV6305' AS nchar(20)), N'Xe 4 chỗ đưa đón sân bay. 75 Hai Bà Trưng, Phường Trung Tâm, Cà Mau, Cà Mau', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC63052' AS nchar(20)), CAST(N'DTC6305' AS nchar(20)), N'Xe 7 chỗ tham quan ngày', N'chuyen', 900000, CAST(N'DTV6305' AS nchar(20)), N'Xe 7 chỗ tham quan ngày. 75 Hai Bà Trưng, Phường Trung Tâm, Cà Mau, Cà Mau', CAST(N'HoatDong' AS nchar(20))),
@@ -16757,6 +21355,8 @@ INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNi
   (CAST(N'SPC63104' AS nchar(20)), CAST(N'DTC6310' AS nchar(20)), N'Xe giường nằm liên tỉnh', N'chuyen', 520000, CAST(N'DTV6310' AS nchar(20)), N'Xe giường nằm liên tỉnh. 100 Lý Thường Kiệt, Xã Bình An, Cà Mau, Cà Mau', CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'SPC63105' AS nchar(20)), CAST(N'DTC6310' AS nchar(20)), N'Thuê xe máy 24 giờ', N'chuyen', 280000, CAST(N'DTV6310' AS nchar(20)), N'Thuê xe máy 24 giờ. 100 Lý Thường Kiệt, Xã Bình An, Cà Mau, Cà Mau', CAST(N'HoatDong' AS nchar(20)));
 GO
+
+/* ===== 026_SeedMauDayDu.sql #47 ===== */
 INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiUocTinh) VALUES
   (CAST(N'TN01' AS nchar(20)), CAST(N'TN32' AS nchar(20)), CAST(N'MayBay' AS nchar(20)), 3084, 1491000),
   (CAST(N'TN01' AS nchar(20)), CAST(N'TN32' AS nchar(20)), CAST(N'Tau' AS nchar(20)), 700, 484000),
@@ -17160,6 +21760,7 @@ INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiU
   (CAST(N'TN59' AS nchar(20)), CAST(N'TN03' AS nchar(20)), CAST(N'MayBay' AS nchar(20)), 6160, 2598000);
 GO
 
+/* ===== 026_SeedMauDayDu.sql #48 ===== */
 INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiUocTinh) VALUES
   (CAST(N'TN59' AS nchar(20)), CAST(N'TN03' AS nchar(20)), CAST(N'Tau' AS nchar(20)), 1372, 915000),
   (CAST(N'TN59' AS nchar(20)), CAST(N'TN03' AS nchar(20)), CAST(N'XeKhach' AS nchar(20)), 1551, 1179000),
@@ -17563,6 +22164,7 @@ INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiU
   (CAST(N'TN39' AS nchar(20)), CAST(N'TN58' AS nchar(20)), CAST(N'Tau' AS nchar(20)), 417, 302000);
 GO
 
+/* ===== 026_SeedMauDayDu.sql #49 ===== */
 INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiUocTinh) VALUES
   (CAST(N'TN39' AS nchar(20)), CAST(N'TN58' AS nchar(20)), CAST(N'XeKhach' AS nchar(20)), 457, 391000),
   (CAST(N'TN39' AS nchar(20)), CAST(N'TN58' AS nchar(20)), CAST(N'XeMay' AS nchar(20)), 668, 213000),
@@ -17966,6 +22568,7 @@ INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiU
   (CAST(N'TN22' AS nchar(20)), CAST(N'TN01' AS nchar(20)), CAST(N'XeKhach' AS nchar(20)), 116, 146000);
 GO
 
+/* ===== 026_SeedMauDayDu.sql #50 ===== */
 INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiUocTinh) VALUES
   (CAST(N'TN22' AS nchar(20)), CAST(N'TN01' AS nchar(20)), CAST(N'XeMay' AS nchar(20)), 156, 76000),
   (CAST(N'TN01' AS nchar(20)), CAST(N'TN22' AS nchar(20)), CAST(N'Tau' AS nchar(20)), 119, 111000),
@@ -18369,6 +22972,7 @@ INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiU
   (CAST(N'TN45' AS nchar(20)), CAST(N'TN43' AS nchar(20)), CAST(N'Tau' AS nchar(20)), 250, 195000);
 GO
 
+/* ===== 026_SeedMauDayDu.sql #51 ===== */
 INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiUocTinh) VALUES
   (CAST(N'TN45' AS nchar(20)), CAST(N'TN43' AS nchar(20)), CAST(N'XeKhach' AS nchar(20)), 265, 254000),
   (CAST(N'TN45' AS nchar(20)), CAST(N'TN43' AS nchar(20)), CAST(N'XeMay' AS nchar(20)), 381, 136000),
@@ -18772,6 +23376,7 @@ INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiU
   (CAST(N'TN24' AS nchar(20)), CAST(N'TN24' AS nchar(20)), CAST(N'XeKhach' AS nchar(20)), 40, 50000);
 GO
 
+/* ===== 026_SeedMauDayDu.sql #52 ===== */
 INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiUocTinh) VALUES
   (CAST(N'TN25' AS nchar(20)), CAST(N'TN25' AS nchar(20)), CAST(N'XeMay' AS nchar(20)), 25, 80000),
   (CAST(N'TN25' AS nchar(20)), CAST(N'TN25' AS nchar(20)), CAST(N'XeKhach' AS nchar(20)), 40, 50000),
@@ -18852,6 +23457,8 @@ INSERT INTO dbo.MatranDiChuyen (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiU
   (CAST(N'TN63' AS nchar(20)), CAST(N'TN63' AS nchar(20)), CAST(N'XeMay' AS nchar(20)), 25, 80000),
   (CAST(N'TN63' AS nchar(20)), CAST(N'TN63' AS nchar(20)), CAST(N'XeKhach' AS nchar(20)), 40, 50000);
 GO
+
+/* ===== 026_SeedMauDayDu.sql #53 ===== */
 INSERT INTO dbo.NguoiSuDung (MaUser, SoDienThoai, MatKhau, MaVaiTro) VALUES
   (CAST(N'USR0001' AS nchar(20)), CAST(N'0900000001' AS nchar(20)), N'$2a$11$DOcyrWZ/bvqL3mWaqhbnKujUSEGbAuRkSR7pxYf4/LasW9DseeQFe', 1),
   (CAST(N'USR0002' AS nchar(20)), CAST(N'0900000002' AS nchar(20)), N'$2a$11$DOcyrWZ/bvqL3mWaqhbnKujUSEGbAuRkSR7pxYf4/LasW9DseeQFe', 1),
@@ -18894,6 +23501,8 @@ INSERT INTO dbo.NguoiSuDung (MaUser, SoDienThoai, MatKhau, MaVaiTro) VALUES
   (CAST(N'USR0039' AS nchar(20)), CAST(N'0900000039' AS nchar(20)), N'$2a$11$DOcyrWZ/bvqL3mWaqhbnKujUSEGbAuRkSR7pxYf4/LasW9DseeQFe', 3),
   (CAST(N'USR0040' AS nchar(20)), CAST(N'0900000040' AS nchar(20)), N'$2a$11$DOcyrWZ/bvqL3mWaqhbnKujUSEGbAuRkSR7pxYf4/LasW9DseeQFe', 3);
 GO
+
+/* ===== 026_SeedMauDayDu.sql #54 ===== */
 INSERT INTO dbo.KhachHang (MaKhachHang, Ho, Ten, HoGiayTo, TenGiayTo, QuocTich, DanhXung, GioiTinh, NgaySinh, Email, SoDienThoai, MaUser) VALUES
   (CAST(N'KHACH011' AS nchar(20)), N'Nguyễn', N'An', N'Nguyễn', N'An', N'Việt Nam', CAST(N'Anh' AS nchar(10)), CAST(N'Nam' AS nchar(10)), CAST('1990-01-15' AS date), N'kh11@tourdulich.vn', CAST(N'0900000011' AS nchar(15)), CAST(N'USR0011' AS nchar(20))),
   (CAST(N'KHACH012' AS nchar(20)), N'Trần', N'Bình', N'Trần', N'Bình', N'Việt Nam', CAST(N'Chị' AS nchar(10)), CAST(N'Nữ' AS nchar(10)), CAST('1990-01-15' AS date), N'kh12@tourdulich.vn', CAST(N'0900000012' AS nchar(15)), CAST(N'USR0012' AS nchar(20))),
@@ -18926,6 +23535,8 @@ INSERT INTO dbo.KhachHang (MaKhachHang, Ho, Ten, HoGiayTo, TenGiayTo, QuocTich, 
   (CAST(N'KHACH039' AS nchar(20)), N'Đỗ', N'Minh', N'Đỗ', N'Minh', N'Việt Nam', CAST(N'Anh' AS nchar(10)), CAST(N'Nam' AS nchar(10)), CAST('1990-01-15' AS date), N'kh39@tourdulich.vn', CAST(N'0900000039' AS nchar(15)), CAST(N'USR0039' AS nchar(20))),
   (CAST(N'KHACH040' AS nchar(20)), N'Hồ', N'Nam', N'Hồ', N'Nam', N'Việt Nam', CAST(N'Chị' AS nchar(10)), CAST(N'Nữ' AS nchar(10)), CAST('1990-01-15' AS date), N'kh40@tourdulich.vn', CAST(N'0900000040' AS nchar(15)), CAST(N'USR0040' AS nchar(20)));
 GO
+
+/* ===== 026_SeedMauDayDu.sql #55 ===== */
 INSERT INTO dbo.GiayTo (MaGiayTo, LoaiGiayTo, SoTrenGiayTo, NgayCap, NgayHetHan, NoiCap, MaKhachHang) VALUES
   (CAST(N'GT0011' AS nchar(20)), N'CCCD', N'079098000011', CAST('2020-01-01' AS date), CAST('2035-01-01' AS date), N'Cục CSQLHC', CAST(N'KHACH011' AS nchar(20))),
   (CAST(N'GT0012' AS nchar(20)), N'CCCD', N'079098000012', CAST('2020-01-01' AS date), CAST('2035-01-01' AS date), N'Cục CSQLHC', CAST(N'KHACH012' AS nchar(20))),
@@ -18958,6 +23569,8 @@ INSERT INTO dbo.GiayTo (MaGiayTo, LoaiGiayTo, SoTrenGiayTo, NgayCap, NgayHetHan,
   (CAST(N'GT0039' AS nchar(20)), N'CCCD', N'079098000039', CAST('2020-01-01' AS date), CAST('2035-01-01' AS date), N'Cục CSQLHC', CAST(N'KHACH039' AS nchar(20))),
   (CAST(N'GT0040' AS nchar(20)), N'CCCD', N'079098000040', CAST('2020-01-01' AS date), CAST('2035-01-01' AS date), N'Cục CSQLHC', CAST(N'KHACH040' AS nchar(20)));
 GO
+
+/* ===== 026_SeedMauDayDu.sql #56 ===== */
 INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen) VALUES
   (CAST(N'QN000001' AS nchar(20)), CAST(N'USR0001' AS nchar(20)), N'TongQuan', 1, 1, 1, 1),
   (CAST(N'QN000002' AS nchar(20)), CAST(N'USR0001' AS nchar(20)), N'Tour', 1, 1, 1, 1),
@@ -19040,39 +23653,13 @@ INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQu
   (CAST(N'QN000079' AS nchar(20)), CAST(N'USR0010' AS nchar(20)), N'ThietKe', 1, 1, 1, 1),
   (CAST(N'QN000080' AS nchar(20)), CAST(N'USR0010' AS nchar(20)), N'TaiKhoan', 0, 0, 0, 0);
 GO
-INSERT INTO dbo.HuongDanVien (MaHuongDanVien, HoTen, NgaySinh, QueQuan, Email, CCCD, SoDienThoai) VALUES
-  (CAST(N'HDV0001' AS nchar(20)), N'Trần Bình HDV', CAST('1990-05-10' AS date), N'Hà Nội', N'hdv01@tourdulich.vn', N'001090000001', CAST(N'0912000001' AS nchar(20))),
-  (CAST(N'HDV0002' AS nchar(20)), N'Lê Châu HDV', CAST('1990-05-10' AS date), N'Hải Phòng', N'hdv02@tourdulich.vn', N'001090000002', CAST(N'0912000002' AS nchar(20))),
-  (CAST(N'HDV0003' AS nchar(20)), N'Phạm Dũng HDV', CAST('1990-05-10' AS date), N'Quảng Ninh', N'hdv03@tourdulich.vn', N'001090000003', CAST(N'0912000003' AS nchar(20))),
-  (CAST(N'HDV0004' AS nchar(20)), N'Hoàng Giang HDV', CAST('1990-05-10' AS date), N'Bắc Ninh', N'hdv04@tourdulich.vn', N'001090000004', CAST(N'0912000004' AS nchar(20))),
-  (CAST(N'HDV0005' AS nchar(20)), N'Vũ Hà HDV', CAST('1990-05-10' AS date), N'Hải Dương', N'hdv05@tourdulich.vn', N'001090000005', CAST(N'0912000005' AS nchar(20))),
-  (CAST(N'HDV0006' AS nchar(20)), N'Đặng Khoa HDV', CAST('1990-05-10' AS date), N'Hưng Yên', N'hdv06@tourdulich.vn', N'001090000006', CAST(N'0912000006' AS nchar(20))),
-  (CAST(N'HDV0007' AS nchar(20)), N'Bùi Lan HDV', CAST('1990-05-10' AS date), N'Vĩnh Phúc', N'hdv07@tourdulich.vn', N'001090000007', CAST(N'0912000007' AS nchar(20))),
-  (CAST(N'HDV0008' AS nchar(20)), N'Đỗ Minh HDV', CAST('1990-05-10' AS date), N'Thái Nguyên', N'hdv08@tourdulich.vn', N'001090000008', CAST(N'0912000008' AS nchar(20))),
-  (CAST(N'HDV0009' AS nchar(20)), N'Hồ Nam HDV', CAST('1990-05-10' AS date), N'Phú Thọ', N'hdv09@tourdulich.vn', N'001090000009', CAST(N'0912000009' AS nchar(20))),
-  (CAST(N'HDV0010' AS nchar(20)), N'Nguyễn Oanh HDV', CAST('1990-05-10' AS date), N'Bắc Giang', N'hdv10@tourdulich.vn', N'001090000010', CAST(N'0912000010' AS nchar(20))),
-  (CAST(N'HDV0011' AS nchar(20)), N'Trần Phúc HDV', CAST('1990-05-10' AS date), N'Lạng Sơn', N'hdv11@tourdulich.vn', N'001090000011', CAST(N'0912000011' AS nchar(20))),
-  (CAST(N'HDV0012' AS nchar(20)), N'Lê Quân HDV', CAST('1990-05-10' AS date), N'Cao Bằng', N'hdv12@tourdulich.vn', N'001090000012', CAST(N'0912000012' AS nchar(20))),
-  (CAST(N'HDV0013' AS nchar(20)), N'Phạm Trang HDV', CAST('1990-05-10' AS date), N'Hà Giang', N'hdv13@tourdulich.vn', N'001090000013', CAST(N'0912000013' AS nchar(20))),
-  (CAST(N'HDV0014' AS nchar(20)), N'Hoàng Uyên HDV', CAST('1990-05-10' AS date), N'Tuyên Quang', N'hdv14@tourdulich.vn', N'001090000014', CAST(N'0912000014' AS nchar(20))),
-  (CAST(N'HDV0015' AS nchar(20)), N'Vũ Vân HDV', CAST('1990-05-10' AS date), N'Lào Cai', N'hdv15@tourdulich.vn', N'001090000015', CAST(N'0912000015' AS nchar(20))),
-  (CAST(N'HDV0016' AS nchar(20)), N'Đặng Yến HDV', CAST('1990-05-10' AS date), N'Yên Bái', N'hdv16@tourdulich.vn', N'001090000016', CAST(N'0912000016' AS nchar(20))),
-  (CAST(N'HDV0017' AS nchar(20)), N'Bùi Huy HDV', CAST('1990-05-10' AS date), N'Điện Biên', N'hdv17@tourdulich.vn', N'001090000017', CAST(N'0912000017' AS nchar(20))),
-  (CAST(N'HDV0018' AS nchar(20)), N'Đỗ My HDV', CAST('1990-05-10' AS date), N'Lai Châu', N'hdv18@tourdulich.vn', N'001090000018', CAST(N'0912000018' AS nchar(20))),
-  (CAST(N'HDV0019' AS nchar(20)), N'Hồ Tú HDV', CAST('1990-05-10' AS date), N'Sơn La', N'hdv19@tourdulich.vn', N'001090000019', CAST(N'0912000019' AS nchar(20))),
-  (CAST(N'HDV0020' AS nchar(20)), N'Nguyễn An HDV', CAST('1990-05-10' AS date), N'Hòa Bình', N'hdv20@tourdulich.vn', N'001090000020', CAST(N'0912000020' AS nchar(20))),
-  (CAST(N'HDV0021' AS nchar(20)), N'Trần Bình HDV', CAST('1990-05-10' AS date), N'Ninh Bình', N'hdv21@tourdulich.vn', N'001090000021', CAST(N'0912000021' AS nchar(20))),
-  (CAST(N'HDV0022' AS nchar(20)), N'Lê Châu HDV', CAST('1990-05-10' AS date), N'Nam Định', N'hdv22@tourdulich.vn', N'001090000022', CAST(N'0912000022' AS nchar(20))),
-  (CAST(N'HDV0023' AS nchar(20)), N'Phạm Dũng HDV', CAST('1990-05-10' AS date), N'Thái Bình', N'hdv23@tourdulich.vn', N'001090000023', CAST(N'0912000023' AS nchar(20))),
-  (CAST(N'HDV0024' AS nchar(20)), N'Hoàng Giang HDV', CAST('1990-05-10' AS date), N'Hà Nam', N'hdv24@tourdulich.vn', N'001090000024', CAST(N'0912000024' AS nchar(20))),
-  (CAST(N'HDV0025' AS nchar(20)), N'Vũ Hà HDV', CAST('1990-05-10' AS date), N'Bắc Kạn', N'hdv25@tourdulich.vn', N'001090000025', CAST(N'0912000025' AS nchar(20))),
-  (CAST(N'HDV0026' AS nchar(20)), N'Đặng Khoa HDV', CAST('1990-05-10' AS date), N'Thanh Hóa', N'hdv26@tourdulich.vn', N'001090000026', CAST(N'0912000026' AS nchar(20))),
-  (CAST(N'HDV0027' AS nchar(20)), N'Bùi Lan HDV', CAST('1990-05-10' AS date), N'Nghệ An', N'hdv27@tourdulich.vn', N'001090000027', CAST(N'0912000027' AS nchar(20))),
-  (CAST(N'HDV0028' AS nchar(20)), N'Đỗ Minh HDV', CAST('1990-05-10' AS date), N'Hà Tĩnh', N'hdv28@tourdulich.vn', N'001090000028', CAST(N'0912000028' AS nchar(20))),
-  (CAST(N'HDV0029' AS nchar(20)), N'Hồ Nam HDV', CAST('1990-05-10' AS date), N'Quảng Bình', N'hdv29@tourdulich.vn', N'001090000029', CAST(N'0912000029' AS nchar(20))),
-  (CAST(N'HDV0030' AS nchar(20)), N'Nguyễn Oanh HDV', CAST('1990-05-10' AS date), N'Quảng Trị', N'hdv30@tourdulich.vn', N'001090000030', CAST(N'0912000030' AS nchar(20)));
+
+/* ===== 026_SeedMauDayDu.sql #57 ===== */
+
+
 GO
 
+/* ===== 026_SeedMauDayDu.sql #58 ===== */
 INSERT INTO dbo.Tour (MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai)
 SELECT v.MaTour, v.TenTour, v.Mota, v.ThoiGian, v.DieuKhoan, v.GiaTour, v.SLKhach, v.SLHuongDanVien, v.LoaiTour, v.TrangThai
 FROM (VALUES
@@ -19109,6 +23696,8 @@ FROM (VALUES
 ) v(MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai)
 WHERE NOT EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour);
 GO
+
+/* ===== 026_SeedMauDayDu.sql #59 ===== */
 UPDATE t SET
   t.TenTour = v.TenTour, t.Mota = v.Mota, t.ThoiGian = v.ThoiGian, t.DieuKhoan = v.DieuKhoan,
   t.GiaTour = v.GiaTour, t.SLKhach = v.SLKhach, t.SLHuongDanVien = v.SLHuongDanVien,
@@ -19148,6 +23737,8 @@ JOIN (VALUES
 ) v(MaTour, TenTour, Mota, ThoiGian, DieuKhoan, GiaTour, SLKhach, SLHuongDanVien, LoaiTour, TrangThai)
   ON t.MaTour = v.MaTour;
 GO
+
+/* ===== 026_SeedMauDayDu.sql #60 ===== */
 INSERT INTO dbo.LichTrinh (MaLichTrinh, MaTour, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThoiGianDuKien, Mota, GioBatDau) VALUES
   (CAST(N'LT00001' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), 1, 1, CAST(N'DTV0301' AS nchar(20)), CAST(N'SPV0301' AS nchar(20)), 1, 75000, DATEADD(HOUR, 8, DATEADD(DAY, 0, SYSUTCDATETIME())), N'Ngày 1 — Vịnh Hạ Long', CAST('08:00:00' AS time(0))),
   (CAST(N'LT00002' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), 1, 2, CAST(N'DTV0302' AS nchar(20)), CAST(N'SPV0302' AS nchar(20)), 1, 100000, DATEADD(HOUR, 11, DATEADD(DAY, 0, SYSUTCDATETIME())), N'Ngày 1 — Đảo Tuần Châu', CAST('11:00:00' AS time(0))),
@@ -19435,6 +24026,8 @@ INSERT INTO dbo.LichTrinh (MaLichTrinh, MaTour, NgayThu, ThuTuTrongNgay, MaDTham
   (CAST(N'LT00284' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), 3, 2, CAST(N'DTV4408' AS nchar(20)), CAST(N'SPV4408' AS nchar(20)), 1, 250000, DATEADD(HOUR, 11, DATEADD(DAY, 2, SYSUTCDATETIME())), N'Ngày 3 — Đồi Mộng Mơ', CAST('11:00:00' AS time(0))),
   (CAST(N'LT00285' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), 3, 3, CAST(N'DTV4409' AS nchar(20)), CAST(N'SPV4409' AS nchar(20)), 1, 275000, DATEADD(HOUR, 15, DATEADD(DAY, 2, SYSUTCDATETIME())), N'Ngày 3 — Dinh Bảo Đại', CAST('15:00:00' AS time(0)));
 GO
+
+/* ===== 026_SeedMauDayDu.sql #61 ===== */
 INSERT INTO dbo.LichKhoiHanh (MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, DiaDiem, SoCho) VALUES
   (CAST(N'KH00001' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), DATEADD(DAY, 15, SYSUTCDATETIME()), DATEADD(DAY, 17, SYSUTCDATETIME()), N'Hà Nội', 28),
   (CAST(N'KH00002' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), DATEADD(DAY, 35, SYSUTCDATETIME()), DATEADD(DAY, 37, SYSUTCDATETIME()), N'Hà Nội', 28),
@@ -19497,38 +24090,13 @@ INSERT INTO dbo.LichKhoiHanh (MaKhoiHanh, MaTour, NgayKhoiHanh, NgayKetThuc, Dia
   (CAST(N'KH00059' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), DATEADD(DAY, 44, SYSUTCDATETIME()), DATEADD(DAY, 46, SYSUTCDATETIME()), N'TP. Hồ Chí Minh', 28),
   (CAST(N'KH00060' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), DATEADD(DAY, 64, SYSUTCDATETIME()), DATEADD(DAY, 66, SYSUTCDATETIME()), N'TP. Hồ Chí Minh', 28);
 GO
-INSERT INTO dbo.LichDanTour (MaLichDanTour, MaHDV, MaTour, MaKhoiHanh) VALUES
-  (CAST(N'LDT0001' AS nchar(20)), CAST(N'HDV0001' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), CAST(N'KH00001' AS nchar(20))),
-  (CAST(N'LDT0002' AS nchar(20)), CAST(N'HDV0002' AS nchar(20)), CAST(N'TOUR002' AS nchar(20)), CAST(N'KH00002' AS nchar(20))),
-  (CAST(N'LDT0003' AS nchar(20)), CAST(N'HDV0003' AS nchar(20)), CAST(N'TOUR003' AS nchar(20)), CAST(N'KH00003' AS nchar(20))),
-  (CAST(N'LDT0004' AS nchar(20)), CAST(N'HDV0004' AS nchar(20)), CAST(N'TOUR004' AS nchar(20)), CAST(N'KH00004' AS nchar(20))),
-  (CAST(N'LDT0005' AS nchar(20)), CAST(N'HDV0005' AS nchar(20)), CAST(N'TOUR005' AS nchar(20)), CAST(N'KH00005' AS nchar(20))),
-  (CAST(N'LDT0006' AS nchar(20)), CAST(N'HDV0006' AS nchar(20)), CAST(N'TOUR006' AS nchar(20)), CAST(N'KH00006' AS nchar(20))),
-  (CAST(N'LDT0007' AS nchar(20)), CAST(N'HDV0007' AS nchar(20)), CAST(N'TOUR007' AS nchar(20)), CAST(N'KH00007' AS nchar(20))),
-  (CAST(N'LDT0008' AS nchar(20)), CAST(N'HDV0008' AS nchar(20)), CAST(N'TOUR008' AS nchar(20)), CAST(N'KH00008' AS nchar(20))),
-  (CAST(N'LDT0009' AS nchar(20)), CAST(N'HDV0009' AS nchar(20)), CAST(N'TOUR009' AS nchar(20)), CAST(N'KH00009' AS nchar(20))),
-  (CAST(N'LDT0010' AS nchar(20)), CAST(N'HDV0010' AS nchar(20)), CAST(N'TOUR010' AS nchar(20)), CAST(N'KH00010' AS nchar(20))),
-  (CAST(N'LDT0011' AS nchar(20)), CAST(N'HDV0011' AS nchar(20)), CAST(N'TOUR011' AS nchar(20)), CAST(N'KH00011' AS nchar(20))),
-  (CAST(N'LDT0012' AS nchar(20)), CAST(N'HDV0012' AS nchar(20)), CAST(N'TOUR012' AS nchar(20)), CAST(N'KH00012' AS nchar(20))),
-  (CAST(N'LDT0013' AS nchar(20)), CAST(N'HDV0013' AS nchar(20)), CAST(N'TOUR013' AS nchar(20)), CAST(N'KH00013' AS nchar(20))),
-  (CAST(N'LDT0014' AS nchar(20)), CAST(N'HDV0014' AS nchar(20)), CAST(N'TOUR014' AS nchar(20)), CAST(N'KH00014' AS nchar(20))),
-  (CAST(N'LDT0015' AS nchar(20)), CAST(N'HDV0015' AS nchar(20)), CAST(N'TOUR015' AS nchar(20)), CAST(N'KH00015' AS nchar(20))),
-  (CAST(N'LDT0016' AS nchar(20)), CAST(N'HDV0016' AS nchar(20)), CAST(N'TOUR016' AS nchar(20)), CAST(N'KH00016' AS nchar(20))),
-  (CAST(N'LDT0017' AS nchar(20)), CAST(N'HDV0017' AS nchar(20)), CAST(N'TOUR017' AS nchar(20)), CAST(N'KH00017' AS nchar(20))),
-  (CAST(N'LDT0018' AS nchar(20)), CAST(N'HDV0018' AS nchar(20)), CAST(N'TOUR018' AS nchar(20)), CAST(N'KH00018' AS nchar(20))),
-  (CAST(N'LDT0019' AS nchar(20)), CAST(N'HDV0019' AS nchar(20)), CAST(N'TOUR019' AS nchar(20)), CAST(N'KH00019' AS nchar(20))),
-  (CAST(N'LDT0020' AS nchar(20)), CAST(N'HDV0020' AS nchar(20)), CAST(N'TOUR020' AS nchar(20)), CAST(N'KH00020' AS nchar(20))),
-  (CAST(N'LDT0021' AS nchar(20)), CAST(N'HDV0021' AS nchar(20)), CAST(N'TOUR021' AS nchar(20)), CAST(N'KH00021' AS nchar(20))),
-  (CAST(N'LDT0022' AS nchar(20)), CAST(N'HDV0022' AS nchar(20)), CAST(N'TOUR022' AS nchar(20)), CAST(N'KH00022' AS nchar(20))),
-  (CAST(N'LDT0023' AS nchar(20)), CAST(N'HDV0023' AS nchar(20)), CAST(N'TOUR023' AS nchar(20)), CAST(N'KH00023' AS nchar(20))),
-  (CAST(N'LDT0024' AS nchar(20)), CAST(N'HDV0024' AS nchar(20)), CAST(N'TOUR024' AS nchar(20)), CAST(N'KH00024' AS nchar(20))),
-  (CAST(N'LDT0025' AS nchar(20)), CAST(N'HDV0025' AS nchar(20)), CAST(N'TOUR025' AS nchar(20)), CAST(N'KH00025' AS nchar(20))),
-  (CAST(N'LDT0026' AS nchar(20)), CAST(N'HDV0026' AS nchar(20)), CAST(N'TOUR026' AS nchar(20)), CAST(N'KH00026' AS nchar(20))),
-  (CAST(N'LDT0027' AS nchar(20)), CAST(N'HDV0027' AS nchar(20)), CAST(N'TOUR027' AS nchar(20)), CAST(N'KH00027' AS nchar(20))),
-  (CAST(N'LDT0028' AS nchar(20)), CAST(N'HDV0028' AS nchar(20)), CAST(N'TOUR028' AS nchar(20)), CAST(N'KH00028' AS nchar(20))),
-  (CAST(N'LDT0029' AS nchar(20)), CAST(N'HDV0029' AS nchar(20)), CAST(N'TOUR029' AS nchar(20)), CAST(N'KH00029' AS nchar(20))),
-  (CAST(N'LDT0030' AS nchar(20)), CAST(N'HDV0030' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), CAST(N'KH00030' AS nchar(20)));
+
+/* ===== 026_SeedMauDayDu.sql #62 ===== */
+
+
 GO
+
+/* ===== 026_SeedMauDayDu.sql #63 ===== */
 INSERT INTO dbo.NhomKhuyenMai (MaNhomKM, TenNhomKM) VALUES
   (CAST(N'NKM001' AS nchar(20)), N'Nhóm ưu đãi 01'),
   (CAST(N'NKM002' AS nchar(20)), N'Nhóm ưu đãi 02'),
@@ -19561,6 +24129,8 @@ INSERT INTO dbo.NhomKhuyenMai (MaNhomKM, TenNhomKM) VALUES
   (CAST(N'NKM029' AS nchar(20)), N'Nhóm ưu đãi 29'),
   (CAST(N'NKM030' AS nchar(20)), N'Nhóm ưu đãi 30');
 GO
+
+/* ===== 026_SeedMauDayDu.sql #64 ===== */
 INSERT INTO dbo.KhuyenMai (MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi, GiamGia, CoCongDon, TrangThai) VALUES
   (CAST(N'KM001' AS nchar(20)), CAST(N'NKM001' AS nchar(20)), N'Ưu đãi 01', CAST(N'SALE01X' AS nchar(10)), DATEADD(DAY, -5, SYSUTCDATETIME()), DATEADD(DAY, 90, SYSUTCDATETIME()), CAST(N'%' AS nchar(20)), 6, 0, CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'KM002' AS nchar(20)), CAST(N'NKM002' AS nchar(20)), N'Ưu đãi 02', CAST(N'SALE02X' AS nchar(10)), DATEADD(DAY, -5, SYSUTCDATETIME()), DATEADD(DAY, 90, SYSUTCDATETIME()), CAST(N'%' AS nchar(20)), 7, 0, CAST(N'HoatDong' AS nchar(20))),
@@ -19593,6 +24163,8 @@ INSERT INTO dbo.KhuyenMai (MaKM, MaNhomKM, TenKM, MaCode, NgayBD, NgayKT, DonVi,
   (CAST(N'KM029' AS nchar(20)), CAST(N'NKM029' AS nchar(20)), N'Ưu đãi 29', CAST(N'SALE29X' AS nchar(10)), DATEADD(DAY, -5, SYSUTCDATETIME()), DATEADD(DAY, 90, SYSUTCDATETIME()), CAST(N'%' AS nchar(20)), 19, 0, CAST(N'HoatDong' AS nchar(20))),
   (CAST(N'KM030' AS nchar(20)), CAST(N'NKM030' AS nchar(20)), N'Ưu đãi 30', CAST(N'SALE30X' AS nchar(10)), DATEADD(DAY, -5, SYSUTCDATETIME()), DATEADD(DAY, 90, SYSUTCDATETIME()), CAST(N'%' AS nchar(20)), 5, 0, CAST(N'HoatDong' AS nchar(20)));
 GO
+
+/* ===== 026_SeedMauDayDu.sql #65 ===== */
 INSERT INTO dbo.DieuKienKM (MaDK, MaKhuyenMai, DonToiThieu, LanDatDau, SoLuong) VALUES
   (CAST(N'DK001' AS nchar(20)), CAST(N'KM001' AS nchar(20)), 1100000, 0, 51),
   (CAST(N'DK002' AS nchar(20)), CAST(N'KM002' AS nchar(20)), 1200000, 0, 52),
@@ -19626,6 +24198,7 @@ INSERT INTO dbo.DieuKienKM (MaDK, MaKhuyenMai, DonToiThieu, LanDatDau, SoLuong) 
   (CAST(N'DK030' AS nchar(20)), CAST(N'KM030' AS nchar(20)), 4000000, 1, 80);
 GO
 
+/* ===== 026_SeedMauDayDu.sql #66 ===== */
 IF COLUMNPROPERTY(OBJECT_ID(N'dbo.KM_Tour'), N'STT', 'IsIdentity') = 1
     INSERT INTO dbo.KM_Tour (MaKhuyenMai, MaTour)
     SELECT CAST(N'KM' + RIGHT('000' + CAST(n AS varchar(3)), 3) AS nchar(20)),
@@ -19646,6 +24219,8 @@ ELSE
         (21),(22),(23),(24),(25),(26),(27),(28),(29),(30)
     ) t(n);
 GO
+
+/* ===== 026_SeedMauDayDu.sql #67 ===== */
 INSERT INTO dbo.DatDichVu (MaBooking, MaUser, MaTour, MaKhoiHanh, NgayDat, SLNguoiLon, SLTreEm, TongTien, TongGiamGia, ThanhTien, TrangThai, MaKhachHang, TyLePhatHuy, SoTienPhatHuy) VALUES
   (CAST(N'BK00001' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), CAST(N'KH00001' AS nchar(20)), CAST(SYSUTCDATETIME() AS date), 2, 1, 9000000, 100000, 8900000, CAST(N'DaXacNhan' AS nchar(20)), CAST(N'KHACH011' AS nchar(20)), 10, 0),
   (CAST(N'BK00002' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'TOUR002' AS nchar(20)), CAST(N'KH00002' AS nchar(20)), CAST(SYSUTCDATETIME() AS date), 2, 1, 10400000, 100000, 10300000, CAST(N'DaXacNhan' AS nchar(20)), CAST(N'KHACH012' AS nchar(20)), 10, 0),
@@ -19679,6 +24254,7 @@ INSERT INTO dbo.DatDichVu (MaBooking, MaUser, MaTour, MaKhoiHanh, NgayDat, SLNgu
   (CAST(N'BK00030' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), CAST(N'KH00030' AS nchar(20)), CAST(SYSUTCDATETIME() AS date), 2, 1, 13000000, 100000, 12900000, CAST(N'DaXacNhan' AS nchar(20)), CAST(N'KHACH040' AS nchar(20)), 10, 0);
 GO
 
+/* ===== 026_SeedMauDayDu.sql #68 ===== */
 IF COLUMNPROPERTY(OBJECT_ID(N'dbo.DatDichVu_KhuyenMai'), N'STT', 'IsIdentity') = 1
     INSERT INTO dbo.DatDichVu_KhuyenMai (MaBooking, MaKhuyenMai, SoTienGiam)
     SELECT CAST(N'BK' + RIGHT('00000' + CAST(n AS varchar(5)), 5) AS nchar(20)),
@@ -19693,6 +24269,8 @@ ELSE
            100000
     FROM (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS n FROM sys.all_objects) t WHERE n <= 30;
 GO
+
+/* ===== 026_SeedMauDayDu.sql #69 ===== */
 INSERT INTO dbo.ThanhToan (MaTT, MaBooking, SoTien, NgayTT, TrangThai, PhuongThuc, LoaiThanhToan, IdempotencyKey, Gateway, GatewayTxnId, GatewayOrderId, PayUrl, PaidAt) VALUES
   (CAST(N'TT00001' AS nchar(20)), CAST(N'BK00001' AS nchar(20)), 8900000, SYSUTCDATETIME(), CAST(N'DaXacNhan' AS nchar(20)), N'VNPay', CAST(N'Full' AS nchar(20)), N'idem-00001', N'VNPay', N'txn-00001', N'ord-00001', N'https://pay.example/00001', SYSUTCDATETIME()),
   (CAST(N'TT00002' AS nchar(20)), CAST(N'BK00002' AS nchar(20)), 10300000, SYSUTCDATETIME(), CAST(N'DaXacNhan' AS nchar(20)), N'VNPay', CAST(N'Full' AS nchar(20)), N'idem-00002', N'VNPay', N'txn-00002', N'ord-00002', N'https://pay.example/00002', SYSUTCDATETIME()),
@@ -19725,6 +24303,8 @@ INSERT INTO dbo.ThanhToan (MaTT, MaBooking, SoTien, NgayTT, TrangThai, PhuongThu
   (CAST(N'TT00029' AS nchar(20)), CAST(N'BK00029' AS nchar(20)), 15900000, SYSUTCDATETIME(), CAST(N'DaXacNhan' AS nchar(20)), N'VNPay', CAST(N'Full' AS nchar(20)), N'idem-00029', N'VNPay', N'txn-00029', N'ord-00029', N'https://pay.example/00029', SYSUTCDATETIME()),
   (CAST(N'TT00030' AS nchar(20)), CAST(N'BK00030' AS nchar(20)), 12900000, SYSUTCDATETIME(), CAST(N'DaXacNhan' AS nchar(20)), N'VNPay', CAST(N'Full' AS nchar(20)), N'idem-00030', N'VNPay', N'txn-00030', N'ord-00030', N'https://pay.example/00030', SYSUTCDATETIME());
 GO
+
+/* ===== 026_SeedMauDayDu.sql #70 ===== */
 INSERT INTO dbo.HopDong (MaHopDong, MaBooking, SoHopDong, NgayKy, DieuKhoanCamKet, FileHopDongURL, NguoiDaiDien, TrangThai, HoTenKhach, LoaiGiayTo, SoGiayTo) VALUES
   (CAST(N'HD00001' AS nchar(20)), CAST(N'BK00001' AS nchar(20)), N'HĐ-00001/2026', CAST(SYSUTCDATETIME() AS date), N'Cam kết lịch trình và điều khoản tour.', N'https://files.example/hd/00001.pdf', CAST(N'USR0001' AS nchar(20)), CAST(N'DaKy' AS nchar(20)), N'Khách hàng 1', N'CCCD', N'079098000011'),
   (CAST(N'HD00002' AS nchar(20)), CAST(N'BK00002' AS nchar(20)), N'HĐ-00002/2026', CAST(SYSUTCDATETIME() AS date), N'Cam kết lịch trình và điều khoản tour.', N'https://files.example/hd/00002.pdf', CAST(N'USR0001' AS nchar(20)), CAST(N'DaKy' AS nchar(20)), N'Khách hàng 2', N'CCCD', N'079098000012'),
@@ -19757,6 +24337,8 @@ INSERT INTO dbo.HopDong (MaHopDong, MaBooking, SoHopDong, NgayKy, DieuKhoanCamKe
   (CAST(N'HD00029' AS nchar(20)), CAST(N'BK00029' AS nchar(20)), N'HĐ-00029/2026', CAST(SYSUTCDATETIME() AS date), N'Cam kết lịch trình và điều khoản tour.', N'https://files.example/hd/00029.pdf', CAST(N'USR0001' AS nchar(20)), CAST(N'DaKy' AS nchar(20)), N'Khách hàng 29', N'CCCD', N'079098000039'),
   (CAST(N'HD00030' AS nchar(20)), CAST(N'BK00030' AS nchar(20)), N'HĐ-00030/2026', CAST(SYSUTCDATETIME() AS date), N'Cam kết lịch trình và điều khoản tour.', N'https://files.example/hd/00030.pdf', CAST(N'USR0001' AS nchar(20)), CAST(N'DaKy' AS nchar(20)), N'Khách hàng 30', N'CCCD', N'079098000040');
 GO
+
+/* ===== 026_SeedMauDayDu.sql #71 ===== */
 INSERT INTO dbo.DanhGiaTour (MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia, NhanXet) VALUES
   (CAST(N'DGT0001' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), SYSUTCDATETIME(), 2, N'Tour đúng lịch, HDV nhiệt tình, KS sạch.'),
   (CAST(N'DGT0002' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'TOUR002' AS nchar(20)), SYSUTCDATETIME(), 3, N'Tour đúng lịch, HDV nhiệt tình, KS sạch.'),
@@ -19789,70 +24371,18 @@ INSERT INTO dbo.DanhGiaTour (MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia
   (CAST(N'DGT0029' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), CAST(N'TOUR029' AS nchar(20)), SYSUTCDATETIME(), 5, N'Tour đúng lịch, HDV nhiệt tình, KS sạch.'),
   (CAST(N'DGT0030' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), SYSUTCDATETIME(), 1, N'Tour đúng lịch, HDV nhiệt tình, KS sạch.');
 GO
-INSERT INTO dbo.DanhGiaHDV (MaDanhGiaHDV, MaUser, MaHDV, ThoiGian, SaoDanhGia, NhanXet) VALUES
-  (CAST(N'DGH0001' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'HDV0001' AS nchar(20)), SYSUTCDATETIME(), 2, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0002' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'HDV0002' AS nchar(20)), SYSUTCDATETIME(), 3, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0003' AS nchar(20)), CAST(N'USR0013' AS nchar(20)), CAST(N'HDV0003' AS nchar(20)), SYSUTCDATETIME(), 4, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0004' AS nchar(20)), CAST(N'USR0014' AS nchar(20)), CAST(N'HDV0004' AS nchar(20)), SYSUTCDATETIME(), 5, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0005' AS nchar(20)), CAST(N'USR0015' AS nchar(20)), CAST(N'HDV0005' AS nchar(20)), SYSUTCDATETIME(), 1, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0006' AS nchar(20)), CAST(N'USR0016' AS nchar(20)), CAST(N'HDV0006' AS nchar(20)), SYSUTCDATETIME(), 2, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0007' AS nchar(20)), CAST(N'USR0017' AS nchar(20)), CAST(N'HDV0007' AS nchar(20)), SYSUTCDATETIME(), 3, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0008' AS nchar(20)), CAST(N'USR0018' AS nchar(20)), CAST(N'HDV0008' AS nchar(20)), SYSUTCDATETIME(), 4, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0009' AS nchar(20)), CAST(N'USR0019' AS nchar(20)), CAST(N'HDV0009' AS nchar(20)), SYSUTCDATETIME(), 5, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0010' AS nchar(20)), CAST(N'USR0020' AS nchar(20)), CAST(N'HDV0010' AS nchar(20)), SYSUTCDATETIME(), 1, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0011' AS nchar(20)), CAST(N'USR0021' AS nchar(20)), CAST(N'HDV0011' AS nchar(20)), SYSUTCDATETIME(), 2, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0012' AS nchar(20)), CAST(N'USR0022' AS nchar(20)), CAST(N'HDV0012' AS nchar(20)), SYSUTCDATETIME(), 3, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0013' AS nchar(20)), CAST(N'USR0023' AS nchar(20)), CAST(N'HDV0013' AS nchar(20)), SYSUTCDATETIME(), 4, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0014' AS nchar(20)), CAST(N'USR0024' AS nchar(20)), CAST(N'HDV0014' AS nchar(20)), SYSUTCDATETIME(), 5, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0015' AS nchar(20)), CAST(N'USR0025' AS nchar(20)), CAST(N'HDV0015' AS nchar(20)), SYSUTCDATETIME(), 1, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0016' AS nchar(20)), CAST(N'USR0026' AS nchar(20)), CAST(N'HDV0016' AS nchar(20)), SYSUTCDATETIME(), 2, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0017' AS nchar(20)), CAST(N'USR0027' AS nchar(20)), CAST(N'HDV0017' AS nchar(20)), SYSUTCDATETIME(), 3, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0018' AS nchar(20)), CAST(N'USR0028' AS nchar(20)), CAST(N'HDV0018' AS nchar(20)), SYSUTCDATETIME(), 4, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0019' AS nchar(20)), CAST(N'USR0029' AS nchar(20)), CAST(N'HDV0019' AS nchar(20)), SYSUTCDATETIME(), 5, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0020' AS nchar(20)), CAST(N'USR0030' AS nchar(20)), CAST(N'HDV0020' AS nchar(20)), SYSUTCDATETIME(), 1, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0021' AS nchar(20)), CAST(N'USR0031' AS nchar(20)), CAST(N'HDV0021' AS nchar(20)), SYSUTCDATETIME(), 2, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0022' AS nchar(20)), CAST(N'USR0032' AS nchar(20)), CAST(N'HDV0022' AS nchar(20)), SYSUTCDATETIME(), 3, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0023' AS nchar(20)), CAST(N'USR0033' AS nchar(20)), CAST(N'HDV0023' AS nchar(20)), SYSUTCDATETIME(), 4, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0024' AS nchar(20)), CAST(N'USR0034' AS nchar(20)), CAST(N'HDV0024' AS nchar(20)), SYSUTCDATETIME(), 5, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0025' AS nchar(20)), CAST(N'USR0035' AS nchar(20)), CAST(N'HDV0025' AS nchar(20)), SYSUTCDATETIME(), 1, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0026' AS nchar(20)), CAST(N'USR0036' AS nchar(20)), CAST(N'HDV0026' AS nchar(20)), SYSUTCDATETIME(), 2, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0027' AS nchar(20)), CAST(N'USR0037' AS nchar(20)), CAST(N'HDV0027' AS nchar(20)), SYSUTCDATETIME(), 3, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0028' AS nchar(20)), CAST(N'USR0038' AS nchar(20)), CAST(N'HDV0028' AS nchar(20)), SYSUTCDATETIME(), 4, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0029' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), CAST(N'HDV0029' AS nchar(20)), SYSUTCDATETIME(), 5, N'Hướng dẫn viên am hiểu địa phương.'),
-  (CAST(N'DGH0030' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'HDV0030' AS nchar(20)), SYSUTCDATETIME(), 1, N'Hướng dẫn viên am hiểu địa phương.');
+
+/* ===== 026_SeedMauDayDu.sql #72 ===== */
+
+
 GO
-INSERT INTO dbo.DanhGiaSanPhamDoiTac (MaDanhGia, MaSanPham, MaUser, ThoiGian, SaoDanhGia, NhanXet) VALUES
-  (CAST(N'DGS0001' AS nchar(20)), CAST(N'SPR03011' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), SYSUTCDATETIME(), 2, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0002' AS nchar(20)), CAST(N'SPR33012' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), SYSUTCDATETIME(), 3, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0003' AS nchar(20)), CAST(N'SPR15013' AS nchar(20)), CAST(N'USR0013' AS nchar(20)), SYSUTCDATETIME(), 4, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0004' AS nchar(20)), CAST(N'SPR21014' AS nchar(20)), CAST(N'USR0014' AS nchar(20)), SYSUTCDATETIME(), 5, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0005' AS nchar(20)), CAST(N'SPR31015' AS nchar(20)), CAST(N'USR0015' AS nchar(20)), SYSUTCDATETIME(), 1, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0006' AS nchar(20)), CAST(N'SPR37011' AS nchar(20)), CAST(N'USR0016' AS nchar(20)), SYSUTCDATETIME(), 2, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0007' AS nchar(20)), CAST(N'SPR58012' AS nchar(20)), CAST(N'USR0017' AS nchar(20)), SYSUTCDATETIME(), 3, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0008' AS nchar(20)), CAST(N'SPR59013' AS nchar(20)), CAST(N'USR0018' AS nchar(20)), SYSUTCDATETIME(), 4, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0009' AS nchar(20)), CAST(N'SPR44014' AS nchar(20)), CAST(N'USR0019' AS nchar(20)), SYSUTCDATETIME(), 5, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0010' AS nchar(20)), CAST(N'SPR13015' AS nchar(20)), CAST(N'USR0020' AS nchar(20)), SYSUTCDATETIME(), 1, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0011' AS nchar(20)), CAST(N'SPR20011' AS nchar(20)), CAST(N'USR0021' AS nchar(20)), SYSUTCDATETIME(), 2, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0012' AS nchar(20)), CAST(N'SPR35012' AS nchar(20)), CAST(N'USR0022' AS nchar(20)), SYSUTCDATETIME(), 3, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0013' AS nchar(20)), CAST(N'SPR39013' AS nchar(20)), CAST(N'USR0023' AS nchar(20)), SYSUTCDATETIME(), 4, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0014' AS nchar(20)), CAST(N'SPR48014' AS nchar(20)), CAST(N'USR0024' AS nchar(20)), SYSUTCDATETIME(), 5, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0015' AS nchar(20)), CAST(N'SPR49015' AS nchar(20)), CAST(N'USR0025' AS nchar(20)), SYSUTCDATETIME(), 1, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0016' AS nchar(20)), CAST(N'SPR45011' AS nchar(20)), CAST(N'USR0026' AS nchar(20)), SYSUTCDATETIME(), 2, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0017' AS nchar(20)), CAST(N'SPR19012' AS nchar(20)), CAST(N'USR0027' AS nchar(20)), SYSUTCDATETIME(), 3, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0018' AS nchar(20)), CAST(N'SPR02013' AS nchar(20)), CAST(N'USR0028' AS nchar(20)), SYSUTCDATETIME(), 4, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0019' AS nchar(20)), CAST(N'SPR29014' AS nchar(20)), CAST(N'USR0029' AS nchar(20)), SYSUTCDATETIME(), 5, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0020' AS nchar(20)), CAST(N'SPR63015' AS nchar(20)), CAST(N'USR0030' AS nchar(20)), SYSUTCDATETIME(), 1, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0021' AS nchar(20)), CAST(N'SPR57011' AS nchar(20)), CAST(N'USR0031' AS nchar(20)), SYSUTCDATETIME(), 2, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0022' AS nchar(20)), CAST(N'SPR42012' AS nchar(20)), CAST(N'USR0032' AS nchar(20)), SYSUTCDATETIME(), 3, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0023' AS nchar(20)), CAST(N'SPR44013' AS nchar(20)), CAST(N'USR0033' AS nchar(20)), SYSUTCDATETIME(), 4, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0024' AS nchar(20)), CAST(N'SPR33014' AS nchar(20)), CAST(N'USR0034' AS nchar(20)), SYSUTCDATETIME(), 5, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0025' AS nchar(20)), CAST(N'SPR01015' AS nchar(20)), CAST(N'USR0035' AS nchar(20)), SYSUTCDATETIME(), 1, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0026' AS nchar(20)), CAST(N'SPR45011' AS nchar(20)), CAST(N'USR0036' AS nchar(20)), SYSUTCDATETIME(), 2, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0027' AS nchar(20)), CAST(N'SPR58012' AS nchar(20)), CAST(N'USR0037' AS nchar(20)), SYSUTCDATETIME(), 3, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0028' AS nchar(20)), CAST(N'SPR03013' AS nchar(20)), CAST(N'USR0038' AS nchar(20)), SYSUTCDATETIME(), 4, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0029' AS nchar(20)), CAST(N'SPR37014' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), SYSUTCDATETIME(), 5, N'Phòng đúng mô tả, vị trí trung tâm.'),
-  (CAST(N'DGS0030' AS nchar(20)), CAST(N'SPR44015' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), SYSUTCDATETIME(), 1, N'Phòng đúng mô tả, vị trí trung tâm.');
+
+/* ===== 026_SeedMauDayDu.sql #73 ===== */
+
+
 GO
+
+/* ===== 026_SeedMauDayDu.sql #74 ===== */
 INSERT INTO dbo.MediaDanhGiaTour (MaMedia, MaDanhGiaTour, LoaiMedia, Url, ThuTu) VALUES
   (CAST(N'MDT0001' AS nchar(20)), CAST(N'DGT0001' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/tour1/800/600', 1),
   (CAST(N'MDT0002' AS nchar(20)), CAST(N'DGT0002' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/tour2/800/600', 1),
@@ -19885,70 +24415,18 @@ INSERT INTO dbo.MediaDanhGiaTour (MaMedia, MaDanhGiaTour, LoaiMedia, Url, ThuTu)
   (CAST(N'MDT0029' AS nchar(20)), CAST(N'DGT0029' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/tour29/800/600', 1),
   (CAST(N'MDT0030' AS nchar(20)), CAST(N'DGT0030' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/tour30/800/600', 1);
 GO
-INSERT INTO dbo.MediaDanhGiaHdv (MaMedia, MaDanhGiaHdv, LoaiMedia, Url, ThuTu) VALUES
-  (CAST(N'MDH0001' AS nchar(20)), CAST(N'DGH0001' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv1/800/600', 1),
-  (CAST(N'MDH0002' AS nchar(20)), CAST(N'DGH0002' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv2/800/600', 1),
-  (CAST(N'MDH0003' AS nchar(20)), CAST(N'DGH0003' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv3/800/600', 1),
-  (CAST(N'MDH0004' AS nchar(20)), CAST(N'DGH0004' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv4/800/600', 1),
-  (CAST(N'MDH0005' AS nchar(20)), CAST(N'DGH0005' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv5/800/600', 1),
-  (CAST(N'MDH0006' AS nchar(20)), CAST(N'DGH0006' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv6/800/600', 1),
-  (CAST(N'MDH0007' AS nchar(20)), CAST(N'DGH0007' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv7/800/600', 1),
-  (CAST(N'MDH0008' AS nchar(20)), CAST(N'DGH0008' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv8/800/600', 1),
-  (CAST(N'MDH0009' AS nchar(20)), CAST(N'DGH0009' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv9/800/600', 1),
-  (CAST(N'MDH0010' AS nchar(20)), CAST(N'DGH0010' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv10/800/600', 1),
-  (CAST(N'MDH0011' AS nchar(20)), CAST(N'DGH0011' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv11/800/600', 1),
-  (CAST(N'MDH0012' AS nchar(20)), CAST(N'DGH0012' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv12/800/600', 1),
-  (CAST(N'MDH0013' AS nchar(20)), CAST(N'DGH0013' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv13/800/600', 1),
-  (CAST(N'MDH0014' AS nchar(20)), CAST(N'DGH0014' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv14/800/600', 1),
-  (CAST(N'MDH0015' AS nchar(20)), CAST(N'DGH0015' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv15/800/600', 1),
-  (CAST(N'MDH0016' AS nchar(20)), CAST(N'DGH0016' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv16/800/600', 1),
-  (CAST(N'MDH0017' AS nchar(20)), CAST(N'DGH0017' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv17/800/600', 1),
-  (CAST(N'MDH0018' AS nchar(20)), CAST(N'DGH0018' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv18/800/600', 1),
-  (CAST(N'MDH0019' AS nchar(20)), CAST(N'DGH0019' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv19/800/600', 1),
-  (CAST(N'MDH0020' AS nchar(20)), CAST(N'DGH0020' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv20/800/600', 1),
-  (CAST(N'MDH0021' AS nchar(20)), CAST(N'DGH0021' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv21/800/600', 1),
-  (CAST(N'MDH0022' AS nchar(20)), CAST(N'DGH0022' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv22/800/600', 1),
-  (CAST(N'MDH0023' AS nchar(20)), CAST(N'DGH0023' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv23/800/600', 1),
-  (CAST(N'MDH0024' AS nchar(20)), CAST(N'DGH0024' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv24/800/600', 1),
-  (CAST(N'MDH0025' AS nchar(20)), CAST(N'DGH0025' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv25/800/600', 1),
-  (CAST(N'MDH0026' AS nchar(20)), CAST(N'DGH0026' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv26/800/600', 1),
-  (CAST(N'MDH0027' AS nchar(20)), CAST(N'DGH0027' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv27/800/600', 1),
-  (CAST(N'MDH0028' AS nchar(20)), CAST(N'DGH0028' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv28/800/600', 1),
-  (CAST(N'MDH0029' AS nchar(20)), CAST(N'DGH0029' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv29/800/600', 1),
-  (CAST(N'MDH0030' AS nchar(20)), CAST(N'DGH0030' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/hdv30/800/600', 1);
+
+/* ===== 026_SeedMauDayDu.sql #75 ===== */
+
+
 GO
-INSERT INTO dbo.MediaDanhGiaSanPham (MaMedia, MaDanhGia, LoaiMedia, Url, ThuTu) VALUES
-  (CAST(N'MDS0001' AS nchar(20)), CAST(N'DGS0001' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp1/800/600', 1),
-  (CAST(N'MDS0002' AS nchar(20)), CAST(N'DGS0002' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp2/800/600', 1),
-  (CAST(N'MDS0003' AS nchar(20)), CAST(N'DGS0003' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp3/800/600', 1),
-  (CAST(N'MDS0004' AS nchar(20)), CAST(N'DGS0004' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp4/800/600', 1),
-  (CAST(N'MDS0005' AS nchar(20)), CAST(N'DGS0005' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp5/800/600', 1),
-  (CAST(N'MDS0006' AS nchar(20)), CAST(N'DGS0006' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp6/800/600', 1),
-  (CAST(N'MDS0007' AS nchar(20)), CAST(N'DGS0007' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp7/800/600', 1),
-  (CAST(N'MDS0008' AS nchar(20)), CAST(N'DGS0008' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp8/800/600', 1),
-  (CAST(N'MDS0009' AS nchar(20)), CAST(N'DGS0009' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp9/800/600', 1),
-  (CAST(N'MDS0010' AS nchar(20)), CAST(N'DGS0010' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp10/800/600', 1),
-  (CAST(N'MDS0011' AS nchar(20)), CAST(N'DGS0011' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp11/800/600', 1),
-  (CAST(N'MDS0012' AS nchar(20)), CAST(N'DGS0012' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp12/800/600', 1),
-  (CAST(N'MDS0013' AS nchar(20)), CAST(N'DGS0013' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp13/800/600', 1),
-  (CAST(N'MDS0014' AS nchar(20)), CAST(N'DGS0014' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp14/800/600', 1),
-  (CAST(N'MDS0015' AS nchar(20)), CAST(N'DGS0015' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp15/800/600', 1),
-  (CAST(N'MDS0016' AS nchar(20)), CAST(N'DGS0016' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp16/800/600', 1),
-  (CAST(N'MDS0017' AS nchar(20)), CAST(N'DGS0017' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp17/800/600', 1),
-  (CAST(N'MDS0018' AS nchar(20)), CAST(N'DGS0018' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp18/800/600', 1),
-  (CAST(N'MDS0019' AS nchar(20)), CAST(N'DGS0019' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp19/800/600', 1),
-  (CAST(N'MDS0020' AS nchar(20)), CAST(N'DGS0020' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp20/800/600', 1),
-  (CAST(N'MDS0021' AS nchar(20)), CAST(N'DGS0021' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp21/800/600', 1),
-  (CAST(N'MDS0022' AS nchar(20)), CAST(N'DGS0022' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp22/800/600', 1),
-  (CAST(N'MDS0023' AS nchar(20)), CAST(N'DGS0023' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp23/800/600', 1),
-  (CAST(N'MDS0024' AS nchar(20)), CAST(N'DGS0024' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp24/800/600', 1),
-  (CAST(N'MDS0025' AS nchar(20)), CAST(N'DGS0025' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp25/800/600', 1),
-  (CAST(N'MDS0026' AS nchar(20)), CAST(N'DGS0026' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp26/800/600', 1),
-  (CAST(N'MDS0027' AS nchar(20)), CAST(N'DGS0027' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp27/800/600', 1),
-  (CAST(N'MDS0028' AS nchar(20)), CAST(N'DGS0028' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp28/800/600', 1),
-  (CAST(N'MDS0029' AS nchar(20)), CAST(N'DGS0029' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp29/800/600', 1),
-  (CAST(N'MDS0030' AS nchar(20)), CAST(N'DGS0030' AS nchar(20)), N'Anh', N'https://picsum.photos/seed/sp30/800/600', 1);
+
+/* ===== 026_SeedMauDayDu.sql #76 ===== */
+
+
 GO
+
+/* ===== 026_SeedMauDayDu.sql #77 ===== */
 INSERT INTO dbo.DanhSachYeuThich (MaWish, MaUser, MaTour, NgayThem) VALUES
   (CAST(N'WISH0001' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), CAST(SYSUTCDATETIME() AS date)),
   (CAST(N'WISH0002' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'TOUR002' AS nchar(20)), CAST(SYSUTCDATETIME() AS date)),
@@ -19981,6 +24459,8 @@ INSERT INTO dbo.DanhSachYeuThich (MaWish, MaUser, MaTour, NgayThem) VALUES
   (CAST(N'WISH0029' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), CAST(N'TOUR029' AS nchar(20)), CAST(SYSUTCDATETIME() AS date)),
   (CAST(N'WISH0030' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), CAST(SYSUTCDATETIME() AS date));
 GO
+
+/* ===== 026_SeedMauDayDu.sql #78 ===== */
 INSERT INTO dbo.HanhViKhachHang (MaHanhDong, MaUser, MaTour, HanhDong, ThoiGian) VALUES
   (CAST(N'HV00001' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), N'Xem', SYSUTCDATETIME()),
   (CAST(N'HV00002' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'TOUR002' AS nchar(20)), N'Xem', SYSUTCDATETIME()),
@@ -20013,6 +24493,8 @@ INSERT INTO dbo.HanhViKhachHang (MaHanhDong, MaUser, MaTour, HanhDong, ThoiGian)
   (CAST(N'HV00029' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), CAST(N'TOUR029' AS nchar(20)), N'Xem', SYSUTCDATETIME()),
   (CAST(N'HV00030' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), N'Xem', SYSUTCDATETIME());
 GO
+
+/* ===== 026_SeedMauDayDu.sql #79 ===== */
 INSERT INTO dbo.AIGoiY (MaRecommodation, MaUser, MaTour, DiemPhuHop, LyDo, NgayGoiY) VALUES
   (CAST(N'GOIY0001' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), 0.56, N'Phù hợp lịch sử xem tour và ngân sách.', SYSUTCDATETIME()),
   (CAST(N'GOIY0002' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'TOUR002' AS nchar(20)), 0.5700000000000001, N'Phù hợp lịch sử xem tour và ngân sách.', SYSUTCDATETIME()),
@@ -20045,6 +24527,8 @@ INSERT INTO dbo.AIGoiY (MaRecommodation, MaUser, MaTour, DiemPhuHop, LyDo, NgayG
   (CAST(N'GOIY0029' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), CAST(N'TOUR029' AS nchar(20)), 0.8400000000000001, N'Phù hợp lịch sử xem tour và ngân sách.', SYSUTCDATETIME()),
   (CAST(N'GOIY0030' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), 0.8500000000000001, N'Phù hợp lịch sử xem tour và ngân sách.', SYSUTCDATETIME());
 GO
+
+/* ===== 026_SeedMauDayDu.sql #80 ===== */
 INSERT INTO dbo.YeuCauThietKe (MaYeuCau, MaUser, DiemDenMongMuon, NgayDuKienDi, SoNgay, SoNguoiLon, SoTreEm, NganSachDuKien, SoThichGhiChu, MaGoiYThamKhao, LyDoTuChoiGoiY, TrangThai, NgayGui, MaTourTao, LyDoTuChoiBoiSale, TenChuyenDi, MucDich, MaTinhXuatPhat, MaTinhDen, GioKhoiHanh, NgayKetThuc, GioKetThuc, SoSuKienMoiNgay) VALUES
   (CAST(N'YC00001' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), N'Quảng Ninh', DATEADD(DAY, 21, CAST(SYSUTCDATETIME() AS date)), 3, 2, 1, 8100000, N'Gia đình, thích ẩm thực và biển.', CAST(N'GOIY0001' AS nchar(20)), N'Không từ chối gợi ý', CAST(N'Moi' AS nchar(20)), SYSUTCDATETIME(), CAST(N'TOUR001' AS nchar(20)), N'Không từ chối bởi Sale', N'Chuyến Quảng Ninh 01', N'Gia dinh', CAST(N'TN01' AS nchar(20)), CAST(N'TN03' AS nchar(20)), CAST('08:00:00' AS time(0)), DATEADD(DAY, 23, CAST(SYSUTCDATETIME() AS date)), CAST('20:00:00' AS time(0)), 4),
   (CAST(N'YC00002' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), N'Quảng Nam', DATEADD(DAY, 21, CAST(SYSUTCDATETIME() AS date)), 3, 2, 1, 8200000, N'Gia đình, thích ẩm thực và biển.', CAST(N'GOIY0002' AS nchar(20)), N'Không từ chối gợi ý', CAST(N'Moi' AS nchar(20)), SYSUTCDATETIME(), CAST(N'TOUR002' AS nchar(20)), N'Không từ chối bởi Sale', N'Chuyến Quảng Nam 02', N'Gia dinh', CAST(N'TN32' AS nchar(20)), CAST(N'TN33' AS nchar(20)), CAST('08:00:00' AS time(0)), DATEADD(DAY, 23, CAST(SYSUTCDATETIME() AS date)), CAST('20:00:00' AS time(0)), 4),
@@ -20077,6 +24561,8 @@ INSERT INTO dbo.YeuCauThietKe (MaYeuCau, MaUser, DiemDenMongMuon, NgayDuKienDi, 
   (CAST(N'YC00029' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), N'Khánh Hòa', DATEADD(DAY, 21, CAST(SYSUTCDATETIME() AS date)), 4, 2, 1, 10900000, N'Gia đình, thích ẩm thực và biển.', CAST(N'GOIY0029' AS nchar(20)), N'Không từ chối gợi ý', CAST(N'Moi' AS nchar(20)), SYSUTCDATETIME(), CAST(N'TOUR029' AS nchar(20)), N'Không từ chối bởi Sale', N'Chuyến Khánh Hòa 29', N'Gia dinh', CAST(N'TN01' AS nchar(20)), CAST(N'TN37' AS nchar(20)), CAST('08:00:00' AS time(0)), DATEADD(DAY, 24, CAST(SYSUTCDATETIME() AS date)), CAST('20:00:00' AS time(0)), 4),
   (CAST(N'YC00030' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), N'Lâm Đồng', DATEADD(DAY, 21, CAST(SYSUTCDATETIME() AS date)), 3, 2, 1, 11000000, N'Gia đình, thích ẩm thực và biển.', CAST(N'GOIY0030' AS nchar(20)), N'Không từ chối gợi ý', CAST(N'Moi' AS nchar(20)), SYSUTCDATETIME(), CAST(N'TOUR030' AS nchar(20)), N'Không từ chối bởi Sale', N'Chuyến Lâm Đồng 30', N'Gia dinh', CAST(N'TN45' AS nchar(20)), CAST(N'TN44' AS nchar(20)), CAST('08:00:00' AS time(0)), DATEADD(DAY, 23, CAST(SYSUTCDATETIME() AS date)), CAST('20:00:00' AS time(0)), 4);
 GO
+
+/* ===== 026_SeedMauDayDu.sql #81 ===== */
 INSERT INTO dbo.LichTrinhDeXuat (MaDeXuat, MaYeuCau, ThuTuPhuongAn, TenPhuongAn, TongTienDuKien, GhiChu, TrangThai, NgayTao) VALUES
   (CAST(N'DX00011' AS nchar(20)), CAST(N'YC00001' AS nchar(20)), 1, N'Tiết kiệm', 7128000, N'Phương án Tiết kiệm cho Quảng Ninh', CAST(N'DeXuat' AS nchar(20)), SYSUTCDATETIME()),
   (CAST(N'DX00012' AS nchar(20)), CAST(N'YC00001' AS nchar(20)), 2, N'Cân bằng', 8100000, N'Phương án Cân bằng cho Quảng Ninh', CAST(N'DeXuat' AS nchar(20)), SYSUTCDATETIME()),
@@ -20169,6 +24655,8 @@ INSERT INTO dbo.LichTrinhDeXuat (MaDeXuat, MaYeuCau, ThuTuPhuongAn, TenPhuongAn,
   (CAST(N'DX00302' AS nchar(20)), CAST(N'YC00030' AS nchar(20)), 2, N'Cân bằng', 11000000, N'Phương án Cân bằng cho Lâm Đồng', CAST(N'DeXuat' AS nchar(20)), SYSUTCDATETIME()),
   (CAST(N'DX00303' AS nchar(20)), CAST(N'YC00030' AS nchar(20)), 3, N'Cao cấp', 12320000, N'Phương án Cao cấp cho Lâm Đồng', CAST(N'DeXuat' AS nchar(20)), SYSUTCDATETIME());
 GO
+
+/* ===== 026_SeedMauDayDu.sql #82 ===== */
 INSERT INTO dbo.LichTrinhDeXuatChiTiet (MaChiTiet, MaDeXuat, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThanhTien, Mota, GioBatDau) VALUES
   (CAST(N'CT000001' AS nchar(20)), CAST(N'DX00011' AS nchar(20)), 1, 1, CAST(N'DTV0301' AS nchar(20)), CAST(N'SPV0301' AS nchar(20)), 1, 150000, 150000, N'08:00 Tham quan — Vịnh Hạ Long, Quảng Ninh', CAST('08:00:00' AS time(0))),
   (CAST(N'CT000002' AS nchar(20)), CAST(N'DX00011' AS nchar(20)), 1, 2, CAST(N'DTV0301' AS nchar(20)), CAST(N'SPF03011' AS nchar(20)), 1, 300000, 300000, N'12:00 Ăn trưa — Vịnh Hạ Long, Quảng Ninh', CAST('12:00:00' AS time(0))),
@@ -20572,6 +25060,7 @@ INSERT INTO dbo.LichTrinhDeXuatChiTiet (MaChiTiet, MaDeXuat, NgayThu, ThuTuTrong
   (CAST(N'CT000400' AS nchar(20)), CAST(N'DX00143' AS nchar(20)), 1, 1, CAST(N'DTV4801' AS nchar(20)), CAST(N'SPV4801' AS nchar(20)), 1, 150000, 150000, N'08:00 Tham quan — Bãi Sau Vũng Tàu, Bà Rịa - Vũng Tàu', CAST('08:00:00' AS time(0)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #83 ===== */
 INSERT INTO dbo.LichTrinhDeXuatChiTiet (MaChiTiet, MaDeXuat, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThanhTien, Mota, GioBatDau) VALUES
   (CAST(N'CT000401' AS nchar(20)), CAST(N'DX00143' AS nchar(20)), 1, 2, CAST(N'DTV4801' AS nchar(20)), CAST(N'SPF48013' AS nchar(20)), 1, 300000, 300000, N'12:00 Ăn trưa — Bãi Sau Vũng Tàu, Bà Rịa - Vũng Tàu', CAST('12:00:00' AS time(0))),
   (CAST(N'CT000402' AS nchar(20)), CAST(N'DX00143' AS nchar(20)), 1, 3, CAST(N'DTV4801' AS nchar(20)), CAST(N'SPR48013' AS nchar(20)), 1, 450000, 450000, N'15:00 Nhận phòng — Bãi Sau Vũng Tàu, Bà Rịa - Vũng Tàu', CAST('15:00:00' AS time(0))),
@@ -20975,6 +25464,7 @@ INSERT INTO dbo.LichTrinhDeXuatChiTiet (MaChiTiet, MaDeXuat, NgayThu, ThuTuTrong
   (CAST(N'CT000800' AS nchar(20)), CAST(N'DX00291' AS nchar(20)), 3, 2, CAST(N'DTV3703' AS nchar(20)), CAST(N'SPF37011' AS nchar(20)), 1, 300000, 300000, N'12:00 Ăn trưa — Tháp Bà Ponagar, Khánh Hòa', CAST('12:00:00' AS time(0)));
 GO
 
+/* ===== 026_SeedMauDayDu.sql #84 ===== */
 INSERT INTO dbo.LichTrinhDeXuatChiTiet (MaChiTiet, MaDeXuat, NgayThu, ThuTuTrongNgay, MaDThamQuan, MaSanPham, SoLuong, DonGia, ThanhTien, Mota, GioBatDau) VALUES
   (CAST(N'CT000801' AS nchar(20)), CAST(N'DX00291' AS nchar(20)), 3, 3, CAST(N'DTV3703' AS nchar(20)), CAST(N'SPR37011' AS nchar(20)), 1, 450000, 450000, N'15:00 Nhận phòng — Tháp Bà Ponagar, Khánh Hòa', CAST('15:00:00' AS time(0))),
   (CAST(N'CT000802' AS nchar(20)), CAST(N'DX00291' AS nchar(20)), 4, 1, CAST(N'DTV3704' AS nchar(20)), CAST(N'SPV3704' AS nchar(20)), 1, 150000, 150000, N'08:00 Tham quan — Hòn Mun, Khánh Hòa', CAST('08:00:00' AS time(0))),
@@ -21032,100 +25522,18 @@ INSERT INTO dbo.LichTrinhDeXuatChiTiet (MaChiTiet, MaDeXuat, NgayThu, ThuTuTrong
   (CAST(N'CT000854' AS nchar(20)), CAST(N'DX00303' AS nchar(20)), 3, 2, CAST(N'DTV4403' AS nchar(20)), CAST(N'SPF44013' AS nchar(20)), 1, 300000, 300000, N'12:00 Ăn trưa — Thiền viện Trúc Lâm, Lâm Đồng', CAST('12:00:00' AS time(0))),
   (CAST(N'CT000855' AS nchar(20)), CAST(N'DX00303' AS nchar(20)), 3, 3, CAST(N'DTV4403' AS nchar(20)), CAST(N'SPR44013' AS nchar(20)), 1, 450000, 450000, N'15:00 Nhận phòng — Thiền viện Trúc Lâm, Lâm Đồng', CAST('15:00:00' AS time(0)));
 GO
-INSERT INTO dbo.HoiThoaiThietKe (MaHoiThoai, MaUser, MaYeuCau, TrangThai, DuLieuJson, NgayTao) VALUES
-  (CAST(N'HT00001' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'YC00001' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00002' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'YC00002' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00003' AS nchar(20)), CAST(N'USR0013' AS nchar(20)), CAST(N'YC00003' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00004' AS nchar(20)), CAST(N'USR0014' AS nchar(20)), CAST(N'YC00004' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00005' AS nchar(20)), CAST(N'USR0015' AS nchar(20)), CAST(N'YC00005' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00006' AS nchar(20)), CAST(N'USR0016' AS nchar(20)), CAST(N'YC00006' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00007' AS nchar(20)), CAST(N'USR0017' AS nchar(20)), CAST(N'YC00007' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00008' AS nchar(20)), CAST(N'USR0018' AS nchar(20)), CAST(N'YC00008' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00009' AS nchar(20)), CAST(N'USR0019' AS nchar(20)), CAST(N'YC00009' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00010' AS nchar(20)), CAST(N'USR0020' AS nchar(20)), CAST(N'YC00010' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00011' AS nchar(20)), CAST(N'USR0021' AS nchar(20)), CAST(N'YC00011' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00012' AS nchar(20)), CAST(N'USR0022' AS nchar(20)), CAST(N'YC00012' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00013' AS nchar(20)), CAST(N'USR0023' AS nchar(20)), CAST(N'YC00013' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00014' AS nchar(20)), CAST(N'USR0024' AS nchar(20)), CAST(N'YC00014' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00015' AS nchar(20)), CAST(N'USR0025' AS nchar(20)), CAST(N'YC00015' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00016' AS nchar(20)), CAST(N'USR0026' AS nchar(20)), CAST(N'YC00016' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00017' AS nchar(20)), CAST(N'USR0027' AS nchar(20)), CAST(N'YC00017' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00018' AS nchar(20)), CAST(N'USR0028' AS nchar(20)), CAST(N'YC00018' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00019' AS nchar(20)), CAST(N'USR0029' AS nchar(20)), CAST(N'YC00019' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00020' AS nchar(20)), CAST(N'USR0030' AS nchar(20)), CAST(N'YC00020' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00021' AS nchar(20)), CAST(N'USR0031' AS nchar(20)), CAST(N'YC00021' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00022' AS nchar(20)), CAST(N'USR0032' AS nchar(20)), CAST(N'YC00022' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00023' AS nchar(20)), CAST(N'USR0033' AS nchar(20)), CAST(N'YC00023' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00024' AS nchar(20)), CAST(N'USR0034' AS nchar(20)), CAST(N'YC00024' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00025' AS nchar(20)), CAST(N'USR0035' AS nchar(20)), CAST(N'YC00025' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00026' AS nchar(20)), CAST(N'USR0036' AS nchar(20)), CAST(N'YC00026' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00027' AS nchar(20)), CAST(N'USR0037' AS nchar(20)), CAST(N'YC00027' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00028' AS nchar(20)), CAST(N'USR0038' AS nchar(20)), CAST(N'YC00028' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00029' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), CAST(N'YC00029' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME()),
-  (CAST(N'HT00030' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'YC00030' AS nchar(20)), CAST(N'DaSinhDeXuat' AS nchar(20)), N'{"ready":true}', SYSUTCDATETIME());
+
+/* ===== 026_SeedMauDayDu.sql #85 ===== */
+
+
 GO
-INSERT INTO dbo.TinNhanThietKe (MaTinNhan, MaHoiThoai, VaiTro, NoiDung, PayloadJson, NgayTao) VALUES
-  (CAST(N'TN00001A' AS nchar(20)), CAST(N'HT00001' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Quảng Ninh', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00001B' AS nchar(20)), CAST(N'HT00001' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00002A' AS nchar(20)), CAST(N'HT00002' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Quảng Nam', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00002B' AS nchar(20)), CAST(N'HT00002' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00003A' AS nchar(20)), CAST(N'HT00003' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Lào Cai', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00003B' AS nchar(20)), CAST(N'HT00003' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00004A' AS nchar(20)), CAST(N'HT00004' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Ninh Bình', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00004B' AS nchar(20)), CAST(N'HT00004' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00005A' AS nchar(20)), CAST(N'HT00005' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Thừa Thiên Huế', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00005B' AS nchar(20)), CAST(N'HT00005' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00006A' AS nchar(20)), CAST(N'HT00006' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Khánh Hòa', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00006B' AS nchar(20)), CAST(N'HT00006' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00007A' AS nchar(20)), CAST(N'HT00007' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Kiên Giang', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00007B' AS nchar(20)), CAST(N'HT00007' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00008A' AS nchar(20)), CAST(N'HT00008' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Cần Thơ', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00008B' AS nchar(20)), CAST(N'HT00008' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00009A' AS nchar(20)), CAST(N'HT00009' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Lâm Đồng', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00009B' AS nchar(20)), CAST(N'HT00009' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00010A' AS nchar(20)), CAST(N'HT00010' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Hà Giang', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00010B' AS nchar(20)), CAST(N'HT00010' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00011A' AS nchar(20)), CAST(N'HT00011' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Hòa Bình', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00011B' AS nchar(20)), CAST(N'HT00011' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00012A' AS nchar(20)), CAST(N'HT00012' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Bình Định', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00012B' AS nchar(20)), CAST(N'HT00012' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00013A' AS nchar(20)), CAST(N'HT00013' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Bình Thuận', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00013B' AS nchar(20)), CAST(N'HT00013' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00014A' AS nchar(20)), CAST(N'HT00014' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Bà Rịa - Vũng Tàu', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00014B' AS nchar(20)), CAST(N'HT00014' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00015A' AS nchar(20)), CAST(N'HT00015' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Tây Ninh', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00015B' AS nchar(20)), CAST(N'HT00015' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00016A' AS nchar(20)), CAST(N'HT00016' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình TP. Hồ Chí Minh', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00016B' AS nchar(20)), CAST(N'HT00016' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00017A' AS nchar(20)), CAST(N'HT00017' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Sơn La', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00017B' AS nchar(20)), CAST(N'HT00017' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00018A' AS nchar(20)), CAST(N'HT00018' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Hải Phòng', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00018B' AS nchar(20)), CAST(N'HT00018' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00019A' AS nchar(20)), CAST(N'HT00019' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Quảng Bình', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00019B' AS nchar(20)), CAST(N'HT00019' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00020A' AS nchar(20)), CAST(N'HT00020' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Cà Mau', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00020B' AS nchar(20)), CAST(N'HT00020' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00021A' AS nchar(20)), CAST(N'HT00021' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình An Giang', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00021B' AS nchar(20)), CAST(N'HT00021' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00022A' AS nchar(20)), CAST(N'HT00022' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Đắk Lắk', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00022B' AS nchar(20)), CAST(N'HT00022' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00023A' AS nchar(20)), CAST(N'HT00023' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Lâm Đồng', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00023B' AS nchar(20)), CAST(N'HT00023' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00024A' AS nchar(20)), CAST(N'HT00024' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Quảng Nam', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00024B' AS nchar(20)), CAST(N'HT00024' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00025A' AS nchar(20)), CAST(N'HT00025' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Hà Nội', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00025B' AS nchar(20)), CAST(N'HT00025' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00026A' AS nchar(20)), CAST(N'HT00026' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình TP. Hồ Chí Minh', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00026B' AS nchar(20)), CAST(N'HT00026' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00027A' AS nchar(20)), CAST(N'HT00027' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Kiên Giang', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00027B' AS nchar(20)), CAST(N'HT00027' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00028A' AS nchar(20)), CAST(N'HT00028' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Quảng Ninh', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00028B' AS nchar(20)), CAST(N'HT00028' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00029A' AS nchar(20)), CAST(N'HT00029' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Khánh Hòa', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00029B' AS nchar(20)), CAST(N'HT00029' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00030A' AS nchar(20)), CAST(N'HT00030' AS nchar(20)), CAST(N'Khach' AS nchar(20)), N'Cho tôi lịch trình Lâm Đồng', N'{}', SYSUTCDATETIME()),
-  (CAST(N'TN00030B' AS nchar(20)), CAST(N'HT00030' AS nchar(20)), CAST(N'Bot' AS nchar(20)), N'Đã ghi nhận. Dùng form Tự thiết kế để chọn tỉnh xuất phát và tỉnh đến.', N'{}', SYSUTCDATETIME());
+
+/* ===== 026_SeedMauDayDu.sql #86 ===== */
+
+
 GO
+
+/* ===== 026_SeedMauDayDu.sql #87 ===== */
 INSERT INTO dbo.RefreshToken (MaRefresh, MaUser, TokenHash, HetHan, ThuHoiLuc, TaoLuc) VALUES
   (CAST(N'RT00001' AS nchar(20)), CAST(N'USR0001' AS nchar(20)), 'fd521670a92c7253a265faa1be5b6aee898674c073b18676262297ebbea9f37a', DATEADD(DAY, 7, SYSUTCDATETIME()), DATEADD(DAY, -1, SYSUTCDATETIME()), SYSUTCDATETIME()),
   (CAST(N'RT00002' AS nchar(20)), CAST(N'USR0002' AS nchar(20)), '14ba04931255277ba4b6f4e96bc9002b8e1404fdbf356b338176436e62c276a3', DATEADD(DAY, 7, SYSUTCDATETIME()), DATEADD(DAY, -1, SYSUTCDATETIME()), SYSUTCDATETIME()),
@@ -21169,12 +25577,12 @@ INSERT INTO dbo.RefreshToken (MaRefresh, MaUser, TokenHash, HetHan, ThuHoiLuc, T
   (CAST(N'RT00040' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), '5c61b0c8d3ba963eca9ba404ed286c5db4bcc729db10be5e9a25e42ebe496820', DATEADD(DAY, 7, SYSUTCDATETIME()), DATEADD(DAY, -1, SYSUTCDATETIME()), SYSUTCDATETIME());
 GO
 
-INSERT INTO dbo.JobRunLog (TenJob, ThoiDiemBatDau, ThoiDiemKetThuc, SoBanGhi, TrangThai, Loi)
-SELECT N'AiRecommendationRefresh', DATEADD(HOUR, -n, SYSUTCDATETIME()), DATEADD(HOUR, -n, DATEADD(MINUTE, 2, SYSUTCDATETIME())),
-       30, N'ThanhCong', N'Không có lỗi'
-FROM (SELECT ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS n FROM sys.all_objects) t WHERE n <= 30;
+/* ===== 026_SeedMauDayDu.sql #88 ===== */
+
+
 GO
 
+/* ===== 026_SeedMauDayDu.sql #89 ===== */
 INSERT INTO dbo.AnhTour (MaAnhTour, MaTour, ImageURL, ThuTu, IsAvatar, LoaiMedia, Url, CloudPublicId, CloudResourceType)
 SELECT CAST(N'IMG' + RIGHT('00000' + CAST(n AS varchar(5)), 5) AS nchar(20)),
        CAST(N'TOUR' + RIGHT('000' + CAST(n AS varchar(3)), 3) AS nchar(20)),
@@ -21191,14 +25599,255 @@ WHERE n <= 30
         WHERE a.MaTour = CAST(N'TOUR' + RIGHT('000' + CAST(n AS varchar(3)), 3) AS nchar(20)));
 GO
 
-/* Kiểm tra nhanh */
-SELECT 'TinhThanh' AS Bang, COUNT(*) AS SoDong FROM dbo.TinhThanh
-UNION ALL SELECT 'DiemThamQuan', COUNT(*) FROM dbo.DiemThamQuan
-UNION ALL SELECT 'DoiTac', COUNT(*) FROM dbo.DoiTac
-UNION ALL SELECT 'SanPhamDoiTac', COUNT(*) FROM dbo.SanPhamDoiTac
-UNION ALL SELECT 'Tour', COUNT(*) FROM dbo.Tour
-UNION ALL SELECT 'AnhTour', COUNT(*) FROM dbo.AnhTour
-UNION ALL SELECT 'NguoiSuDung', COUNT(*) FROM dbo.NguoiSuDung
-UNION ALL SELECT 'GiaMinSanPham', MIN(GiaNiemYet) FROM dbo.SanPhamDoiTac
-UNION ALL SELECT 'GiaMaxSanPham', MAX(GiaNiemYet) FROM dbo.SanPhamDoiTac;
+/* ===== 027_DanhGiaCongKhaiVaNoiBo.sql #6 ===== */
+INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
+SELECT CONVERT(nchar(20), N'QNDG' + RIGHT(RTRIM(u.MaUser), 4)),
+       u.MaUser, N'DanhGia', 1, 0, 0, 0
+FROM dbo.NguoiSuDung u
+INNER JOIN dbo.VaiTro v ON v.MaVaiTro = u.MaVaiTro
+WHERE RTRIM(v.TenVaiTro) IN (N'Admin', N'Sale')
+  AND NOT EXISTS (
+        SELECT 1 FROM dbo.QuyenNhanVien q
+        WHERE q.MaUser = u.MaUser AND q.ChucNang = N'DanhGia');
+GO
+
+/* ===== 027_DanhGiaCongKhaiVaNoiBo.sql #7 ===== */
+INSERT INTO dbo.DanhGiaTour (MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia, NhanXet, CongKhai)
+SELECT v.MaDanhGiaTour, v.MaUser, v.MaTour, v.ThoiGian, v.SaoDanhGia, v.NhanXet, v.CongKhai
+FROM (VALUES
+  (CAST(N'DG0001' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), DATEADD(DAY, -8, SYSUTCDATETIME()), 5, N'Hướng dẫn nhiệt tình, lịch trình vừa sức.', CAST(1 AS bit)),
+  (CAST(N'DG0002' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'TOUR002' AS nchar(20)), DATEADD(DAY, -15, SYSUTCDATETIME()), 5, N'Khách sạn sạch, gần trung tâm, sẽ quay lại.', CAST(1 AS bit)),
+  (CAST(N'DG0003' AS nchar(20)), CAST(N'USR0011' AS nchar(20)), CAST(N'TOUR003' AS nchar(20)), DATEADD(DAY, -22, SYSUTCDATETIME()), 5, N'Điểm tham quan đẹp nhưng đông khách vào cuối tuần.', CAST(1 AS bit)),
+  (CAST(N'DG0004' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'TOUR004' AS nchar(20)), DATEADD(DAY, -29, SYSUTCDATETIME()), 5, N'Bữa ăn ngon, đoàn vui, giá hợp lý.', CAST(1 AS bit)),
+  (CAST(N'DG0005' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'TOUR005' AS nchar(20)), DATEADD(DAY, -36, SYSUTCDATETIME()), 5, N'Xe đưa đón đúng giờ, HDV giải thích dễ hiểu.', CAST(1 AS bit)),
+  (CAST(N'DG0006' AS nchar(20)), CAST(N'USR0012' AS nchar(20)), CAST(N'TOUR006' AS nchar(20)), DATEADD(DAY, -43, SYSUTCDATETIME()), 4, N'Phòng hơi nhỏ nhưng view đẹp, đáng tiền.', CAST(1 AS bit)),
+  (CAST(N'DG0007' AS nchar(20)), CAST(N'USR0013' AS nchar(20)), CAST(N'TOUR007' AS nchar(20)), DATEADD(DAY, -50, SYSUTCDATETIME()), 4, N'Lịch trình hơi dày, nên bớt một điểm buổi chiều.', CAST(1 AS bit)),
+  (CAST(N'DG0008' AS nchar(20)), CAST(N'USR0013' AS nchar(20)), CAST(N'TOUR008' AS nchar(20)), DATEADD(DAY, -57, SYSUTCDATETIME()), 4, N'Gia đình rất hài lòng, trẻ em thích tắm biển.', CAST(1 AS bit)),
+  (CAST(N'DG0009' AS nchar(20)), CAST(N'USR0013' AS nchar(20)), CAST(N'TOUR009' AS nchar(20)), DATEADD(DAY, -64, SYSUTCDATETIME()), 3, N'Thủ tục nhanh, hỗ trợ đổi ngày linh hoạt.', CAST(1 AS bit)),
+  (CAST(N'DG0010' AS nchar(20)), CAST(N'USR0014' AS nchar(20)), CAST(N'TOUR010' AS nchar(20)), DATEADD(DAY, -71, SYSUTCDATETIME()), 5, N'Chưa tương xứng giá, cần cải thiện bữa trưa.', CAST(1 AS bit)),
+  (CAST(N'DG0011' AS nchar(20)), CAST(N'USR0014' AS nchar(20)), CAST(N'TOUR011' AS nchar(20)), DATEADD(DAY, -78, SYSUTCDATETIME()), 2, N'Cảnh đẹp, thời tiết thuận, chụp ảnh rất đã.', CAST(1 AS bit)),
+  (CAST(N'DG0012' AS nchar(20)), CAST(N'USR0014' AS nchar(20)), CAST(N'TOUR012' AS nchar(20)), DATEADD(DAY, -85, SYSUTCDATETIME()), 5, N'HDV quan tâm khách lớn tuổi, khen ngợi.', CAST(1 AS bit)),
+  (CAST(N'DG0013' AS nchar(20)), CAST(N'USR0015' AS nchar(20)), CAST(N'TOUR013' AS nchar(20)), DATEADD(DAY, -92, SYSUTCDATETIME()), 4, N'Hướng dẫn nhiệt tình, lịch trình vừa sức.', CAST(1 AS bit)),
+  (CAST(N'DG0014' AS nchar(20)), CAST(N'USR0015' AS nchar(20)), CAST(N'TOUR014' AS nchar(20)), DATEADD(DAY, -99, SYSUTCDATETIME()), 1, N'Khách sạn sạch, gần trung tâm, sẽ quay lại.', CAST(1 AS bit)),
+  (CAST(N'DG0015' AS nchar(20)), CAST(N'USR0015' AS nchar(20)), CAST(N'TOUR015' AS nchar(20)), DATEADD(DAY, -106, SYSUTCDATETIME()), 5, N'Điểm tham quan đẹp nhưng đông khách vào cuối tuần.', CAST(1 AS bit)),
+  (CAST(N'DG0016' AS nchar(20)), CAST(N'USR0016' AS nchar(20)), CAST(N'TOUR016' AS nchar(20)), DATEADD(DAY, -113, SYSUTCDATETIME()), 5, N'Bữa ăn ngon, đoàn vui, giá hợp lý.', CAST(1 AS bit)),
+  (CAST(N'DG0017' AS nchar(20)), CAST(N'USR0016' AS nchar(20)), CAST(N'TOUR017' AS nchar(20)), DATEADD(DAY, -120, SYSUTCDATETIME()), 4, N'Xe đưa đón đúng giờ, HDV giải thích dễ hiểu.', CAST(1 AS bit)),
+  (CAST(N'DG0018' AS nchar(20)), CAST(N'USR0016' AS nchar(20)), CAST(N'TOUR018' AS nchar(20)), DATEADD(DAY, -127, SYSUTCDATETIME()), 5, N'Phòng hơi nhỏ nhưng view đẹp, đáng tiền.', CAST(1 AS bit)),
+  (CAST(N'DG0019' AS nchar(20)), CAST(N'USR0017' AS nchar(20)), CAST(N'TOUR019' AS nchar(20)), DATEADD(DAY, -134, SYSUTCDATETIME()), 3, N'Lịch trình hơi dày, nên bớt một điểm buổi chiều.', CAST(1 AS bit)),
+  (CAST(N'DG0020' AS nchar(20)), CAST(N'USR0017' AS nchar(20)), CAST(N'TOUR020' AS nchar(20)), DATEADD(DAY, -141, SYSUTCDATETIME()), 4, N'Gia đình rất hài lòng, trẻ em thích tắm biển.', CAST(1 AS bit)),
+  (CAST(N'DG0021' AS nchar(20)), CAST(N'USR0017' AS nchar(20)), CAST(N'TOUR021' AS nchar(20)), DATEADD(DAY, -148, SYSUTCDATETIME()), 5, N'Thủ tục nhanh, hỗ trợ đổi ngày linh hoạt.', CAST(1 AS bit)),
+  (CAST(N'DG0022' AS nchar(20)), CAST(N'USR0018' AS nchar(20)), CAST(N'TOUR022' AS nchar(20)), DATEADD(DAY, -155, SYSUTCDATETIME()), 5, N'Chưa tương xứng giá, cần cải thiện bữa trưa.', CAST(1 AS bit)),
+  (CAST(N'DG0023' AS nchar(20)), CAST(N'USR0018' AS nchar(20)), CAST(N'TOUR023' AS nchar(20)), DATEADD(DAY, -162, SYSUTCDATETIME()), 5, N'Cảnh đẹp, thời tiết thuận, chụp ảnh rất đã.', CAST(1 AS bit)),
+  (CAST(N'DG0024' AS nchar(20)), CAST(N'USR0018' AS nchar(20)), CAST(N'TOUR024' AS nchar(20)), DATEADD(DAY, -169, SYSUTCDATETIME()), 5, N'HDV quan tâm khách lớn tuổi, khen ngợi.', CAST(1 AS bit)),
+  (CAST(N'DG0025' AS nchar(20)), CAST(N'USR0019' AS nchar(20)), CAST(N'TOUR025' AS nchar(20)), DATEADD(DAY, -6, SYSUTCDATETIME()), 5, N'Hướng dẫn nhiệt tình, lịch trình vừa sức.', CAST(1 AS bit)),
+  (CAST(N'DG0026' AS nchar(20)), CAST(N'USR0019' AS nchar(20)), CAST(N'TOUR026' AS nchar(20)), DATEADD(DAY, -13, SYSUTCDATETIME()), 4, N'Khách sạn sạch, gần trung tâm, sẽ quay lại.', CAST(1 AS bit)),
+  (CAST(N'DG0027' AS nchar(20)), CAST(N'USR0019' AS nchar(20)), CAST(N'TOUR027' AS nchar(20)), DATEADD(DAY, -20, SYSUTCDATETIME()), 4, N'Điểm tham quan đẹp nhưng đông khách vào cuối tuần.', CAST(1 AS bit)),
+  (CAST(N'DG0028' AS nchar(20)), CAST(N'USR0020' AS nchar(20)), CAST(N'TOUR028' AS nchar(20)), DATEADD(DAY, -27, SYSUTCDATETIME()), 4, N'Bữa ăn ngon, đoàn vui, giá hợp lý.', CAST(1 AS bit)),
+  (CAST(N'DG0029' AS nchar(20)), CAST(N'USR0020' AS nchar(20)), CAST(N'TOUR029' AS nchar(20)), DATEADD(DAY, -34, SYSUTCDATETIME()), 3, N'Xe đưa đón đúng giờ, HDV giải thích dễ hiểu.', CAST(1 AS bit)),
+  (CAST(N'DG0030' AS nchar(20)), CAST(N'USR0020' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), DATEADD(DAY, -41, SYSUTCDATETIME()), 5, N'Phòng hơi nhỏ nhưng view đẹp, đáng tiền.', CAST(1 AS bit)),
+  (CAST(N'DG0031' AS nchar(20)), CAST(N'USR0021' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), DATEADD(DAY, -48, SYSUTCDATETIME()), 2, N'Lịch trình hơi dày, nên bớt một điểm buổi chiều.', CAST(1 AS bit)),
+  (CAST(N'DG0032' AS nchar(20)), CAST(N'USR0021' AS nchar(20)), CAST(N'TOUR002' AS nchar(20)), DATEADD(DAY, -55, SYSUTCDATETIME()), 5, N'Gia đình rất hài lòng, trẻ em thích tắm biển.', CAST(1 AS bit)),
+  (CAST(N'DG0033' AS nchar(20)), CAST(N'USR0021' AS nchar(20)), CAST(N'TOUR003' AS nchar(20)), DATEADD(DAY, -62, SYSUTCDATETIME()), 4, N'Thủ tục nhanh, hỗ trợ đổi ngày linh hoạt.', CAST(1 AS bit)),
+  (CAST(N'DG0034' AS nchar(20)), CAST(N'USR0022' AS nchar(20)), CAST(N'TOUR004' AS nchar(20)), DATEADD(DAY, -69, SYSUTCDATETIME()), 1, N'Chưa tương xứng giá, cần cải thiện bữa trưa.', CAST(1 AS bit)),
+  (CAST(N'DG0035' AS nchar(20)), CAST(N'USR0022' AS nchar(20)), CAST(N'TOUR005' AS nchar(20)), DATEADD(DAY, -76, SYSUTCDATETIME()), 5, N'Cảnh đẹp, thời tiết thuận, chụp ảnh rất đã.', CAST(1 AS bit)),
+  (CAST(N'DG0036' AS nchar(20)), CAST(N'USR0022' AS nchar(20)), CAST(N'TOUR006' AS nchar(20)), DATEADD(DAY, -83, SYSUTCDATETIME()), 5, N'HDV quan tâm khách lớn tuổi, khen ngợi.', CAST(1 AS bit)),
+  (CAST(N'DG0037' AS nchar(20)), CAST(N'USR0023' AS nchar(20)), CAST(N'TOUR007' AS nchar(20)), DATEADD(DAY, -90, SYSUTCDATETIME()), 4, N'Hướng dẫn nhiệt tình, lịch trình vừa sức.', CAST(1 AS bit)),
+  (CAST(N'DG0038' AS nchar(20)), CAST(N'USR0023' AS nchar(20)), CAST(N'TOUR008' AS nchar(20)), DATEADD(DAY, -97, SYSUTCDATETIME()), 5, N'Khách sạn sạch, gần trung tâm, sẽ quay lại.', CAST(1 AS bit)),
+  (CAST(N'DG0039' AS nchar(20)), CAST(N'USR0023' AS nchar(20)), CAST(N'TOUR009' AS nchar(20)), DATEADD(DAY, -104, SYSUTCDATETIME()), 3, N'Điểm tham quan đẹp nhưng đông khách vào cuối tuần.', CAST(1 AS bit)),
+  (CAST(N'DG0040' AS nchar(20)), CAST(N'USR0024' AS nchar(20)), CAST(N'TOUR010' AS nchar(20)), DATEADD(DAY, -111, SYSUTCDATETIME()), 4, N'Bữa ăn ngon, đoàn vui, giá hợp lý.', CAST(1 AS bit)),
+  (CAST(N'DG0041' AS nchar(20)), CAST(N'USR0024' AS nchar(20)), CAST(N'TOUR011' AS nchar(20)), DATEADD(DAY, -118, SYSUTCDATETIME()), 5, N'Xe đưa đón đúng giờ, HDV giải thích dễ hiểu.', CAST(1 AS bit)),
+  (CAST(N'DG0042' AS nchar(20)), CAST(N'USR0024' AS nchar(20)), CAST(N'TOUR012' AS nchar(20)), DATEADD(DAY, -125, SYSUTCDATETIME()), 5, N'Phòng hơi nhỏ nhưng view đẹp, đáng tiền.', CAST(1 AS bit)),
+  (CAST(N'DG0043' AS nchar(20)), CAST(N'USR0025' AS nchar(20)), CAST(N'TOUR013' AS nchar(20)), DATEADD(DAY, -132, SYSUTCDATETIME()), 5, N'Lịch trình hơi dày, nên bớt một điểm buổi chiều.', CAST(1 AS bit)),
+  (CAST(N'DG0044' AS nchar(20)), CAST(N'USR0025' AS nchar(20)), CAST(N'TOUR014' AS nchar(20)), DATEADD(DAY, -139, SYSUTCDATETIME()), 5, N'Gia đình rất hài lòng, trẻ em thích tắm biển.', CAST(1 AS bit)),
+  (CAST(N'DG0045' AS nchar(20)), CAST(N'USR0025' AS nchar(20)), CAST(N'TOUR015' AS nchar(20)), DATEADD(DAY, -146, SYSUTCDATETIME()), 5, N'Thủ tục nhanh, hỗ trợ đổi ngày linh hoạt.', CAST(1 AS bit)),
+  (CAST(N'DG0046' AS nchar(20)), CAST(N'USR0026' AS nchar(20)), CAST(N'TOUR016' AS nchar(20)), DATEADD(DAY, -153, SYSUTCDATETIME()), 4, N'Chưa tương xứng giá, cần cải thiện bữa trưa.', CAST(1 AS bit)),
+  (CAST(N'DG0047' AS nchar(20)), CAST(N'USR0026' AS nchar(20)), CAST(N'TOUR017' AS nchar(20)), DATEADD(DAY, -160, SYSUTCDATETIME()), 4, N'Cảnh đẹp, thời tiết thuận, chụp ảnh rất đã.', CAST(1 AS bit)),
+  (CAST(N'DG0048' AS nchar(20)), CAST(N'USR0026' AS nchar(20)), CAST(N'TOUR018' AS nchar(20)), DATEADD(DAY, -167, SYSUTCDATETIME()), 4, N'HDV quan tâm khách lớn tuổi, khen ngợi.', CAST(1 AS bit)),
+  (CAST(N'DG0049' AS nchar(20)), CAST(N'USR0027' AS nchar(20)), CAST(N'TOUR019' AS nchar(20)), DATEADD(DAY, -4, SYSUTCDATETIME()), 3, N'Hướng dẫn nhiệt tình, lịch trình vừa sức.', CAST(1 AS bit)),
+  (CAST(N'DG0050' AS nchar(20)), CAST(N'USR0027' AS nchar(20)), CAST(N'TOUR020' AS nchar(20)), DATEADD(DAY, -11, SYSUTCDATETIME()), 5, N'Khách sạn sạch, gần trung tâm, sẽ quay lại.', CAST(1 AS bit)),
+  (CAST(N'DG0051' AS nchar(20)), CAST(N'USR0027' AS nchar(20)), CAST(N'TOUR021' AS nchar(20)), DATEADD(DAY, -18, SYSUTCDATETIME()), 2, N'Điểm tham quan đẹp nhưng đông khách vào cuối tuần.', CAST(1 AS bit)),
+  (CAST(N'DG0052' AS nchar(20)), CAST(N'USR0028' AS nchar(20)), CAST(N'TOUR022' AS nchar(20)), DATEADD(DAY, -25, SYSUTCDATETIME()), 5, N'Bữa ăn ngon, đoàn vui, giá hợp lý.', CAST(1 AS bit)),
+  (CAST(N'DG0053' AS nchar(20)), CAST(N'USR0028' AS nchar(20)), CAST(N'TOUR023' AS nchar(20)), DATEADD(DAY, -32, SYSUTCDATETIME()), 4, N'Xe đưa đón đúng giờ, HDV giải thích dễ hiểu.', CAST(1 AS bit)),
+  (CAST(N'DG0054' AS nchar(20)), CAST(N'USR0028' AS nchar(20)), CAST(N'TOUR024' AS nchar(20)), DATEADD(DAY, -39, SYSUTCDATETIME()), 1, N'Phòng hơi nhỏ nhưng view đẹp, đáng tiền.', CAST(1 AS bit)),
+  (CAST(N'DG0055' AS nchar(20)), CAST(N'USR0029' AS nchar(20)), CAST(N'TOUR025' AS nchar(20)), DATEADD(DAY, -46, SYSUTCDATETIME()), 5, N'Lịch trình hơi dày, nên bớt một điểm buổi chiều.', CAST(1 AS bit)),
+  (CAST(N'DG0056' AS nchar(20)), CAST(N'USR0029' AS nchar(20)), CAST(N'TOUR026' AS nchar(20)), DATEADD(DAY, -53, SYSUTCDATETIME()), 5, N'Gia đình rất hài lòng, trẻ em thích tắm biển.', CAST(1 AS bit)),
+  (CAST(N'DG0057' AS nchar(20)), CAST(N'USR0029' AS nchar(20)), CAST(N'TOUR027' AS nchar(20)), DATEADD(DAY, -60, SYSUTCDATETIME()), 4, N'Thủ tục nhanh, hỗ trợ đổi ngày linh hoạt.', CAST(1 AS bit)),
+  (CAST(N'DG0058' AS nchar(20)), CAST(N'USR0030' AS nchar(20)), CAST(N'TOUR028' AS nchar(20)), DATEADD(DAY, -67, SYSUTCDATETIME()), 5, N'Chưa tương xứng giá, cần cải thiện bữa trưa.', CAST(1 AS bit)),
+  (CAST(N'DG0059' AS nchar(20)), CAST(N'USR0030' AS nchar(20)), CAST(N'TOUR029' AS nchar(20)), DATEADD(DAY, -74, SYSUTCDATETIME()), 3, N'Cảnh đẹp, thời tiết thuận, chụp ảnh rất đã.', CAST(1 AS bit)),
+  (CAST(N'DG0060' AS nchar(20)), CAST(N'USR0030' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), DATEADD(DAY, -81, SYSUTCDATETIME()), 4, N'HDV quan tâm khách lớn tuổi, khen ngợi.', CAST(1 AS bit)),
+  (CAST(N'DG0061' AS nchar(20)), CAST(N'USR0031' AS nchar(20)), CAST(N'TOUR001' AS nchar(20)), DATEADD(DAY, -88, SYSUTCDATETIME()), 5, N'Hướng dẫn nhiệt tình, lịch trình vừa sức.', CAST(1 AS bit)),
+  (CAST(N'DG0062' AS nchar(20)), CAST(N'USR0031' AS nchar(20)), CAST(N'TOUR002' AS nchar(20)), DATEADD(DAY, -95, SYSUTCDATETIME()), 5, N'Khách sạn sạch, gần trung tâm, sẽ quay lại.', CAST(1 AS bit)),
+  (CAST(N'DG0063' AS nchar(20)), CAST(N'USR0031' AS nchar(20)), CAST(N'TOUR003' AS nchar(20)), DATEADD(DAY, -102, SYSUTCDATETIME()), 5, N'Điểm tham quan đẹp nhưng đông khách vào cuối tuần.', CAST(1 AS bit)),
+  (CAST(N'DG0064' AS nchar(20)), CAST(N'USR0032' AS nchar(20)), CAST(N'TOUR004' AS nchar(20)), DATEADD(DAY, -109, SYSUTCDATETIME()), 5, N'Bữa ăn ngon, đoàn vui, giá hợp lý.', CAST(1 AS bit)),
+  (CAST(N'DG0065' AS nchar(20)), CAST(N'USR0032' AS nchar(20)), CAST(N'TOUR005' AS nchar(20)), DATEADD(DAY, -116, SYSUTCDATETIME()), 5, N'Xe đưa đón đúng giờ, HDV giải thích dễ hiểu.', CAST(1 AS bit)),
+  (CAST(N'DG0066' AS nchar(20)), CAST(N'USR0032' AS nchar(20)), CAST(N'TOUR006' AS nchar(20)), DATEADD(DAY, -123, SYSUTCDATETIME()), 4, N'Phòng hơi nhỏ nhưng view đẹp, đáng tiền.', CAST(1 AS bit)),
+  (CAST(N'DG0067' AS nchar(20)), CAST(N'USR0033' AS nchar(20)), CAST(N'TOUR007' AS nchar(20)), DATEADD(DAY, -130, SYSUTCDATETIME()), 4, N'Lịch trình hơi dày, nên bớt một điểm buổi chiều.', CAST(1 AS bit)),
+  (CAST(N'DG0068' AS nchar(20)), CAST(N'USR0033' AS nchar(20)), CAST(N'TOUR008' AS nchar(20)), DATEADD(DAY, -137, SYSUTCDATETIME()), 4, N'Gia đình rất hài lòng, trẻ em thích tắm biển.', CAST(1 AS bit)),
+  (CAST(N'DG0069' AS nchar(20)), CAST(N'USR0033' AS nchar(20)), CAST(N'TOUR009' AS nchar(20)), DATEADD(DAY, -144, SYSUTCDATETIME()), 3, N'Thủ tục nhanh, hỗ trợ đổi ngày linh hoạt.', CAST(1 AS bit)),
+  (CAST(N'DG0070' AS nchar(20)), CAST(N'USR0034' AS nchar(20)), CAST(N'TOUR010' AS nchar(20)), DATEADD(DAY, -151, SYSUTCDATETIME()), 5, N'Chưa tương xứng giá, cần cải thiện bữa trưa.', CAST(1 AS bit)),
+  (CAST(N'DG0071' AS nchar(20)), CAST(N'USR0034' AS nchar(20)), CAST(N'TOUR011' AS nchar(20)), DATEADD(DAY, -158, SYSUTCDATETIME()), 2, N'Cảnh đẹp, thời tiết thuận, chụp ảnh rất đã.', CAST(1 AS bit)),
+  (CAST(N'DG0072' AS nchar(20)), CAST(N'USR0034' AS nchar(20)), CAST(N'TOUR012' AS nchar(20)), DATEADD(DAY, -165, SYSUTCDATETIME()), 5, N'HDV quan tâm khách lớn tuổi, khen ngợi.', CAST(1 AS bit)),
+  (CAST(N'DG0073' AS nchar(20)), CAST(N'USR0035' AS nchar(20)), CAST(N'TOUR013' AS nchar(20)), DATEADD(DAY, -2, SYSUTCDATETIME()), 4, N'Hướng dẫn nhiệt tình, lịch trình vừa sức.', CAST(1 AS bit)),
+  (CAST(N'DG0074' AS nchar(20)), CAST(N'USR0035' AS nchar(20)), CAST(N'TOUR014' AS nchar(20)), DATEADD(DAY, -9, SYSUTCDATETIME()), 1, N'Khách sạn sạch, gần trung tâm, sẽ quay lại.', CAST(1 AS bit)),
+  (CAST(N'DG0075' AS nchar(20)), CAST(N'USR0035' AS nchar(20)), CAST(N'TOUR015' AS nchar(20)), DATEADD(DAY, -16, SYSUTCDATETIME()), 5, N'Điểm tham quan đẹp nhưng đông khách vào cuối tuần.', CAST(1 AS bit)),
+  (CAST(N'DG0076' AS nchar(20)), CAST(N'USR0036' AS nchar(20)), CAST(N'TOUR016' AS nchar(20)), DATEADD(DAY, -23, SYSUTCDATETIME()), 5, N'Bữa ăn ngon, đoàn vui, giá hợp lý.', CAST(1 AS bit)),
+  (CAST(N'DG0077' AS nchar(20)), CAST(N'USR0036' AS nchar(20)), CAST(N'TOUR017' AS nchar(20)), DATEADD(DAY, -30, SYSUTCDATETIME()), 4, N'Xe đưa đón đúng giờ, HDV giải thích dễ hiểu.', CAST(1 AS bit)),
+  (CAST(N'DG0078' AS nchar(20)), CAST(N'USR0036' AS nchar(20)), CAST(N'TOUR018' AS nchar(20)), DATEADD(DAY, -37, SYSUTCDATETIME()), 5, N'Phòng hơi nhỏ nhưng view đẹp, đáng tiền.', CAST(1 AS bit)),
+  (CAST(N'DG0079' AS nchar(20)), CAST(N'USR0037' AS nchar(20)), CAST(N'TOUR019' AS nchar(20)), DATEADD(DAY, -44, SYSUTCDATETIME()), 3, N'Lịch trình hơi dày, nên bớt một điểm buổi chiều.', CAST(1 AS bit)),
+  (CAST(N'DG0080' AS nchar(20)), CAST(N'USR0037' AS nchar(20)), CAST(N'TOUR020' AS nchar(20)), DATEADD(DAY, -51, SYSUTCDATETIME()), 4, N'Gia đình rất hài lòng, trẻ em thích tắm biển.', CAST(1 AS bit)),
+  (CAST(N'DG0081' AS nchar(20)), CAST(N'USR0037' AS nchar(20)), CAST(N'TOUR021' AS nchar(20)), DATEADD(DAY, -58, SYSUTCDATETIME()), 5, N'Thủ tục nhanh, hỗ trợ đổi ngày linh hoạt.', CAST(1 AS bit)),
+  (CAST(N'DG0082' AS nchar(20)), CAST(N'USR0038' AS nchar(20)), CAST(N'TOUR022' AS nchar(20)), DATEADD(DAY, -65, SYSUTCDATETIME()), 5, N'Chưa tương xứng giá, cần cải thiện bữa trưa.', CAST(1 AS bit)),
+  (CAST(N'DG0083' AS nchar(20)), CAST(N'USR0038' AS nchar(20)), CAST(N'TOUR023' AS nchar(20)), DATEADD(DAY, -72, SYSUTCDATETIME()), 5, N'Cảnh đẹp, thời tiết thuận, chụp ảnh rất đã.', CAST(1 AS bit)),
+  (CAST(N'DG0084' AS nchar(20)), CAST(N'USR0038' AS nchar(20)), CAST(N'TOUR024' AS nchar(20)), DATEADD(DAY, -79, SYSUTCDATETIME()), 5, N'HDV quan tâm khách lớn tuổi, khen ngợi.', CAST(1 AS bit)),
+  (CAST(N'DG0085' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), CAST(N'TOUR025' AS nchar(20)), DATEADD(DAY, -86, SYSUTCDATETIME()), 5, N'Hướng dẫn nhiệt tình, lịch trình vừa sức.', CAST(1 AS bit)),
+  (CAST(N'DG0086' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), CAST(N'TOUR026' AS nchar(20)), DATEADD(DAY, -93, SYSUTCDATETIME()), 4, N'Khách sạn sạch, gần trung tâm, sẽ quay lại.', CAST(1 AS bit)),
+  (CAST(N'DG0087' AS nchar(20)), CAST(N'USR0039' AS nchar(20)), CAST(N'TOUR027' AS nchar(20)), DATEADD(DAY, -100, SYSUTCDATETIME()), 4, N'Điểm tham quan đẹp nhưng đông khách vào cuối tuần.', CAST(1 AS bit)),
+  (CAST(N'DG0088' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'TOUR028' AS nchar(20)), DATEADD(DAY, -107, SYSUTCDATETIME()), 4, N'Bữa ăn ngon, đoàn vui, giá hợp lý.', CAST(1 AS bit)),
+  (CAST(N'DG0089' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'TOUR029' AS nchar(20)), DATEADD(DAY, -114, SYSUTCDATETIME()), 3, N'Xe đưa đón đúng giờ, HDV giải thích dễ hiểu.', CAST(1 AS bit)),
+  (CAST(N'DG0090' AS nchar(20)), CAST(N'USR0040' AS nchar(20)), CAST(N'TOUR030' AS nchar(20)), DATEADD(DAY, -121, SYSUTCDATETIME()), 5, N'Phòng hơi nhỏ nhưng view đẹp, đáng tiền.', CAST(1 AS bit))
+) v(MaDanhGiaTour, MaUser, MaTour, ThoiGian, SaoDanhGia, NhanXet, CongKhai)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.DanhGiaTour d WHERE d.MaDanhGiaTour = v.MaDanhGiaTour)
+  AND EXISTS (SELECT 1 FROM dbo.NguoiSuDung u WHERE u.MaUser = v.MaUser)
+  AND EXISTS (SELECT 1 FROM dbo.Tour t WHERE t.MaTour = v.MaTour);
+GO
+
+/* ===== 027_DanhGiaCongKhaiVaNoiBo.sql #8 ===== */
+UPDATE d SET CongKhai = CASE WHEN RTRIM(t.LoaiTour) = N'TuThietKe' THEN 0 ELSE 1 END
+FROM dbo.DanhGiaTour d
+INNER JOIN dbo.Tour t ON t.MaTour = d.MaTour
+WHERE d.CongKhai IS NULL OR (RTRIM(t.LoaiTour) = N'TuThietKe' AND d.CongKhai = 1);
+GO
+
+/* ===== 028_ReviewEditMediaVaKhachHang.sql #11 ===== */
+INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
+SELECT CONVERT(nchar(20), LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 20)),
+       u.MaUser, N'KhachHang', 1, 1, 1, 0
+FROM dbo.NguoiSuDung u
+JOIN dbo.VaiTro v ON v.MaVaiTro = u.MaVaiTro
+WHERE LTRIM(RTRIM(v.TenVaiTro)) IN (N'Admin', N'Sale')
+  AND NOT EXISTS (
+        SELECT 1 FROM dbo.QuyenNhanVien q
+        WHERE q.MaUser = u.MaUser AND q.ChucNang = N'KhachHang');
+GO
+
+/* ===== 028b_FixMaQuyen.sql #3 ===== */
+INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
+SELECT CONVERT(nchar(20), LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 20)),
+       u.MaUser, N'KhachHang', 1, 1, 1, 0
+FROM dbo.NguoiSuDung u
+INNER JOIN dbo.VaiTro v ON v.MaVaiTro = u.MaVaiTro
+WHERE RTRIM(v.TenVaiTro) IN (N'Admin', N'Sale')
+  AND NOT EXISTS (
+        SELECT 1 FROM dbo.QuyenNhanVien q
+        WHERE q.MaUser = u.MaUser AND q.ChucNang = N'KhachHang');
+GO
+
+/* ===== 029_TaiKhoanNhanVienVaHoTro.sql #7 ===== */
+INSERT INTO dbo.QuyenNhanVien (MaQuyen, MaUser, ChucNang, Them, Sua, Xoa, ToanQuyen)
+SELECT CONVERT(nchar(20), LEFT(REPLACE(CONVERT(varchar(36), NEWID()), '-', ''), 20)),
+       u.MaUser, N'HoTro', 1, 1, 0, 0
+FROM dbo.NguoiSuDung u
+INNER JOIN dbo.VaiTro v ON v.MaVaiTro = u.MaVaiTro
+WHERE RTRIM(v.TenVaiTro) IN (N'Admin', N'Sale')
+  AND NOT EXISTS (
+        SELECT 1 FROM dbo.QuyenNhanVien q
+        WHERE q.MaUser = u.MaUser AND q.ChucNang = N'HoTro');
+GO
+
+/* ===== 030_DiaChiLoaiDongAnUong.sql #2 ===== */
+UPDATE dt
+SET DiaChi = N'Số ' + CAST((ABS(CHECKSUM(dt.MaDoiTac)) % 180) + 1 AS nvarchar(10))
+    + N' đường Trần Phú, phường 1, ' + RTRIM(tt.TenTinh)
+FROM dbo.DoiTac dt
+INNER JOIN dbo.TinhThanh tt ON tt.MaTinh = dt.MaTinh
+WHERE dt.DiaChi IS NULL OR LTRIM(RTRIM(dt.DiaChi)) = N'';
+
+UPDATE dt
+SET DiaChi = N'Số ' + CAST((ABS(CHECKSUM(dt.MaDoiTac)) % 90) + 1 AS nvarchar(10))
+    + N' đường Lê Lợi, ' + RTRIM(ISNULL(kv.TenKhuVuc, N'Việt Nam'))
+FROM dbo.DoiTac dt
+LEFT JOIN dbo.KhuVuc kv ON kv.MaKhuVuc = dt.MaKhuVuc
+WHERE dt.DiaChi IS NULL OR LTRIM(RTRIM(dt.DiaChi)) = N'';
+GO
+
+/* ===== 030_DiaChiLoaiDongAnUong.sql #3 ===== */
+;WITH nums AS (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5)
+INSERT INTO dbo.DoiTac (MaDoiTac, TenDoiTac, LoaiDoiTac, NguoiLienHe, SoDienThoai, Email, DiaChi, MaKhuVuc, MaTinh, PhanTramHoaHong, TrangThai)
+SELECT
+    LEFT(N'DAU' + RIGHT(RTRIM(t.MaTinh), 2) + CAST(n.n AS nvarchar(1)) + REPLICATE(N' ', 20), 20),
+    CASE n.n
+        WHEN 1 THEN N'Nhà hàng đặc sản ' + RTRIM(t.TenTinh)
+        WHEN 2 THEN N'Quán cơm quê ' + RTRIM(t.TenTinh)
+        WHEN 3 THEN N'Hải sản / vườn ' + RTRIM(t.TenTinh)
+        WHEN 4 THEN N'Lẩu nướng ' + RTRIM(t.TenTinh)
+        ELSE N'Quán ăn gia đình ' + RTRIM(t.TenTinh)
+    END,
+    N'AnUong              ',
+    N'Bếp trưởng',
+    LEFT(N'0903' + RIGHT(RTRIM(t.MaTinh), 2) + CAST(n.n AS nvarchar(1)) + N'01' + REPLICATE(N' ', 20), 20),
+    N'an' + RIGHT(RTRIM(t.MaTinh), 2) + CAST(n.n AS nvarchar(1)) + N'@anam.vn',
+    N'Số ' + CAST(n.n * 11 AS nvarchar(10)) + N' đường Nguyễn Huệ, phường 1, ' + RTRIM(t.TenTinh),
+    t.MaKhuVuc,
+    t.MaTinh,
+    CAST(12.00 AS decimal(5,2)),
+    N'HoatDong            '
+FROM dbo.TinhThanh t
+CROSS JOIN nums n
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.DoiTac d
+    WHERE d.MaDoiTac = LEFT(N'DAU' + RIGHT(RTRIM(t.MaTinh), 2) + CAST(n.n AS nvarchar(1)) + REPLICATE(N' ', 20), 20)
+);
+GO
+
+/* ===== 030_DiaChiLoaiDongAnUong.sql #4 ===== */
+;WITH nums AS (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3)
+INSERT INTO dbo.SanPhamDoiTac (MaSanPham, MaDoiTac, TenSanPham, DonViTinh, GiaNiemYet, MaDThamQuan, Mota, TrangThai)
+SELECT
+    LEFT(N'SPA' + RIGHT(RTRIM(t.MaTinh), 2) + CAST(n.n AS nvarchar(1)) + CAST(p.n AS nvarchar(1)) + REPLICATE(N' ', 20), 20),
+    LEFT(N'DAU' + RIGHT(RTRIM(t.MaTinh), 2) + CAST(n.n AS nvarchar(1)) + REPLICATE(N' ', 20), 20),
+    CASE p.n WHEN 1 THEN N'Set ăn sáng' WHEN 2 THEN N'Set ăn trưa' ELSE N'Set ăn tối' END,
+    N'suat',
+    120000 + n.n * 40000 + p.n * 25000,
+    NULL,
+    N'Set menu tại ' + RTRIM(t.TenTinh),
+    N'HoatDong            '
+FROM dbo.TinhThanh t
+CROSS JOIN (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5) n
+CROSS JOIN nums p
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.SanPhamDoiTac s
+    WHERE s.MaSanPham = LEFT(N'SPA' + RIGHT(RTRIM(t.MaTinh), 2) + CAST(n.n AS nvarchar(1)) + CAST(p.n AS nvarchar(1)) + REPLICATE(N' ', 20), 20)
+);
+GO
+
+/* ===== 030_DiaChiLoaiDongAnUong.sql #5 ===== */
+IF OBJECT_ID('dbo.MatranDiChuyen', 'U') IS NOT NULL
+BEGIN
+    MERGE dbo.MatranDiChuyen AS target
+    USING (VALUES
+        (N'TN01', N'TN58', N'MayBay', 165, 1850000),
+        (N'TN58', N'TN01', N'MayBay', 165, 1850000),
+        (N'TN45', N'TN58', N'MayBay', 75, 1450000),
+        (N'TN58', N'TN45', N'MayBay', 75, 1450000),
+        (N'TN01', N'TN32', N'MayBay', 90, 1350000),
+        (N'TN32', N'TN01', N'MayBay', 90, 1350000),
+        (N'TN45', N'TN32', N'MayBay', 80, 1200000),
+        (N'TN32', N'TN45', N'MayBay', 80, 1200000),
+        (N'TN01', N'TN44', N'MayBay', 110, 1500000),
+        (N'TN44', N'TN01', N'MayBay', 110, 1500000),
+        (N'TN45', N'TN44', N'MayBay', 55, 950000),
+        (N'TN44', N'TN45', N'MayBay', 55, 950000),
+        (N'TN01', N'TN37', N'MayBay', 105, 1550000),
+        (N'TN37', N'TN01', N'MayBay', 105, 1550000),
+        (N'TN45', N'TN37', N'MayBay', 70, 1100000),
+        (N'TN37', N'TN45', N'MayBay', 70, 1100000)
+    ) AS src(MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhi)
+    ON target.MaTinhDi = LEFT(src.MaTinhDi + REPLICATE(N' ', 20), 20)
+       AND target.MaTinhDen = LEFT(src.MaTinhDen + REPLICATE(N' ', 20), 20)
+       AND RTRIM(target.PhuongTien) = src.PhuongTien
+    WHEN MATCHED THEN UPDATE SET SoPhut = src.SoPhut, ChiPhiUocTinh = src.ChiPhi
+    WHEN NOT MATCHED THEN INSERT (MaTinhDi, MaTinhDen, PhuongTien, SoPhut, ChiPhiUocTinh)
+        VALUES (LEFT(src.MaTinhDi + REPLICATE(N' ', 20), 20), LEFT(src.MaTinhDen + REPLICATE(N' ', 20), 20),
+                LEFT(src.PhuongTien + REPLICATE(N' ', 20), 20), src.SoPhut, src.ChiPhi);
+END
 GO
