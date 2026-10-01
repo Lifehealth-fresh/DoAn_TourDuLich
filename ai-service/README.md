@@ -10,8 +10,8 @@ hạn cache input bằng `AI_CACHE_TTL_SECONDS`/`AI_REFRESH_INTERVAL_SECONDS` kh
 420 giây. Nhờ đó dữ liệu hành vi mới được phản ánh trong SLA tối đa 7 phút.
 
 Lúc khởi động, service kiểm tra hợp đồng schema SQL và báo rõ bảng/cột thiếu nếu schema
-không còn tương thích. `/health` trả tuổi của gợi ý mới nhất. Trạng thái mỗi lần worker
-ASP.NET chạy được lưu ở `JobRunLog`, Admin xem qua `GET /api/ai-jobs/gan-nhat`.
+không còn tương thích. `/health` trả tuổi của gợi ý mới nhất. Worker ASP.NET ghi log
+khi làm mới `AIGoiY`. Script `031` đã xóa bảng `JobRunLog`; không có API `GET /api/ai-jobs/gan-nhat`.
 
 ## Chạy local
 

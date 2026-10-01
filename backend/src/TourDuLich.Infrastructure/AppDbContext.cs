@@ -67,8 +67,6 @@ public virtual DbSet<SanPhamDoiTac> SanPhamDoiTacs { get; set; }
 
     public virtual DbSet<ThanhToan> ThanhToans { get; set; }
 
-    public virtual DbSet<ThongBao> ThongBaos { get; set; }
-
     public virtual DbSet<Tour> Tours { get; set; }
 
     public virtual DbSet<VaiTro> VaiTros { get; set; }
@@ -844,25 +842,6 @@ public virtual DbSet<SanPhamDoiTac> SanPhamDoiTacs { get; set; }
                 .HasForeignKey(d => d.MaBooking)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ThanhToan_DatDichVu");
-        });
-
-        modelBuilder.Entity<ThongBao>(entity =>
-        {
-            entity.HasKey(e => e.MaThongBao).HasName("PK__ThongBao__04DEB54EF2F13D18");
-
-            entity.ToTable("ThongBao");
-
-            entity.Property(e => e.MaThongBao)
-                .HasMaxLength(20)
-                .IsFixedLength();
-            entity.Property(e => e.MaUser)
-                .HasMaxLength(20)
-                .IsFixedLength();
-            entity.Property(e => e.TieuDe).HasMaxLength(50);
-
-            entity.HasOne(d => d.MaUserNavigation).WithMany(p => p.ThongBaos)
-                .HasForeignKey(d => d.MaUser)
-                .HasConstraintName("FK_ThongBao_NguoiSuDung");
         });
 
         modelBuilder.Entity<Tour>(entity =>

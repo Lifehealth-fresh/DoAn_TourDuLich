@@ -33,8 +33,6 @@ public partial class NguoiSuDung
 
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
-    public virtual ICollection<ThongBao> ThongBaos { get; set; } = new List<ThongBao>();
-
     public virtual ICollection<YeuCauThietKe> YeuCauThietKes { get; set; } = new List<YeuCauThietKe>();
 
     public string TrangThai { get; set; } = "HoatDong";
