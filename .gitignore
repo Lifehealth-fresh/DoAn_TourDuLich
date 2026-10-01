@@ -45,5 +45,4 @@ Thumbs.db
 # Power BI backup
 *.pbix.bak
 
-# Báo cáo Word, thêm dòng này nếu không muốn push báo cáo
-*.docx
+

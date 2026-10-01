@@ -1,52 +1,51 @@
-# Database scripts
+<div align="center">
 
-Bộ script này dựng schema và dữ liệu test cho Azure SQL trong bối cảnh đã chọn đúng
-database. Không có `CREATE DATABASE` hoặc `USE`; hãy mở đúng database trước khi chạy.
+# Database TourDuLich
+
+Ba file. Chỉ nhóm nào có trong script gốc mới được tách ra.
+
+</div>
 
 ## Thứ tự chạy
 
-1. `001_CreateSchema.sql` — tạo 31 bảng, khóa, FK, constraint và cột tính toán.
-2. `002_SeedVaiTro.sql` — tạo `Admin`, `Sale`, `KhachHang` nếu chưa có.
-3. `003_SeedTestData.sql` — thêm dữ liệu mẫu và 4 tài khoản test.
-4. `004_Indexes.sql` — thêm index truy vấn; script có kiểm tra tránh tạo trùng.
-5. `005_ViewsBI.sql` — tạo/cập nhật các view đọc cho Power BI.
-6. `006_HopDong_TuDongDien.sql` — migration bổ sung hồ sơ đại diện booking và snapshot hợp đồng sau khi đã có schema 001-005.
-7. `007_LichTrinhDeXuat.sql` — bổ sung staging cho các phương án lịch trình tự thiết kế.
-8. `008_AnhTour_Video.sql` — bổ sung loại media và cột `Url` tương thích ngược cho `AnhTour`.
-9. `009_MediaDanhGia.sql` — tạo ba bảng media có FK cứng cho các loại đánh giá.
-10. `010_ThanhToan_Idempotency.sql` — bổ sung `Idempotency-Key` cho retry thanh toán an toàn.
-11. `011_JobRunLog.sql` — nhật ký chạy job làm mới gợi ý AI.
-12. `012_AnhTour_Cloudinary.sql` — lưu Cloudinary public ID để thay thế/xóa media an toàn.
+Chỉ dùng khi database `TourDuLich` **trống**. Chọn đúng database trên thanh SSMS, encoding UTF-8, không có `USE`.
 
-21. `019_BaoCaoAdmin.sql` — view doanh thu theo tháng, booking theo trạng thái, chỗ trống theo lịch khởi hành (trang tổng quan admin + Power BI).
-22. `020_QuyenTaiKhoan.sql` — bảng `QuyenNhanVien`: phân quyền Thêm/Sửa/Xóa/Toàn quyền theo từng tài khoản và từng chức năng admin.
-23. `021_RefreshToken.sql` — bảng phiên refresh token (thu hồi khi đăng xuất, xoay token khi gia hạn).
-24. `022_SeedCatalogMoRong.sql` — thêm tour đang bán TOUR010–TOUR018, lịch khởi hành có sức chứa, mã ưu đãi, đánh giá mẫu. Ảnh tour để trống, upload sau trên admin.
-25. `023_TuThietKeChatPlanner.sql` — bảng chat tự thiết kế, alias tỉnh (Nha Trang→Khánh Hòa), ma trận thời gian đi, backfill MaTinh điểm cũ. **Không xóa booking/user.** Chạy sau 018+022.
-26. `024_MatchToanBoOffline.sql` — alias 63 tỉnh + thành phố thường gõ; backfill MaTinh còn thiếu (014/017). Không cần Google Maps. Chạy sau 023.
-27. `027_DanhGiaCongKhaiVaNoiBo.sql` — cột `CongKhai` trên `DanhGiaTour`, quyền module `DanhGia` (chỉ xem), seed ~90 bài đánh giá công khai. Chạy sau 026.
-28. `028_ReviewEditMediaVaKhachHang.sql` — hạn sửa đánh giá 5 ngày (`ThoiGianSua`), Cloudinary media đánh giá, ảnh CCCD giấy tờ, quyền module `KhachHang`. Chạy sau 027.
-29. `029_TaiKhoanNhanVienVaHoTro.sql` — hồ sơ nhân viên (`NhanVien`), `NguoiSuDung.TrangThai` (xóa = VoHieu), chat khách–admin (`CuocTroChuyen`/`TinNhanHoTro`), quyền module `HoTro`. Chạy sau 028.
-30. `030_DiaChiLoaiDongAnUong.sql` — `DoiTac.DiaChi`, `LichTrinh.LoaiDong`, nhà hàng `AnUong` mỗi tỉnh, ma trận bay HN/HCM–đảo. Chạy sau 029.
-31. `031_DropUnusedGroupB.sql` — xóa bảng không dùng (HDV, đánh giá phụ, chat thiết kế, Quyen cũ, JobRunLog).
+| Bước | File | Nội dung |
+|---|---|---|
+| 1 | [schema/001_TaoBang.sql](schema/001_TaoBang.sql) | `CREATE TABLE`, `ALTER TABLE`, khóa, chỉ mục |
+| 2 | [schema/002_TaoView.sql](schema/002_TaoView.sql) | 8 view báo cáo (`CREATE OR ALTER VIEW`) |
+| 3 | [schema/003_SeedDuLieuMau.sql](schema/003_SeedDuLieuMau.sql) | `INSERT` / `UPDATE` / `DELETE` của bảng còn dùng |
 
-**CẤM chạy lại `025_DropUnusedAndWipeExceptAnhTour.sql` trên database có dữ liệu thật** — script này xóa gần hết dữ liệu (chỉ giữ ảnh tour).
+Database đang chạy đồ án: không chạy lại. File seed có transaction của script cũ `025` (xóa dữ liệu trung gian, giữ ảnh tour, rồi seed đầy đủ phía sau). Chạy nhầm lên Azure đang dùng sẽ mất dữ liệu.
 
-Thứ tự chạy thực tế là `001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012`.
-Các file 013–022 là migration bổ sung, chạy theo số thứ tự trên database đã có schema.
 
-Tất cả tài khoản test trong bước 3 dùng mật khẩu `Test@123456` **chỉ trên database local/dev**.
-Trên Azure production phải đổi mật khẩu seed ngay sau khi dựng, không để tài khoản demo công khai.
+## Bảng không đưa vào script
 
-## Cảnh báo
+Các bảng sau không còn trong sản phẩm, nên không có `CREATE`, `INSERT`, `DELETE` hay `DROP`:
 
-`001_CreateSchema.sql` dành cho database trống hoàn toàn. Không chạy file này trên
-database Azure SQL đang có dữ liệu thật vì sẽ lỗi khi tạo bảng/khóa đã tồn tại.
-Các file seed, index và view có thể chạy lại theo điều kiện idempotent của từng file,
-nhưng vẫn nên sao lưu database trước khi thao tác.
+`HuongDanVien`, `LichDanTour`, `DanhGiaHDV`, `DanhGiaSanPhamDoiTac`, `ThongBao`, `Quyen` (bảng quyền cũ), `MediaDanhGiaHdv`, `MediaDanhGiaSanPham`, `JobRunLog`, `HoiThoaiThietKe`, `TinNhanThietKe`.
 
-Schema được đối chiếu với entity và Fluent API hiện tại trong
-`backend/src/TourDuLich.Infrastructure/Entities/` và `AppDbContext.cs`.
+Phân quyền dùng `QuyenNhanVien`. Chat hỗ trợ dùng `CuocTroChuyen` / `TinNhanHoTro`. Ảnh đánh giá tour dùng `MediaDanhGiaTour`. Cột `Tour.SLHuongDanVien` vẫn còn trên bảng `Tour` vì code và dữ liệu tour vẫn có cột này; chỉ bỏ bảng hướng dẫn viên.
 
-`006_HopDong_TuDongDien.sql` là migration cho database đã dựng từ 001-005;
-không chạy lại nếu các cột/constraint đã tồn tại.
+## Transaction
+
+SQL Server không có lệnh "tạo transaction" như tạo bảng. Trong bộ script chỉ có **một** `BEGIN TRANSACTION`, nằm giữa file seed (khối cũ `025`): xóa dữ liệu tạm trước khi nạp bộ mẫu cuối. Tách khối đó ra file riêng sẽ sai thứ tự, nên giữ nguyên trong `003_SeedDuLieuMau.sql`.
+
+## View
+
+`vw_DoanhThuTheoTour`, `vw_ThanhToanTheoBooking`, `vw_BookingTheoThang` và các view trang tổng quan admin (`vw_DoanhThuTheoThang`, `vw_BookingTheoTrangThai`, `vw_ChoTrongTheoLich`, …). Không cần thư mục Power BI.
+
+## Tài khoản sau khi seed
+
+| Số điện thoại | Vai trò | Mật khẩu |
+|---|---|---|
+| `0900000001` | Admin | `Test@123456` |
+| `0900000002` | Sale | `Test@123456` |
+| `0900000003` | Khách | `Test@123456` |
+| `0900000004` | Khách | `Test@123456` |
+
+Chỉ dùng local. Trên Azure đổi mật khẩu ngay.
+
+## Không ghép file RBAC cũ
+
+`rbac/001_Drop_UQ_KhachHang_MaUser.sql` bỏ qua: schema hiện không tạo `UQ_KhachHang_MaUser`. Database cũ nào còn constraint đó thì chạy file đó một lần, riêng.
