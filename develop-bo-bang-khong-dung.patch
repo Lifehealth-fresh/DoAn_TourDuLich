@@ -1,0 +1,355 @@
+diff --git a/ai-service/README.md b/ai-service/README.md
+index b1ac84e..22935c6 100644
+--- a/ai-service/README.md
++++ b/ai-service/README.md
+@@ -10,8 +10,8 @@ hạn cache input bằng `AI_CACHE_TTL_SECONDS`/`AI_REFRESH_INTERVAL_SECONDS` kh
+ 420 giây. Nhờ đó dữ liệu hành vi mới được phản ánh trong SLA tối đa 7 phút.
+ 
+ Lúc khởi động, service kiểm tra hợp đồng schema SQL và báo rõ bảng/cột thiếu nếu schema
+-không còn tương thích. `/health` trả tuổi của gợi ý mới nhất. Trạng thái mỗi lần worker
+-ASP.NET chạy được lưu ở `JobRunLog`, Admin xem qua `GET /api/ai-jobs/gan-nhat`.
++không còn tương thích. `/health` trả tuổi của gợi ý mới nhất. Worker ASP.NET ghi log
++khi làm mới `AIGoiY`. Script `031` đã xóa bảng `JobRunLog`; không có API `GET /api/ai-jobs/gan-nhat`.
+ 
+ ## Chạy local
+ 
+diff --git a/backend/src/TourDuLich.API/Controllers/ThongBaoController.cs b/backend/src/TourDuLich.API/Controllers/ThongBaoController.cs
+deleted file mode 100644
+index e15503a..0000000
+--- a/backend/src/TourDuLich.API/Controllers/ThongBaoController.cs
++++ /dev/null
+@@ -1,136 +0,0 @@
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-using Microsoft.EntityFrameworkCore;
+-using TourDuLich.Application.Helpers;
+-using TourDuLich.Infrastructure;
+-
+-namespace TourDuLich.API.Controllers;
+-
+-[ApiController]
+-[Route("api/[controller]")]
+-[Authorize]
+-public class ThongBaoController : ControllerBase
+-{
+-    private readonly AppDbContext _context;
+-
+-    public ThongBaoController(AppDbContext context)
+-    {
+-        _context = context;
+-    }
+-
+-    // GET /api/ThongBao/cua-toi?chuaDoc={true|false}
+-    [HttpGet("cua-toi")]
+-    public async Task<ActionResult> GetMine([FromQuery] bool? chuaDoc)
+-    {
+-        var maUser = GetCurrentMaUser();
+-
+-        if (maUser is null)
+-        {
+-            return Unauthorized();
+-        }
+-
+-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
+-
+-        var query = _context.ThongBaos
+-            .AsNoTracking()
+-            .Where(item => item.MaUser == maUserDb);
+-
+-        if (chuaDoc.HasValue)
+-        {
+-            query = query.Where(item => item.DaDoc == !chuaDoc.Value);
+-        }
+-
+-        var items = await query
+-            .OrderByDescending(item => item.NgayGui)
+-            .Select(item => new
+-            {
+-                maThongBao = FixedLengthHelper.TrimSafe(item.MaThongBao),
+-                tieuDe = item.TieuDe,
+-                noiDung = item.NoiDung,
+-                daDoc = item.DaDoc,
+-                ngayGui = item.NgayGui
+-            })
+-            .ToListAsync();
+-
+-        return Ok(items);
+-    }
+-
+-    // GET /api/ThongBao/cua-toi/dem-chua-doc
+-    [HttpGet("cua-toi/dem-chua-doc")]
+-    public async Task<ActionResult> CountUnread()
+-    {
+-        var maUser = GetCurrentMaUser();
+-
+-        if (maUser is null)
+-        {
+-            return Unauthorized();
+-        }
+-
+-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
+-
+-        var soLuong = await _context.ThongBaos
+-            .CountAsync(item =>
+-                item.MaUser == maUserDb &&
+-                item.DaDoc != true);
+-
+-        return Ok(new { soLuong });
+-    }
+-
+-    // PUT /api/ThongBao/{maThongBao}/danh-dau-da-doc
+-    [HttpPut("{maThongBao}/danh-dau-da-doc")]
+-    public async Task<IActionResult> MarkAsRead(string maThongBao)
+-    {
+-        var maUser = GetCurrentMaUser();
+-
+-        if (maUser is null)
+-        {
+-            return Unauthorized();
+-        }
+-
+-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
+-        var maThongBaoDb = FixedLengthHelper.PadTo20(maThongBao);
+-
+-        var thongBao = await _context.ThongBaos
+-            .FirstOrDefaultAsync(item =>
+-                item.MaThongBao == maThongBaoDb &&
+-                item.MaUser == maUserDb);
+-
+-        if (thongBao is null)
+-        {
+-            return NotFound(new { message = "Không tìm thấy thông báo của bạn." });
+-        }
+-
+-        thongBao.DaDoc = true;
+-        await _context.SaveChangesAsync();
+-        return NoContent();
+-    }
+-
+-    // PUT /api/ThongBao/danh-dau-tat-ca-da-doc
+-    [HttpPut("danh-dau-tat-ca-da-doc")]
+-    public async Task<IActionResult> MarkAllAsRead()
+-    {
+-        var maUser = GetCurrentMaUser();
+-
+-        if (maUser is null)
+-        {
+-            return Unauthorized();
+-        }
+-
+-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
+-
+-        await _context.ThongBaos
+-            .Where(item =>
+-                item.MaUser == maUserDb &&
+-                item.DaDoc != true)
+-            .ExecuteUpdateAsync(setters => setters.SetProperty(
+-                item => item.DaDoc,
+-                true));
+-
+-        return NoContent();
+-    }
+-
+-    private string? GetCurrentMaUser()
+-    {
+-        return User.FindFirst("MaUser")?.Value;
+-    }
+-}
+diff --git a/backend/src/TourDuLich.Application/Services/ThongBaoService.cs b/backend/src/TourDuLich.Application/Services/ThongBaoService.cs
+deleted file mode 100644
+index d15c9d7..0000000
+--- a/backend/src/TourDuLich.Application/Services/ThongBaoService.cs
++++ /dev/null
+@@ -1,46 +0,0 @@
+-using TourDuLich.Application.Helpers;
+-using TourDuLich.Infrastructure;
+-using TourDuLich.Infrastructure.Entities;
+-using Microsoft.EntityFrameworkCore;
+-
+-namespace TourDuLich.Application.Services;
+-
+-public class ThongBaoService
+-{
+-    public async Task TaoThongBaoAsync(
+-        AppDbContext context,
+-        string maUser,
+-        string tieuDe,
+-        string noiDung)
+-    {
+-        var maUserDb = FixedLengthHelper.PadTo20(maUser);
+-        var maThongBaoDb = await GenerateMaThongBaoAsync(context);
+-
+-        var thongBao = new ThongBao
+-        {
+-            MaThongBao = maThongBaoDb,
+-            MaUser = maUserDb,
+-            TieuDe = tieuDe.Trim(),
+-            NoiDung = noiDung.Trim(),
+-            DaDoc = false,
+-            NgayGui = DateOnly.FromDateTime(DateTime.UtcNow)
+-        };
+-
+-        context.ThongBaos.Add(thongBao);
+-    }
+-
+-    private static async Task<string> GenerateMaThongBaoAsync(AppDbContext context)
+-    {
+-        string maThongBaoDb;
+-
+-        do
+-        {
+-            var maThongBao = $"TB{Guid.NewGuid():N}"[..20].ToUpperInvariant();
+-            maThongBaoDb = FixedLengthHelper.PadTo20(maThongBao);
+-        }
+-        while (await context.ThongBaos
+-            .AnyAsync(item => item.MaThongBao == maThongBaoDb));
+-
+-        return maThongBaoDb;
+-    }
+-}
+diff --git a/backend/src/TourDuLich.Infrastructure/AppDbContext.cs b/backend/src/TourDuLich.Infrastructure/AppDbContext.cs
+index 072f5a6..580cc76 100644
+--- a/backend/src/TourDuLich.Infrastructure/AppDbContext.cs
++++ b/backend/src/TourDuLich.Infrastructure/AppDbContext.cs
+@@ -67,8 +67,6 @@ public virtual DbSet<SanPhamDoiTac> SanPhamDoiTacs { get; set; }
+ 
+     public virtual DbSet<ThanhToan> ThanhToans { get; set; }
+ 
+-    public virtual DbSet<ThongBao> ThongBaos { get; set; }
+-
+     public virtual DbSet<Tour> Tours { get; set; }
+ 
+     public virtual DbSet<VaiTro> VaiTros { get; set; }
+@@ -846,25 +844,6 @@ public virtual DbSet<SanPhamDoiTac> SanPhamDoiTacs { get; set; }
+                 .HasConstraintName("FK_ThanhToan_DatDichVu");
+         });
+ 
+-        modelBuilder.Entity<ThongBao>(entity =>
+-        {
+-            entity.HasKey(e => e.MaThongBao).HasName("PK__ThongBao__04DEB54EF2F13D18");
+-
+-            entity.ToTable("ThongBao");
+-
+-            entity.Property(e => e.MaThongBao)
+-                .HasMaxLength(20)
+-                .IsFixedLength();
+-            entity.Property(e => e.MaUser)
+-                .HasMaxLength(20)
+-                .IsFixedLength();
+-            entity.Property(e => e.TieuDe).HasMaxLength(50);
+-
+-            entity.HasOne(d => d.MaUserNavigation).WithMany(p => p.ThongBaos)
+-                .HasForeignKey(d => d.MaUser)
+-                .HasConstraintName("FK_ThongBao_NguoiSuDung");
+-        });
+-
+         modelBuilder.Entity<Tour>(entity =>
+         {
+             entity.HasKey(e => e.MaTour).HasName("PK__Tour__4E5557DE4C8B2BC3");
+diff --git a/backend/src/TourDuLich.Infrastructure/Entities/NguoiSuDung.cs b/backend/src/TourDuLich.Infrastructure/Entities/NguoiSuDung.cs
+index 69f4edd..1eefce8 100644
+--- a/backend/src/TourDuLich.Infrastructure/Entities/NguoiSuDung.cs
++++ b/backend/src/TourDuLich.Infrastructure/Entities/NguoiSuDung.cs
+@@ -33,8 +33,6 @@ public partial class NguoiSuDung
+ 
+     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+ 
+-    public virtual ICollection<ThongBao> ThongBaos { get; set; } = new List<ThongBao>();
+-
+     public virtual ICollection<YeuCauThietKe> YeuCauThietKes { get; set; } = new List<YeuCauThietKe>();
+ 
+     public string TrangThai { get; set; } = "HoatDong";
+diff --git a/backend/src/TourDuLich.Infrastructure/Entities/ThongBao.cs b/backend/src/TourDuLich.Infrastructure/Entities/ThongBao.cs
+deleted file mode 100644
+index 721ce5e..0000000
+--- a/backend/src/TourDuLich.Infrastructure/Entities/ThongBao.cs
++++ /dev/null
+@@ -1,21 +0,0 @@
+-﻿using System;
+-using System.Collections.Generic;
+-
+-namespace TourDuLich.Infrastructure.Entities;
+-
+-public partial class ThongBao
+-{
+-    public string MaThongBao { get; set; } = null!;
+-
+-    public string? MaUser { get; set; }
+-
+-    public string? TieuDe { get; set; }
+-
+-    public string? NoiDung { get; set; }
+-
+-    public bool? DaDoc { get; set; }
+-
+-    public DateOnly? NgayGui { get; set; }
+-
+-    public virtual NguoiSuDung? MaUserNavigation { get; set; }
+-}
+diff --git a/docs/BPMN-TONG-THE.md b/docs/BPMN-TONG-THE.md
+index f258ee4..2fad162 100644
+--- a/docs/BPMN-TONG-THE.md
++++ b/docs/BPMN-TONG-THE.md
+@@ -60,7 +60,7 @@ flowchart TD
+         A1[Đọc HanhViKhachHang<br/>DatDichVu / YeuThich / HoSo<br/>mỗi ≤ 7 phút]
+         A2[Hybrid CB+CF + K-Means<br/>+ fallback cold start PhoBien]
+         A3[UPSERT AIGoiY<br/>MaRecommodation + DiemPhuHop + LyDo]
+-        A4[/health + JobRunLog/]
++        A4[/health<br/>tuổi gợi ý mới nhất/]
+     end
+ 
+     subgraph BI[Power BI + Views]
+diff --git a/docs/KE_HOACH_KIEM_THU_HE_THONG.md b/docs/KE_HOACH_KIEM_THU_HE_THONG.md
+index a0ad79d..1e664a9 100644
+--- a/docs/KE_HOACH_KIEM_THU_HE_THONG.md
++++ b/docs/KE_HOACH_KIEM_THU_HE_THONG.md
+@@ -40,9 +40,9 @@ FROM INFORMATION_SCHEMA.COLUMNS
+ WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'AnhTour'
+ ORDER BY ORDINAL_POSITION;
+ 
+-SELECT TOP (20) *
+-FROM dbo.JobRunLog
+-ORDER BY BatDauLuc DESC;
++SELECT TOP (20) MaTour, NgayGoiY, DiemPhuHop
++FROM dbo.AIGoiY
++ORDER BY NgayGoiY DESC;
+ ```
+ 
+ ## 3. Mẫu ghi nhận cho từng ca
+@@ -155,7 +155,7 @@ Trường có dấu `?` là nullable trong DTO; các trường còn lại phải
+ | AI-01 | Gọi `POST /api/AiGoiY/sinh-goi-y` khi AI đang chạy; test `SoLuong`, `Alpha`, `MaUser` là owner/khác owner. | Gợi ý thuộc user phù hợp; role/ownership đúng. |
+ | AI-02 | Lấy `/api/AiGoiY/cua-toi`; so khớp với hành vi/booking đã tạo. | Không lộ gợi ý user khác; không lỗi khi dữ liệu thưa. |
+ | AI-03 | Dừng AI service có chủ đích rồi gọi backend; khởi động lại và gọi tiếp. | Backend trả lỗi có kiểm soát, không treo/500 vô nghĩa; sau khi chạy lại phục hồi. |
+-| AI-04 | Kiểm tra `/health`, `GET /api/ai-jobs/gan-nhat` với Admin, và `JobRunLog`. | Job chạy trong SLA tối đa 7 phút (`latestRecommendationAgeSeconds <= 420` khi hệ thống ổn định); log có bắt đầu/kết thúc/trạng thái/thông tin lỗi khi có lỗi. Customer/Sale không được xem endpoint Admin. |
++| AI-04 | Kiểm tra `GET /health` của AI service. | Khi hệ thống ổn định, `latestRecommendationAgeSeconds` không quá 420. Không có bảng `JobRunLog` và không có `GET /api/ai-jobs/gan-nhat`. |
+ 
+ ### 5.8 Phân trang, lỗi chung và Power BI
+ 
+@@ -164,7 +164,7 @@ Trường có dấu `?` là nullable trong DTO; các trường còn lại phải
+ | API-01 | Với các list hỗ trợ `page/pageSize` hoặc query tương ứng: trang đầu, trang sau, pageSize 1, biên lớn, 0/âm/chữ. | Kết quả ổn định, tổng/phân trang đúng, input sai bị xử lý không 500. |
+ | API-02 | Gọi từng route bằng ID/mã không tồn tại, JSON lỗi, field thừa, Content-Type sai. | 400/404 phù hợp, response không chứa stack trace/secret. |
+ | API-03 | Kiểm tra 21 controller trong Swagger theo từng method, đối chiếu với bảng này. | Không có route nào bị bỏ qua; thêm dòng test nếu Swagger có action mới. |
+-| BI-01 | Mở dataset/Power BI bằng user có quyền DB chỉ đọc; kiểm tra số booking, doanh thu đã xác nhận, thanh toán chờ, đánh giá, hành vi, recommendation và JobRunLog. | Số dashboard đối chiếu được với truy vấn SQL/API ở cùng thời điểm; không dùng thanh toán bị từ chối làm doanh thu. |
++| BI-01 | Mở dataset/Power BI bằng user có quyền DB chỉ đọc; kiểm tra số booking, doanh thu đã xác nhận, thanh toán chờ, đánh giá, hành vi và recommendation. | Số dashboard đối chiếu được với truy vấn SQL/API ở cùng thời điểm; không dùng thanh toán bị từ chối làm doanh thu. |
+ | BI-02 | Tạo một booking/thanh toán/AI job test rồi refresh dashboard. | Số liệu thay đổi đúng nguồn, đúng kỳ thời gian; không trùng do idempotency. |
+ 
+ ## 6. Kịch bản frontend customer end-to-end
+@@ -189,7 +189,7 @@ Giao diện admin chưa thuộc phạm vi chỉnh sửa hiện tại, nhưng v
+ |---|---|---|
+ | ADM-UI-01 | Login Admin và Sale bằng tài khoản seed. | Admin vào màn quản trị; Sale chỉ thấy/hành động trong quyền được cấp. |
+ | ADM-UI-02 | Quản lý tour/lịch trình/lịch khởi hành/media, booking, hợp đồng, thanh toán, khuyến mãi, đối tác/sản phẩm, yêu cầu thiết kế. | Các thao tác UI tạo đúng request API và hiện thông báo thành công/lỗi. |
+-| ADM-UI-03 | Admin mở dashboard/AI jobs. | Chỉ Admin xem được JobRunLog và số liệu; số liệu đối chiếu BI/API. |
++| ADM-UI-03 | Admin mở trang tổng quan. | Số liệu đối chiếu view/API. Không có màn JobRunLog. |
+ 
+ ## 8. Regression tự động và tiêu chí nghiệm thu
+ 
+diff --git a/powerbi/CHECKLIST_DONG_BO_BI.md b/powerbi/CHECKLIST_DONG_BO_BI.md
+index b34aa79..a703181 100644
+--- a/powerbi/CHECKLIST_DONG_BO_BI.md
++++ b/powerbi/CHECKLIST_DONG_BO_BI.md
+@@ -10,4 +10,4 @@ SQL Server là nguồn chân lý. Dùng các view trong `database/schema/005_Vie
+ - Doanh thu theo tháng: `vw_DoanhThuTheoThang.DaThu`.
+ - Phân bổ booking: `vw_BookingTheoTrangThai`.
+ - Dữ liệu đối tác là dữ liệu mock/giả lập nếu chưa tích hợp đối tác thật; gắn disclaimer trên dashboard.
+-- Khi refresh dashboard, kiểm tra `GET /api/ai-jobs/gan-nhat` bằng tài khoản Admin và tuổi `latestRecommendationAgeSeconds` của `/health`; SLA là không quá 420 giây.
++- Khi refresh dashboard, kiểm tra `latestRecommendationAgeSeconds` của `/health`; SLA là không quá 420 giây. Không gọi `GET /api/ai-jobs/gan-nhat` vì endpoint này không có.

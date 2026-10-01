@@ -10,4 +10,4 @@ SQL Server là nguồn chân lý. Dùng các view trong `database/schema/005_Vie
 - Doanh thu theo tháng: `vw_DoanhThuTheoThang.DaThu`.
 - Phân bổ booking: `vw_BookingTheoTrangThai`.
 - Dữ liệu đối tác là dữ liệu mock/giả lập nếu chưa tích hợp đối tác thật; gắn disclaimer trên dashboard.
-- Khi refresh dashboard, kiểm tra `GET /api/ai-jobs/gan-nhat` bằng tài khoản Admin và tuổi `latestRecommendationAgeSeconds` của `/health`; SLA là không quá 420 giây.
+- Khi refresh dashboard, kiểm tra `latestRecommendationAgeSeconds` của `/health`; SLA là không quá 420 giây. Không gọi `GET /api/ai-jobs/gan-nhat` vì endpoint này không có.

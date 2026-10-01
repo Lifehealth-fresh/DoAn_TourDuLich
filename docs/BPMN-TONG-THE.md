@@ -60,7 +60,7 @@ flowchart TD
         A1[Đọc HanhViKhachHang<br/>DatDichVu / YeuThich / HoSo<br/>mỗi ≤ 7 phút]
         A2[Hybrid CB+CF + K-Means<br/>+ fallback cold start PhoBien]
         A3[UPSERT AIGoiY<br/>MaRecommodation + DiemPhuHop + LyDo]
-        A4[/health + JobRunLog/]
+        A4[/health<br/>tuổi gợi ý mới nhất/]
     end
 
     subgraph BI[Power BI + Views]

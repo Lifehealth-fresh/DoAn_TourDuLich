@@ -40,9 +40,9 @@ FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'AnhTour'
 ORDER BY ORDINAL_POSITION;
 
-SELECT TOP (20) *
-FROM dbo.JobRunLog
-ORDER BY BatDauLuc DESC;
+SELECT TOP (20) MaTour, NgayGoiY, DiemPhuHop
+FROM dbo.AIGoiY
+ORDER BY NgayGoiY DESC;
 ```
 
 ## 3. Mẫu ghi nhận cho từng ca
@@ -155,7 +155,7 @@ Trường có dấu `?` là nullable trong DTO; các trường còn lại phải
 | AI-01 | Gọi `POST /api/AiGoiY/sinh-goi-y` khi AI đang chạy; test `SoLuong`, `Alpha`, `MaUser` là owner/khác owner. | Gợi ý thuộc user phù hợp; role/ownership đúng. |
 | AI-02 | Lấy `/api/AiGoiY/cua-toi`; so khớp với hành vi/booking đã tạo. | Không lộ gợi ý user khác; không lỗi khi dữ liệu thưa. |
 | AI-03 | Dừng AI service có chủ đích rồi gọi backend; khởi động lại và gọi tiếp. | Backend trả lỗi có kiểm soát, không treo/500 vô nghĩa; sau khi chạy lại phục hồi. |
-| AI-04 | Kiểm tra `/health`, `GET /api/ai-jobs/gan-nhat` với Admin, và `JobRunLog`. | Job chạy trong SLA tối đa 7 phút (`latestRecommendationAgeSeconds <= 420` khi hệ thống ổn định); log có bắt đầu/kết thúc/trạng thái/thông tin lỗi khi có lỗi. Customer/Sale không được xem endpoint Admin. |
+| AI-04 | Kiểm tra `GET /health` của AI service. | Khi hệ thống ổn định, `latestRecommendationAgeSeconds` không quá 420. Không có bảng `JobRunLog` và không có `GET /api/ai-jobs/gan-nhat`. |
 
 ### 5.8 Phân trang, lỗi chung và Power BI
 
@@ -164,7 +164,7 @@ Trường có dấu `?` là nullable trong DTO; các trường còn lại phải
 | API-01 | Với các list hỗ trợ `page/pageSize` hoặc query tương ứng: trang đầu, trang sau, pageSize 1, biên lớn, 0/âm/chữ. | Kết quả ổn định, tổng/phân trang đúng, input sai bị xử lý không 500. |
 | API-02 | Gọi từng route bằng ID/mã không tồn tại, JSON lỗi, field thừa, Content-Type sai. | 400/404 phù hợp, response không chứa stack trace/secret. |
 | API-03 | Kiểm tra 21 controller trong Swagger theo từng method, đối chiếu với bảng này. | Không có route nào bị bỏ qua; thêm dòng test nếu Swagger có action mới. |
-| BI-01 | Mở dataset/Power BI bằng user có quyền DB chỉ đọc; kiểm tra số booking, doanh thu đã xác nhận, thanh toán chờ, đánh giá, hành vi, recommendation và JobRunLog. | Số dashboard đối chiếu được với truy vấn SQL/API ở cùng thời điểm; không dùng thanh toán bị từ chối làm doanh thu. |
+| BI-01 | Mở dataset/Power BI bằng user có quyền DB chỉ đọc; kiểm tra số booking, doanh thu đã xác nhận, thanh toán chờ, đánh giá, hành vi và recommendation. | Số dashboard đối chiếu được với truy vấn SQL/API ở cùng thời điểm; không dùng thanh toán bị từ chối làm doanh thu. |
 | BI-02 | Tạo một booking/thanh toán/AI job test rồi refresh dashboard. | Số liệu thay đổi đúng nguồn, đúng kỳ thời gian; không trùng do idempotency. |
 
 ## 6. Kịch bản frontend customer end-to-end
@@ -189,7 +189,7 @@ Giao diện admin chưa thuộc phạm vi chỉnh sửa hiện tại, nhưng v�
 |---|---|---|
 | ADM-UI-01 | Login Admin và Sale bằng tài khoản seed. | Admin vào màn quản trị; Sale chỉ thấy/hành động trong quyền được cấp. |
 | ADM-UI-02 | Quản lý tour/lịch trình/lịch khởi hành/media, booking, hợp đồng, thanh toán, khuyến mãi, đối tác/sản phẩm, yêu cầu thiết kế. | Các thao tác UI tạo đúng request API và hiện thông báo thành công/lỗi. |
-| ADM-UI-03 | Admin mở dashboard/AI jobs. | Chỉ Admin xem được JobRunLog và số liệu; số liệu đối chiếu BI/API. |
+| ADM-UI-03 | Admin mở trang tổng quan. | Số liệu đối chiếu view/API. Không có màn JobRunLog. |
 
 ## 8. Regression tự động và tiêu chí nghiệm thu
 
